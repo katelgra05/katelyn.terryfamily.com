@@ -1,6 +1,7 @@
 body {
   background: white;
   background-image: url("/flower.jpg");
+  color: white
 }
 
 p {
