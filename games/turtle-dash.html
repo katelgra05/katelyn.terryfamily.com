@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turtle Dash</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(to bottom,
+        #1E90FF 0%,     /* Deep water - darker blue */
+        #4169E1 15%,    /* Medium-deep water */
+        #87CEEB 25%,    /* Medium water */
+        #87CEFA 30%,    /* Shallow water - lighter blue */
+        #FFDAB9 33%     /* Beach color */
+      );
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    #gameOver {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      color: red;
+      display: none;
+    }
+    #tryAgain, #startGame {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      display: none;
+    }
+    #startGame {
+      display: block;
+      font-size: 32px; /* Make the font size bigger */
+      background-color: green; /* Make the button green */
+      color: white; /* Make the text color white */
+      padding: 20px 40px; /* Increase padding for a bigger button */
+      border: none; /* Remove border */
+      border-radius: 10px; /* Add border radius for rounded corners */
+      cursor: pointer; /* Change cursor to pointer */
+      z-index: 1; /* Ensure the start button is behind the instructions */
+    }
+    h1 {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-family: Arial, sans-serif;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      z-index: 1;
+    }
+    #instructions {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      max-width: 80%;
+      display: block;
+      z-index: 2; /* Ensure the instructions are in front of the start button */
+    }
+
+    #instructions h2 {
+      color: #1E90FF;
+      margin-bottom: 20px;
+    }
+
+    #instructions p {
+      margin: 10px 0;
+      line-height: 1.5;
+    }
+
+    .key {
+      background-color: #333;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin: 0 2px;
+    }
+
+    .close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 5px 10px;
+      border-radius: 50%;
+      transition: background-color 0.3s;
+    }
+
+    .close-button:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    #goHome {
+      position: absolute;
+      top: 65%;  /* Changed from 70% to 65% to move it closer */
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      display: none;
+    }
+
+    #tryAgain, #goHome {
+      position: absolute;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: Arial, sans-serif;
+      text-transform: uppercase;
+      font-weight: bold;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    #tryAgain {
+      top: 60%;
+      background-color: #4CAF50;  /* Green */
+      color: white;
+    }
+
+    #goHome {
+      top: 65%;
+      background-color: #2196F3;  /* Blue */
+      color: white;
+    }
+
+    #tryAgain:hover, #goHome:hover {
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    #tryAgain:active, #goHome:active {
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+
+    #scoreDisplay {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 24px;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <h1>Turtle Dash</h1>
+  <div id="scoreDisplay">Shells: 0/10</div>
+  <div id="instructions">
+    <button class="close-button" onclick="closeInstructions()">×</button>
+    <h2>How to Play</h2>
+    <p>🐢 <strong>Turtle Controls:</strong><br>
+      Use <span class="key">↑</span> <span class="key">↓</span> <span class="key">←</span> <span class="key">→</span> arrow keys to move the turtle</p>
+    
+    <p>🦈 <strong>Shark Controls:</strong><br>
+      Use <span class="key">W</span> <span class="key">S</span> <span class="key">A</span> <span class="key">D</span> keys to move the shark</p>
+    
+    <p><strong>Turtle's Objective:</strong><br>
+        🐚 Collect shells to score points<br>
+      ⚠️ Don't let the shark catch you!</p>
+
+    <p><strong>Shark's Objective:</strong><br>
+      Catch the turtle before they get all the shells!</p>
+  </div>
+  <button id="startGame" onclick="startGame()">Start Game</button>
+  <canvas id="myCanvas" style="display: none;"></canvas>
+  <div id="gameOver">GAME OVER</div>
+  <button id="tryAgain" onclick="restartGame()">Try Again?</button>
+  <button id="goHome" onclick="goToHome()">Go back to homepage</button>
+  <script>
+    let turtleX, turtleY, sharkX, sharkY;
+    let direction = 'up'; // Initial direction
+    let keysPressed = {};
+    let gameOver = false;
+    let coins = [];
+    let score = 0;
+    let sharkFacingLeft = false;
+
+    function resizeCanvas() {
+      const canvas = document.getElementById('myCanvas');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      turtleX = canvas.width / 2;
+      turtleY = canvas.height / 2;
+      sharkX = canvas.width / 4; // Start the shark more to the left
+      sharkY = canvas.height / 2;
+      drawTurtle();
+      drawShark();
+    }
+
+    function drawShark() {
+      const canvas = document.getElementById('myCanvas');
+      const ctx = canvas.getContext('2d');
+      const radius = 50;
+
+      // Calculate distance to turtle
+      const distanceToTurtle = Math.sqrt((sharkX - turtleX) ** 2 + (sharkY - turtleY) ** 2);
+      const isClose = distanceToTurtle < 200;
+      
+      ctx.save();
+      ctx.translate(sharkX, sharkY);
+
+      // Update direction based on key press
+      if (keysPressed['a']) {
+        sharkFacingLeft = true;
+      } else if (keysPressed['d']) {
+        sharkFacingLeft = false;
+      }
+
+      // Scale based on stored direction
+      if (sharkFacingLeft) {
+        ctx.scale(-1, 1);
+      }
+
+      // Draw shark body - changes based on distance
+      ctx.beginPath();
+      if (isClose) {
+        // When close, draw with mouth open (1/12 cut out)
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, radius, Math.PI/3, 11 * Math.PI/6, false);
+        ctx.closePath();
+      } else {
+        // When far, draw complete circle
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      }
+      ctx.fillStyle = 'grey';
+      ctx.fill();
+
+      // Draw shark eye
+      ctx.beginPath();
+      ctx.arc(radius/4, -radius/6, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'black';
+      ctx.fill();
+
+      // Add white highlight to eye
+      ctx.beginPath();
+      ctx.arc(radius/4 + 1, -radius/6 - 1, 2, 0, Math.PI * 2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function drawTurtle() {
+      const canvas = document.getElementById('myCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawCurrents();
+      drawCoins();
+      drawShark();
+
+      ctx.save();
+      ctx.translate(turtleX, turtleY);
+
+      switch(direction) {
+        case 'up':
+          ctx.rotate(0);
+          break;
+        case 'down':
+          ctx.rotate(Math.PI);
+          break;
+        case 'left':
+          ctx.rotate(-Math.PI / 2);
+          break;
+        case 'right':
+          ctx.rotate(Math.PI / 2);
+          break;
+        case 'up-right':
+          ctx.rotate(Math.PI / 4);
+          break;
+        case 'up-left':
+          ctx.rotate(-Math.PI / 4);
+          break;
+        case 'down-right':
+          ctx.rotate(3 * Math.PI / 4);
+          break;
+        case 'down-left':
+          ctx.rotate(-3 * Math.PI / 4);
+          break;
+      }
+
+      // Define sizes
+      const shellRadius = 50;
+      const limbRadius = 10;
+      const headRadius = 25;
+      const eyeRadius = 2.5;
+
+      // Draw limbs
+      const limbOffsets = [
+        [-shellRadius + limbRadius, -shellRadius + limbRadius],
+        [shellRadius - limbRadius, -shellRadius + limbRadius],
+        [-shellRadius + limbRadius, shellRadius - limbRadius],
+        [shellRadius - limbRadius, shellRadius - limbRadius]
+      ];
+
+      limbOffsets.forEach(offset => {
+        ctx.beginPath();
+        ctx.arc(offset[0], offset[1], limbRadius, 0, Math.PI * 2, true);
+        ctx.fillStyle = 'green';
+        ctx.fill();
+      });
+
+      // Draw head
+      ctx.beginPath();
+      ctx.arc(0, -shellRadius - headRadius + 5, headRadius, 0, Math.PI * 2, true);
+      ctx.fillStyle = 'green';
+      ctx.fill();
+
+      // Draw eyes
+      const eyeOffsets = [
+        [-eyeRadius * 2, -eyeRadius],
+        [eyeRadius * 2, -eyeRadius]
+      ];
+
+      eyeOffsets.forEach(offset => {
+        ctx.beginPath();
+        ctx.arc(offset[0], -shellRadius - headRadius + offset[1] + 5, eyeRadius, 0, Math.PI * 2, true);
+        ctx.fillStyle = 'black';
+        ctx.fill();
+      });
+
+      // Draw tail
+      ctx.beginPath();
+      ctx.moveTo(0, shellRadius + 15);
+      ctx.lineTo(-5, shellRadius - 1.5);
+      ctx.lineTo(5, shellRadius - 1.5);
+      ctx.closePath();
+      ctx.fillStyle = 'green';
+      ctx.fill();
+
+      // Draw shell
+      ctx.beginPath();
+      ctx.arc(0, 0, shellRadius, 0, Math.PI * 2, true);
+      ctx.fillStyle = '#006400';
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function moveTurtle() {
+      const step = 4.5;
+      
+      // If in water (top third of screen), push down
+      if (turtleY < window.innerHeight / 3) {
+        turtleY += 3; // Constant downward push in water
+      }
+      
+      if (keysPressed['ArrowUp'] && keysPressed['ArrowRight']) {
+        direction = 'up-right';
+        if (turtleY - 75 > 0 && turtleX + 75 < window.innerWidth) {
+          turtleY -= step;
+          turtleX += step;
+        }
+      } else if (keysPressed['ArrowUp'] && keysPressed['ArrowLeft']) {
+        direction = 'up-left';
+        if (turtleY - 75 > 0 && turtleX - 75 > 0) {
+          turtleY -= step;
+          turtleX -= step;
+        }
+      } else if (keysPressed['ArrowDown'] && keysPressed['ArrowRight']) {
+        direction = 'down-right';
+        if (turtleY + 75 < window.innerHeight && turtleX + 75 < window.innerWidth) {
+          turtleY += step;
+          turtleX += step;
+        }
+      } else if (keysPressed['ArrowDown'] && keysPressed['ArrowLeft']) {
+        direction = 'down-left';
+        if (turtleY + 75 < window.innerHeight && turtleX - 75 > 0) {
+          turtleY += step;
+          turtleX -= step;
+        }
+      } else if (keysPressed['ArrowUp']) {
+        direction = 'up';
+        if (turtleY - 75 > 0) {
+          turtleY -= step;
+        }
+      } else if (keysPressed['ArrowDown']) {
+        direction = 'down';
+        if (turtleY + 75 < window.innerHeight) {
+          turtleY += step;
+        }
+      } else if (keysPressed['ArrowLeft']) {
+        direction = 'left';
+        if (turtleX - 75 > 0) {
+          turtleX -= step;
+        }
+      } else if (keysPressed['ArrowRight']) {
+        direction = 'right';
+        if (turtleX + 75 < window.innerWidth) {
+          turtleX += step;
+        }
+      }
+    }
+
+    function moveShark() {
+      const step = 3;
+      
+      // If in water (top third of screen), push down
+      if (sharkY < window.innerHeight / 3) {
+        sharkY += 2; // Keeping the same current effect
+      }
+      
+      if (keysPressed['w']) {
+        if (sharkY - 75 > 0) {
+          sharkY -= step;
+        }
+      } else if (keysPressed['s']) {
+        if (sharkY + 75 < window.innerHeight) {
+          sharkY += step;
+        }
+      } else if (keysPressed['a']) {
+        if (sharkX - 75 > 0) {
+          sharkX -= step;
+        }
+      } else if (keysPressed['d']) {
+        if (sharkX + 75 < window.innerWidth) {
+          sharkX += step;
+        }
+      }
+    }
+
+    function checkCollision() {
+      // Main body (shell) collision
+      const bodyDistance = Math.sqrt((turtleX - sharkX) ** 2 + (turtleY - sharkY) ** 2);
+      
+      // Calculate head position based on direction
+      let headX = turtleX;
+      let headY = turtleY;
+      
+      switch(direction) {
+        case 'up':
+          headY -= 75;
+          break;
+        case 'down':
+          headY += 75;
+          break;
+        case 'left':
+          headX -= 75;
+          break;
+        case 'right':
+          headX += 75;
+          break;
+        case 'up-right':
+          headX += 53; // 75 * cos(45°)
+          headY -= 53; // 75 * sin(45°)
+          break;
+        case 'up-left':
+          headX -= 53;
+          headY -= 53;
+          break;
+        case 'down-right':
+          headX += 53;
+          headY += 53;
+          break;
+        case 'down-left':
+          headX -= 53;
+          headY += 53;
+          break;
+      }
+      
+      const headDistance = Math.sqrt((headX - sharkX) ** 2 + (headY - sharkY) ** 2);
+      
+      // Limb positions relative to turtle's center
+      const limbPositions = [
+        { x: turtleX - 50, y: turtleY - 50 }, // Top left
+        { x: turtleX + 50, y: turtleY - 50 }, // Top right
+        { x: turtleX - 50, y: turtleY + 50 }, // Bottom left
+        { x: turtleX + 50, y: turtleY + 50 }  // Bottom right
+      ];
+      
+      const limbCollisions = limbPositions.map(pos => 
+        Math.sqrt((pos.x - sharkX) ** 2 + (pos.y - sharkY) ** 2)
+      );
+      
+      // Calculate tail position (opposite to head)
+      let tailX = turtleX;
+      let tailY = turtleY;
+      
+      switch(direction) {
+        case 'up':
+          tailY += 65;
+          break;
+        case 'down':
+          tailY -= 65;
+          break;
+        case 'left':
+          tailX += 65;
+          break;
+        case 'right':
+          tailX -= 65;
+          break;
+        case 'up-right':
+          tailX -= 46; // 65 * cos(45°)
+          tailY += 46; // 65 * sin(45°)
+          break;
+        case 'up-left':
+          tailX += 46;
+          tailY += 46;
+          break;
+        case 'down-right':
+          tailX -= 46;
+          tailY -= 46;
+          break;
+        case 'down-left':
+          tailX += 46;
+          tailY -= 46;
+          break;
+      }
+      
+      const tailDistance = Math.sqrt((tailX - sharkX) ** 2 + (tailY - sharkY) ** 2);
+      
+      // Check if any part collides with the shark
+      if (bodyDistance < 75 || // Shell collision
+          headDistance < 40 || // Head collision
+          tailDistance < 30 || // Tail collision
+          limbCollisions.some(dist => dist < 35)) { // Limb collisions
+        
+        gameOver = true;
+        document.getElementById('gameOver').textContent = 'SHARK WINS!';
+        document.getElementById('gameOver').style.color = 'green';
+        document.getElementById('gameOver').style.display = 'block';
+        document.getElementById('tryAgain').style.display = 'block';
+        document.getElementById('goHome').style.display = 'block';
+      }
+    }
+
+    function gameLoop() {
+      if (!gameOver) {
+        moveTurtle();
+        moveShark();
+        checkCoinCollection();
+        drawTurtle();
+        checkCollision();
+        requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function keyDownHandler(event) {
+      keysPressed[event.key] = true;
+    }
+
+    function keyUpHandler(event) {
+      delete keysPressed[event.key];
+    }
+
+    function restartGame() {
+      gameOver = false;
+      document.getElementById('gameOver').textContent = 'GAME OVER';
+      document.getElementById('gameOver').style.color = 'red';
+      document.getElementById('gameOver').style.display = 'none';
+      document.getElementById('tryAgain').style.display = 'none';
+      document.getElementById('goHome').style.display = 'none';
+      document.getElementById('myCanvas').style.display = 'block';
+      score = 0;
+      document.getElementById('scoreDisplay').textContent = 'Shells: 0/10';
+      resizeCanvas();
+      coins = [];
+      createCoins();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() {
+      document.getElementById('instructions').style.display = 'none';
+      document.getElementById('startGame').style.display = 'none';
+      document.getElementById('myCanvas').style.display = 'block';
+      score = 0;
+      document.getElementById('scoreDisplay').textContent = 'Shells: 0/10';
+      resizeCanvas();
+      coins = [];
+      createCoins();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function closeInstructions() {
+      document.getElementById('instructions').style.display = 'none';
+    }
+
+    function goToHome() {
+      // Hide game over elements
+      document.getElementById('gameOver').style.display = 'none';
+      document.getElementById('tryAgain').style.display = 'none';
+      document.getElementById('goHome').style.display = 'none';
+      document.getElementById('myCanvas').style.display = 'none';
+      
+      // Show initial elements
+      document.getElementById('instructions').style.display = 'block';
+      document.getElementById('startGame').style.display = 'block';
+      
+      // Reset game state
+      gameOver = false;
+      resizeCanvas();
+    }
+
+    function createCoins(numCoins = 10) {
+      const canvas = document.getElementById('myCanvas');
+      const minDistance = 100; // Minimum distance from turtle and shark
+      const coinSpacing = 30; // Minimum distance between coins
+      const margin = 100; // Margin from edges of screen
+      
+      for (let i = 0; i < numCoins; i++) {
+        let validPosition = false;
+        let newCoin;
+        
+        // Keep trying until we find a valid position
+        while (!validPosition) {
+          newCoin = {
+            x: Math.random() * (canvas.width - 2 * margin) + margin,
+            y: Math.random() * (canvas.height - 2 * margin) + margin,
+            radius: 10
+          };
+          
+          // Check distance from turtle and shark
+          const turtleDistance = Math.sqrt(
+            (newCoin.x - turtleX) ** 2 + 
+            (newCoin.y - turtleY) ** 2
+          );
+          
+          const sharkDistance = Math.sqrt(
+            (newCoin.x - sharkX) ** 2 + 
+            (newCoin.y - sharkY) ** 2
+          );
+          
+          // Check distance from other coins
+          const coinOverlap = coins.some(coin => {
+            const distance = Math.sqrt(
+              (newCoin.x - coin.x) ** 2 + 
+              (newCoin.y - coin.y) ** 2
+            );
+            return distance < coinSpacing;
+          });
+          
+          // Position is valid if it's not too close to anything
+          if (turtleDistance > minDistance && 
+              sharkDistance > minDistance && 
+              !coinOverlap &&
+              newCoin.x > margin && 
+              newCoin.x < canvas.width - margin && 
+              newCoin.y > margin && 
+              newCoin.y < canvas.height - margin) {
+            validPosition = true;
+          }
+        }
+        
+        coins.push(newCoin);
+      }
+    }
+
+    function drawCoins() {
+      coins.forEach(coin => {
+        const ctx = document.getElementById('myCanvas').getContext('2d');
+        
+        ctx.save();
+        ctx.translate(coin.x, coin.y);
+        
+        // Main shell body
+        ctx.beginPath();
+        let startAngle = -Math.PI/2;
+        let endAngle = Math.PI * 4;
+        let radius = 15;
+        let x = 0, y = 0;
+        let prevX = 0, prevY = 0;
+        
+        // Create the spiral shape
+        ctx.moveTo(0, -radius);
+        for(let angle = startAngle; angle <= endAngle; angle += 0.1) {
+          radius = 15 * Math.pow(0.8, angle/Math.PI);
+          x = radius * Math.cos(angle);
+          y = radius * Math.sin(angle);
+          ctx.lineTo(x, y);
+          prevX = x;
+          prevY = y;
+        }
+        
+        // Close the shape to create the shell
+        ctx.lineTo(0, 0);
+        ctx.closePath();
+        
+        // Fill with new base color - warmer orange
+        ctx.fillStyle = '#FFD7B3';  // More orange tint
+        ctx.fill();
+        
+        // Add spiral lines for detail
+        for(let angle = startAngle; angle <= endAngle; angle += Math.PI/4) {
+          ctx.beginPath();
+          radius = 15 * Math.pow(0.8, angle/Math.PI);
+          x = radius * Math.cos(angle);
+          y = radius * Math.sin(angle);
+          ctx.moveTo(0, 0);
+          ctx.lineTo(x, y);
+          ctx.strokeStyle = '#E69966';  // Darker orange for details
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        
+        // Add shading
+        ctx.beginPath();
+        for(let angle = startAngle; angle <= endAngle; angle += 0.1) {
+          radius = 15 * Math.pow(0.8, angle/Math.PI);
+          x = radius * Math.cos(angle);
+          y = radius * Math.sin(angle);
+          ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = '#E69966';  // Matching darker orange
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        ctx.restore();
+      });
+    }
+
+    function checkCoinCollection() {
+      const turtleCollectionDistance = 50; // Distance for turtle to collect coins
+      const sharkAvoidanceDistance = 100; // Distance to move coins away from shark
+      
+      coins = coins.filter(coin => {
+        // Check turtle collection
+        const turtleDistance = Math.sqrt((turtleX - coin.x) ** 2 + (turtleY - coin.y) ** 2);
+        
+        // Check shark proximity
+        const sharkDistance = Math.sqrt((sharkX - coin.x) ** 2 + (sharkY - coin.y) ** 2);
+        
+        // If shark gets too close, move the coin to a new safe location
+        if (sharkDistance < sharkAvoidanceDistance) {
+          // Find new position for coin
+          let newPosition = findSafePosition();
+          coin.x = newPosition.x;
+          coin.y = newPosition.y;
+          return true; // Keep the coin but in new position
+        }
+        
+        // Check if turtle collects the coin
+        if (turtleDistance < turtleCollectionDistance) {
+          score += 10;
+          document.getElementById('scoreDisplay').textContent = `Shells: ${score/10}/10`;
+          
+          if (score/10 >= 10) {
+            gameOver = true;
+            document.getElementById('gameOver').textContent = 'TURTLE WINS!';
+            document.getElementById('gameOver').style.color = 'green';
+            document.getElementById('gameOver').style.display = 'block';
+            document.getElementById('tryAgain').style.display = 'block';
+            document.getElementById('goHome').style.display = 'block';
+          }
+          return false; // Remove collected coin
+        }
+        return true; // Keep coin if not collected
+      });
+      
+      if (coins.length === 0 && !gameOver) {
+        createCoins();
+      }
+    }
+
+    // Helper function to find safe position for coins
+    function findSafePosition() {
+      const canvas = document.getElementById('myCanvas');
+      const margin = 100;
+      let position;
+      let isValid = false;
+      
+      while (!isValid) {
+        position = {
+          x: Math.random() * (canvas.width - 2 * margin) + margin,
+          y: Math.random() * (canvas.height - 2 * margin) + margin
+        };
+        
+        // Check distances from both turtle and shark
+        const sharkDist = Math.sqrt((position.x - sharkX) ** 2 + (position.y - sharkY) ** 2);
+        const turtleDist = Math.sqrt((position.x - turtleX) ** 2 + (position.y - turtleY) ** 2);
+        
+        // Position is valid if it's not too close to either character
+        if (sharkDist > 150 && turtleDist > 100) {
+          isValid = true;
+        }
+      }
+      
+      return position;
+    }
+
+    function drawCurrents() {
+      const canvas = document.getElementById('myCanvas');
+      const ctx = canvas.getContext('2d');
+      const waterHeight = canvas.height / 3;
+      
+      // Set wave style
+      ctx.strokeStyle = '#00008B'; // Dark blue
+      ctx.lineWidth = 4;
+      
+      // Draw multiple wave lines
+      for (let y = 20; y < waterHeight; y += 30) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        
+        // Draw each wave line
+        for (let x = 0; x < canvas.width; x += 1) {
+          const waveHeight = Math.sin((Date.now() / 500) + x / 50) * 8;
+          ctx.lineTo(x, y + waveHeight);
+        }
+        
+        // Important: stroke each line
+        ctx.stroke();
+      }
+    }
+
+    function createCurrents() {
+      currents = [];
+      const canvas = document.getElementById('myCanvas');
+      
+      currents.push({
+        x: canvas.width / 2,
+        y: canvas.height / 6,
+        radius: canvas.width,
+        direction: Math.PI / 2,
+        strength: 3
+      });
+    }
+
+    function applyCurrents(x, y, isShark = false) {
+      let totalForceY = 0;
+      
+      // Only apply force if in water section
+      if (y < canvas.height / 3) {
+        const force = isShark ? 2 : 3; // Consistent force in water
+        totalForceY += force;
+      }
+      
+      return { x: 0, y: totalForceY };
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('load', () => {
+      document.getElementById('startGame').style.display = 'block';
+    });
+    window.addEventListener('keydown', keyDownHandler);
+    window.addEventListener('keyup', keyUpHandler);
+  </script>
+</body>
+</html>
