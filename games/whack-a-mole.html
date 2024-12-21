@@ -77,7 +77,7 @@
 
     <div class="game-container" id="gameScreen" style="display: none;">
         <h1>🔨 Whack-A-Mole! 🦫</h1>
-        <div id="score">Score: 0</div>
+        <div id="score">Score: 0/0</div>
         <div id="timer">Time Left: 30</div>
         <button id="startBtn" onclick="startGame()">Start Game</button>
         <div class="grid">
@@ -122,6 +122,7 @@
             }
             document.getElementById('difficultyScreen').style.display = 'none';
             document.getElementById('gameScreen').style.display = 'block';
+            document.getElementById('score').textContent = 'Score: 0/' + winScore;
         }
 
         function startGame() {
@@ -131,7 +132,7 @@
             score = 0;
             timeLeft = 30;
             gameRunning = true;
-            document.getElementById('score').textContent = 'Score: 0';
+            document.getElementById('score').textContent = 'Score: 0/' + winScore;
             document.getElementById('timer').textContent = 'Time Left: 30';
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('gameOverMessage').style.display = 'none';
@@ -175,7 +176,7 @@
 
             if (index === currentMole) {
                 score++;
-                document.getElementById('score').textContent = 'Score: ' + score;
+                document.getElementById('score').textContent = 'Score: ' + score + '/' + winScore;
                 
                 // Remove the mole immediately after it's hit
                 document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
