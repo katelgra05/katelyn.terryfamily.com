@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Whack-A-Mole!</title>
+    <style>
+        body {
+            text-align: center;
+            background-color: #90EE90;
+            font-family: Arial;
+        }
+        .game-container, .difficulty-container {
+            width: 450px;
+            margin: 20px auto;
+            background: #8B4513;
+            padding: 20px;
+            border-radius: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .hole {
+            width: 140px;
+            height: 140px;
+            background: #3A1F00;
+            border-radius: 50%;
+            display: inline-block;
+            cursor: pointer;
+        }
+        .mole {
+            background-image: url('data:image/svg+xml,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="brown"/><circle cx="35" cy="40" r="5" fill="black"/><circle cx="65" cy="40" r="5" fill="black"/><path d="M 40 60 Q 50 70 60 60" stroke="black" fill="none" stroke-width="3"/></svg>');
+            background-size: 80%;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        #score {
+            font-size: 24px;
+            color: white;
+            margin: 10px;
+        }
+        #startBtn, .difficultyBtn {
+            font-size: 20px;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            background: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            color: white;
+        }
+        #gameOverMessage, #winMessage {
+            display: none;
+            font-size: 32px;
+            color: white;
+            margin: 20px;
+        }
+        #startBtn {
+            display: block;
+            margin: 20px auto;
+        }
+        #timer {
+            font-size: 24px;
+            color: white;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="difficulty-container" id="difficultyScreen">
+        <h1>Select Difficulty</h1>
+        <button class="difficultyBtn" onclick="setDifficulty('easy')">Easy</button>
+        <button class="difficultyBtn" onclick="setDifficulty('medium')">Medium</button>
+        <button class="difficultyBtn" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+
+    <div class="game-container" id="gameScreen" style="display: none;">
+        <h1>🔨 Whack-A-Mole! 🦫</h1>
+        <div id="score">Score: 0</div>
+        <div id="timer">Time Left: 30</div>
+        <button id="startBtn" onclick="startGame()">Start Game</button>
+        <div class="grid">
+            <div class="hole" onclick="whack(0)"></div>
+            <div class="hole" onclick="whack(1)"></div>
+            <div class="hole" onclick="whack(2)"></div>
+            <div class="hole" onclick="whack(3)"></div>
+            <div class="hole" onclick="whack(4)"></div>
+            <div class="hole" onclick="whack(5)"></div>
+            <div class="hole" onclick="whack(6)"></div>
+            <div class="hole" onclick="whack(7)"></div>
+            <div class="hole" onclick="whack(8)"></div>
+        </div>
+        <div id="gameOverMessage">GAME OVER!</div>
+        <div id="winMessage">YOU WIN!</div>
+    </div>
+
+    <script>
+        let score = 0;
+        let timer;
+        let moleTimer;
+        let currentMole = -1;
+        let gameRunning = false;
+        let moleSpeed = 1000; // Default speed for medium difficulty
+        let winScore = 20; // Default win score for medium difficulty
+        let timeLeft = 30; // Default game time in seconds
+
+        function setDifficulty(level) {
+            switch(level) {
+                case 'easy':
+                    moleSpeed = 1500;
+                    winScore = 10;
+                    break;
+                case 'medium':
+                    moleSpeed = 750;
+                    winScore = 20;
+                    break;
+                case 'hard':
+                    moleSpeed = 375;
+                    winScore = 30;
+                    break;
+            }
+            document.getElementById('difficultyScreen').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+        }
+
+        function startGame() {
+            if (gameRunning) return;
+            
+            // Reset game
+            score = 0;
+            timeLeft = 30;
+            gameRunning = true;
+            document.getElementById('score').textContent = 'Score: 0';
+            document.getElementById('timer').textContent = 'Time Left: 30';
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('gameOverMessage').style.display = 'none';
+            document.getElementById('winMessage').style.display = 'none';
+
+            // Start timers
+            moveMole();
+            startTimer();
+        }
+
+        function startTimer() {
+            timer = setInterval(function() {
+                timeLeft--;
+                document.getElementById('timer').textContent = 'Time left: ' + timeLeft;
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function moveMole() {
+            // Clear old mole
+            if (currentMole >= 0) {
+                document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
+            }
+
+            // Place new mole
+            let newMole;
+            do {
+                newMole = Math.floor(Math.random() * 9);
+            } while (newMole === currentMole);
+            currentMole = newMole;
+            document.getElementsByClassName('hole')[currentMole].classList.add('mole');
+
+            // Set next move
+            moleTimer = setTimeout(moveMole, Math.random() * moleSpeed + 500);
+        }
+
+        function whack(index) {
+            if (!gameRunning) return;
+
+            if (index === currentMole) {
+                score++;
+                document.getElementById('score').textContent = 'Score: ' + score;
+                
+                // Remove the mole immediately after it's hit
+                document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
+                currentMole = -1; // Reset currentMole to prevent multiple hits
+
+                // Immediately move mole
+                clearTimeout(moleTimer);
+                moveMole();
+
+                // Check for win condition
+                if (score >= winScore) {
+                    endGame(true);
+                }
+            }
+        }
+
+        function endGame(won = false) {
+            gameRunning = false;
+            clearTimeout(moleTimer);
+            clearInterval(timer);
+            
+            // Clear last mole
+            if (currentMole >= 0) {
+                document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
+            }
+
+            document.getElementById('startBtn').textContent = 'Play Again';
+            document.getElementById('startBtn').style.display = 'block';
+            if (won) {
+                document.getElementById('winMessage').style.display = 'block';
+            } else {
+                document.getElementById('gameOverMessage').style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
