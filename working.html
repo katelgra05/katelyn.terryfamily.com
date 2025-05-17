@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magic Cursor</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: linear-gradient(120deg, #a18cd1 0%, #fbc2eb 100%);
+    }
+    body {
+      cursor: none;
+    }
+    .magic-cursor {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 40px;
+      height: 40px;
+      pointer-events: none;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(173,216,230,0.5) 60%, rgba(0,0,0,0) 100%);
+      box-shadow: 0 0 20px 8px #fff7, 0 0 60px 20px #a18cd1aa;
+      mix-blend-mode: lighten;
+      transition: transform 0.1s cubic-bezier(.22,1,.36,1), background 0.2s;
+      z-index: 9999;
+    }
+    .magic-cursor.active {
+      transform: scale(1.5);
+      background: radial-gradient(circle, #fff 0%, #fbc2eb 80%, rgba(0,0,0,0) 100%);
+      box-shadow: 0 0 40px 16px #fff, 0 0 80px 40px #fbc2eb;
+    }
+  </style>
+</head>
+<body>
+  <div class="magic-cursor" id="magicCursor"></div>
+  <script>
+    const cursor = document.getElementById('magicCursor');
+    document.addEventListener('mousemove', (e) => {
+      cursor.style.left = (e.clientX - 20) + 'px';
+      cursor.style.top = (e.clientY - 20) + 'px';
+    });
+    document.addEventListener('mousedown', () => {
+      cursor.classList.add('active');
+    });
+    document.addEventListener('mouseup', () => {
+      cursor.classList.remove('active');
+    });
+    // Optional: Add a trailing sparkle effect
+    function createSparkle(x, y) {
+      const sparkle = document.createElement('div');
+      sparkle.style.position = 'fixed';
+      sparkle.style.left = (x - 4) + 'px';
+      sparkle.style.top = (y - 4) + 'px';
+      sparkle.style.width = '8px';
+      sparkle.style.height = '8px';
+      sparkle.style.borderRadius = '50%';
+      sparkle.style.background = 'radial-gradient(circle, #fff 0%, #a18cd1 100%)';
+      sparkle.style.opacity = '0.8';
+      sparkle.style.pointerEvents = 'none';
+      sparkle.style.zIndex = '9999';
+      sparkle.style.transition = 'opacity 0.6s, transform 0.6s';
+      document.body.appendChild(sparkle);
+      setTimeout(() => {
+        sparkle.style.opacity = '0';
+        sparkle.style.transform = 'scale(2)';
+      }, 10);
+      setTimeout(() => {
+        sparkle.remove();
+      }, 600);
+    }
+    document.addEventListener('mousemove', (e) => {
+      if (Math.random() < 0.2) {
+        createSparkle(e.clientX, e.clientY);
+      }
+    });
+  </script>
+</body>
+</html> 
