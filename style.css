@@ -57,3 +57,23 @@ a:not(.button) {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.back-button {
+  position: absolute;
+  top: 30px;
+  right: 40px;
+  padding: 12px 24px;
+  background-color: #1976d2;
+  color: #fff !important;
+  text-decoration: none;
+  border-radius: 20px;
+  font-size: 18px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: background 0.2s;
+  z-index: 1000;
+}
+.back-button:hover {
+  background-color: #0d47a1;
+  color: #fff !important;
+}
+
