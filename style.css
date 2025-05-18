@@ -1,10 +1,11 @@
 body {
-  background: url("/white-flower2.jpg") no-repeat center center fixed;
+  background: url("white-flower2.jpg") no-repeat center center fixed;
   -webkit-background-size: cover;
   -moz-background-size: cover;
   -o-background-size: cover;
   background-size: cover;
-  color: rgb(255, 255, 255)
+  color: rgb(255, 255, 255);
+  font-family: Arial, sans-serif;
 }
 
 p {
@@ -14,6 +15,8 @@ p {
 
 h1 {
   font-weight: bold;
+  text-align: center;
+  margin: 20px 0;
 }
 
 /* General link styles */
@@ -24,30 +27,33 @@ a:not(.button) {
 
 .button-container {
   margin: 20px 0;
+  text-align: center;
 }
 
 .button {
   display: inline-block;
-  padding: 15px 30px;
+  padding: 20px 40px;
   background-color: #4CAF50;
   color: white !important;
   text-decoration: none;
-  border-radius: 25px;
-  font-size: 18px;
+  border-radius: 30px;
+  font-size: 24px;
   font-weight: bold;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  border: 3px solid #45a049;
+  min-width: 200px;
 }
 
 .button:hover {
   background-color: #45a049;
   transform: translateY(-2px);
-  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
   color: white !important;
 }
 
 .button:active {
   transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
