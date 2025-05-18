@@ -16,9 +16,10 @@ h1 {
   font-weight: bold;
 }
 
-a {
+/* General link styles */
+a:not(.button) {
   font-size: 30px;
-  color: aqua
+  color: aqua;
 }
 
 .button-container {
@@ -29,12 +30,12 @@ a {
   display: inline-block;
   padding: 15px 30px;
   background-color: #4CAF50;
-  color: white;
+  color: white !important;
   text-decoration: none;
   border-radius: 25px;
   font-size: 18px;
   font-weight: bold;
-  transition: background-color 0.3s ease;
+  transition: all 0.3s ease;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
@@ -42,6 +43,7 @@ a {
   background-color: #45a049;
   transform: translateY(-2px);
   box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+  color: white !important;
 }
 
 .button:active {
