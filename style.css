@@ -26,7 +26,7 @@ a:not(.button) {
 }
 
 .button-container {
-  margin: 20px 0;
+  margin: 40px 0;
   text-align: center;
 }
 
@@ -37,19 +37,19 @@ a:not(.button) {
   color: white !important;
   text-decoration: none;
   border-radius: 30px;
-  font-size: 24px;
+  font-size: 28px;
   font-weight: bold;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-  border: 3px solid #45a049;
-  min-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 3px solid #388e3c;
+  min-width: 220px;
+  margin: 0 auto;
 }
 
 .button:hover {
-  background-color: #45a049;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
-  color: white !important;
+  background-color: #388e3c;
+  color: #fff !important;
+  transform: scale(1.05);
 }
 
 .button:active {
