@@ -60,7 +60,7 @@ a:not(.button) {
 .back-button {
   position: absolute;
   top: 30px;
-  right: 40px;
+  left: 40px;
   padding: 18px 36px;
   background: linear-gradient(90deg, #ff9800 0%, #ff5722 100%);
   color: #fff !important;
