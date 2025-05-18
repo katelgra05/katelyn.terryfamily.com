@@ -40,14 +40,21 @@
             margin: 10px;
         }
         #startBtn, .difficultyBtn {
-            font-size: 20px;
-            padding: 10px 20px;
-            margin: 10px;
+            font-size: 32px;
+            padding: 28px 56px;
+            margin: 18px;
             cursor: pointer;
-            background: #4CAF50;
+            background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
             border: none;
-            border-radius: 5px;
+            border-radius: 20px;
             color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            transition: background 0.2s, transform 0.2s;
+        }
+        #startBtn:hover, .difficultyBtn:hover {
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+            transform: scale(1.07);
         }
         #gameOverMessage, #winMessage {
             display: none;

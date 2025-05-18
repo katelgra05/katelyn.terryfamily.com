@@ -21,18 +21,27 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1); /* Subtle shadow for depth */
             display: inline-block; /* Center the container */
         }
-        button {
-            font-size: 20px;
-            margin: 10px;
-            padding: 10px 20px;
+        button:not(.back-button) {
+            font-size: 28px;
+            margin: 16px;
+            padding: 22px 44px;
             cursor: pointer;
+            background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 16px;
+            font-weight: bold;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            transition: background 0.2s, transform 0.2s;
         }
-        #rock { background-color: #ff9999; }
-        #paper { background-color: #99ff99; }
-        #scissors { background-color: #9999ff; }
-        #retry { background-color: #ffff99; } /* Yellow background for Retry button */
+        button:not(.back-button):hover {
+            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+            transform: scale(1.05);
+        }
+        #rock { background: none; }
+        #paper { background: none; }
+        #scissors { background: none; }
+        #retry { background: none; }
         #result {
             font-size: 24px;
             margin: 20px;

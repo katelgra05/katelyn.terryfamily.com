@@ -1,3 +1,22 @@
+<style>
+button:not(.back-button) {
+  padding: 22px 44px;
+  font-size: 28px;
+  margin: 18px;
+  cursor: pointer;
+  background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-weight: bold;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transition: background 0.2s, transform 0.2s;
+}
+button:not(.back-button):hover {
+  background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+  transform: scale(1.05);
+}
+</style>
 <body>
 <button class="back-button" onclick="window.location.href='/'">Go Back to Website</button>
  
