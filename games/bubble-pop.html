@@ -3,25 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bubble Shooter - Katelyn's Games</title>
+    <title>Bubble Pop - Katelyn's Games</title>
     <link rel="stylesheet" href="../style.css">
     <style>
-        #gameContainer {
+        .game-container {
             position: relative;
             margin: 20px auto;
-            width: 400px;
+            width: 800px;
+            max-width: 95vw;
         }
         canvas {
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
             background: rgba(0, 0, 0, 0.1);
+            width: 100%;
+            height: auto;
         }
         #score {
             position: absolute;
             top: 20px;
             left: 20px;
             color: white;
-            font-size: 24px;
+            font-size: 32px;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
         }
         #startScreen {
@@ -32,34 +35,58 @@
             text-align: center;
             color: white;
             background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 10px;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 80%;
         }
         .game-button {
-            padding: 15px 30px;
-            font-size: 20px;
+            padding: 20px 40px;
+            font-size: 24px;
             background: #4CAF50;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
             transition: transform 0.2s;
-            margin: 10px;
+            margin: 15px;
         }
         .game-button:hover {
             transform: scale(1.05);
         }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            color: white;
+        }
+        .stat-box {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
-    <h1>Bubble Shooter</h1>
-    <div id="gameContainer">
-        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <h1>Bubble Pop</h1>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="score">Score: 0</div>
         <div id="startScreen">
-            <h2>Bubble Shooter!</h2>
-            <p>Pop the bubbles before they reach the top!</p>
+            <h2>Bubble Pop!</h2>
+            <p>Pop the bubbles and watch them burst into beautiful particles!</p>
             <button class="game-button" onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+    <div class="stats">
+        <div class="stat-box">
+            <h3>High Score</h3>
+            <p id="highScore">0</p>
+        </div>
+        <div class="stat-box">
+            <h3>Bubbles Popped</h3>
+            <p id="bubblesPopped">0</p>
         </div>
     </div>
     <div class="button-container">
@@ -71,38 +98,51 @@
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const startScreen = document.getElementById('startScreen');
+        const highScoreElement = document.getElementById('highScore');
+        const bubblesPoppedElement = document.getElementById('bubblesPopped');
         
         let score = 0;
+        let highScore = 0;
+        let bubblesPopped = 0;
         let bubbles = [];
         let gameLoop;
-        let difficulty = 1;
+        let difficulty = 0.5; // Reduced initial difficulty
         
         class Bubble {
             constructor() {
-                this.radius = Math.random() * 20 + 20;
+                this.radius = Math.random() * 40 + 40; // Larger bubbles (40-80px)
                 this.x = Math.random() * (canvas.width - this.radius * 2) + this.radius;
                 this.y = canvas.height + this.radius;
-                this.speed = Math.random() * 2 + 1 * difficulty;
+                this.speed = Math.random() * 1 + 0.5 * difficulty; // Slower speed
                 this.color = `hsl(${Math.random() * 360}, 70%, 50%)`;
+                this.opacity = 0.8 + Math.random() * 0.2; // Slight transparency variation
             }
             
             draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
+                ctx.fillStyle = this.color + Math.floor(this.opacity * 255).toString(16).padStart(2, '0');
                 ctx.fill();
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.stroke();
+                
+                // Add shine effect
+                ctx.beginPath();
+                ctx.arc(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fill();
             }
             
             update() {
                 this.y -= this.speed;
+                // Add slight horizontal movement
+                this.x += Math.sin(this.y * 0.01) * 0.5;
             }
         }
         
         function createBubble() {
-            if (Math.random() < 0.05 * difficulty) {
+            if (Math.random() < 0.03 * difficulty) { // Reduced spawn rate
                 bubbles.push(new Bubble());
             }
         }
@@ -123,28 +163,38 @@
                 if (distance < bubble.radius) {
                     bubbles.splice(index, 1);
                     score += Math.floor(100 / bubble.radius);
+                    bubblesPopped++;
                     scoreElement.textContent = `Score: ${score}`;
-                    createPopEffect(bubble.x, bubble.y, bubble.color);
+                    bubblesPoppedElement.textContent = bubblesPopped;
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreElement.textContent = highScore;
+                    }
+                    createPopEffect(bubble.x, bubble.y, bubble.color, bubble.radius);
                 }
             });
         }
         
-        function createPopEffect(x, y, color) {
-            for (let i = 0; i < 8; i++) {
-                const angle = (i / 8) * Math.PI * 2;
+        function createPopEffect(x, y, color, radius) {
+            const particleCount = Math.floor(radius / 2); // More particles for larger bubbles
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (i / particleCount) * Math.PI * 2;
+                const speed = 2 + Math.random() * 2;
                 const particle = {
                     x: x,
                     y: y,
-                    vx: Math.cos(angle) * 3,
-                    vy: Math.sin(angle) * 3,
-                    radius: 3,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: radius * 0.1,
                     color: color,
-                    alpha: 1
+                    alpha: 1,
+                    gravity: 0.1
                 };
                 
                 function animateParticle() {
                     particle.x += particle.vx;
                     particle.y += particle.vy;
+                    particle.vy += particle.gravity;
                     particle.alpha -= 0.02;
                     
                     if (particle.alpha > 0) {
@@ -173,17 +223,19 @@
                 endGame();
             }
             
-            // Increase difficulty
-            if (score > 0 && score % 1000 === 0) {
-                difficulty += 0.2;
+            // Increase difficulty very slowly
+            if (score > 0 && score % 2000 === 0) {
+                difficulty += 0.1;
             }
         }
         
         function startGame() {
             score = 0;
+            bubblesPopped = 0;
             bubbles = [];
-            difficulty = 1;
+            difficulty = 0.5;
             scoreElement.textContent = 'Score: 0';
+            bubblesPoppedElement.textContent = '0';
             startScreen.style.display = 'none';
             gameLoop = setInterval(update, 1000 / 60);
         }
@@ -194,16 +246,28 @@
             startScreen.innerHTML = `
                 <h2>Game Over!</h2>
                 <p>Final Score: ${score}</p>
+                <p>Bubbles Popped: ${bubblesPopped}</p>
                 <button class="game-button" onclick="startGame()">Play Again</button>
             `;
         }
         
         canvas.addEventListener('click', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
             checkCollision(x, y);
         });
+
+        // Load high score from localStorage
+        highScore = parseInt(localStorage.getItem('bubblePopHighScore')) || 0;
+        highScoreElement.textContent = highScore;
+
+        // Save high score to localStorage when it changes
+        function saveHighScore() {
+            localStorage.setItem('bubblePopHighScore', highScore);
+        }
     </script>
 </body>
 </html>

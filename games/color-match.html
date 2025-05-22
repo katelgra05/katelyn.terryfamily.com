@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Match - Katelyn's Games</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --error-color: #e74c3c;
+        }
+
+        .game-container {
+            max-width: 500px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .color-option {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 3px solid transparent;
+        }
+
+        .color-option:hover {
+            transform: scale(1.05);
+        }
+
+        .color-option.selected {
+            border-color: white;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .guess-row {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            justify-content: center;
+        }
+
+        .guess-slot {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .feedback-row {
+            display: flex;
+            gap: 5px;
+            margin: 5px 0;
+            justify-content: center;
+        }
+
+        .feedback-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .feedback-dot.correct {
+            background: var(--success-color);
+        }
+
+        .feedback-dot.wrong-position {
+            background: var(--warning-color);
+        }
+
+        .game-button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 10px;
+        }
+
+        .game-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .game-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            color: white;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        .share-button {
+            background: var(--success-color);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--primary-color);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            text-align: center;
+        }
+
+        .modal.show {
+            display: block;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+        }
+
+        .overlay.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Color Match</h1>
+    <div class="game-container">
+        <div class="stats">
+            <div class="stat-box">
+                <h3>Streak</h3>
+                <p id="streak">0</p>
+            </div>
+            <div class="stat-box">
+                <h3>Best</h3>
+                <p id="best">0</p>
+            </div>
+        </div>
+
+        <div id="guesses-container"></div>
+
+        <div class="color-grid" id="color-options"></div>
+
+        <div style="text-align: center;">
+            <button class="game-button" id="check-button" disabled>Check Colors</button>
+            <button class="game-button share-button" id="share-button" style="display: none;">Share Result</button>
+        </div>
+    </div>
+
+    <div class="button-container">
+        <a href="../index.html" class="button">Back to Home</a>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="modal" id="result-modal">
+        <h2 id="result-title"></h2>
+        <p id="result-message"></p>
+        <button class="game-button" onclick="startNewGame()">Play Again</button>
+    </div>
+
+    <script>
+        const COLORS = [
+            '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
+            '#FF00FF', '#00FFFF', '#FFA500', '#800080',
+            '#008000', '#800000', '#000080', '#808080'
+        ];
+
+        let currentGuess = [];
+        let secretColors = [];
+        let guesses = [];
+        let gameOver = false;
+        let streak = 0;
+
+        function initializeGame() {
+            // Generate secret colors
+            secretColors = [];
+            for (let i = 0; i < 4; i++) {
+                secretColors.push(COLORS[Math.floor(Math.random() * COLORS.length)]);
+            }
+
+            // Create color options
+            const colorGrid = document.getElementById('color-options');
+            colorGrid.innerHTML = '';
+            COLORS.forEach(color => {
+                const div = document.createElement('div');
+                div.className = 'color-option';
+                div.style.backgroundColor = color;
+                div.onclick = () => selectColor(color);
+                colorGrid.appendChild(div);
+            });
+
+            // Create initial guess row
+            createGuessRow();
+            updateUI();
+        }
+
+        function createGuessRow() {
+            const container = document.getElementById('guesses-container');
+            const row = document.createElement('div');
+            row.className = 'guess-row';
+            
+            for (let i = 0; i < 4; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'guess-slot';
+                row.appendChild(slot);
+            }
+
+            const feedback = document.createElement('div');
+            feedback.className = 'feedback-row';
+            for (let i = 0; i < 4; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'feedback-dot';
+                feedback.appendChild(dot);
+            }
+
+            container.appendChild(row);
+            container.appendChild(feedback);
+        }
+
+        function selectColor(color) {
+            if (gameOver) return;
+
+            const slots = document.querySelectorAll('.guess-row:last-child .guess-slot');
+            const emptySlot = Array.from(slots).find(slot => !slot.style.backgroundColor);
+            
+            if (emptySlot) {
+                emptySlot.style.backgroundColor = color;
+                currentGuess.push(color);
+                updateUI();
+            }
+        }
+
+        function checkGuess() {
+            if (currentGuess.length !== 4) return;
+
+            const feedback = document.querySelector('.feedback-row:last-child');
+            const dots = feedback.children;
+            const correct = [];
+            const wrongPosition = [];
+
+            // Check for correct positions
+            currentGuess.forEach((color, index) => {
+                if (color === secretColors[index]) {
+                    correct.push(index);
+                }
+            });
+
+            // Check for wrong positions
+            currentGuess.forEach((color, index) => {
+                if (!correct.includes(index) && secretColors.includes(color)) {
+                    wrongPosition.push(index);
+                }
+            });
+
+            // Update feedback dots
+            for (let i = 0; i < dots.length; i++) {
+                if (i < correct.length) {
+                    dots[i].classList.add('correct');
+                } else if (i < correct.length + wrongPosition.length) {
+                    dots[i].classList.add('wrong-position');
+                }
+            }
+
+            guesses.push([...currentGuess]);
+            currentGuess = [];
+
+            if (correct.length === 4) {
+                gameWon();
+            } else if (guesses.length >= 6) {
+                gameLost();
+            } else {
+                createGuessRow();
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            const checkButton = document.getElementById('check-button');
+            checkButton.disabled = currentGuess.length !== 4 || gameOver;
+        }
+
+        function gameWon() {
+            gameOver = true;
+            streak++;
+            document.getElementById('streak').textContent = streak;
+            const best = Math.max(streak, parseInt(document.getElementById('best').textContent));
+            document.getElementById('best').textContent = best;
+            
+            showResult('You Won! 🎉', `You found the colors in ${guesses.length} tries!`);
+            document.getElementById('share-button').style.display = 'inline-block';
+        }
+
+        function gameLost() {
+            gameOver = true;
+            streak = 0;
+            document.getElementById('streak').textContent = streak;
+            showResult('Game Over! 😢', `The colors were: ${secretColors.map(color => 
+                `<span style="color: ${color}">■</span>`).join(' ')}`);
+        }
+
+        function showResult(title, message) {
+            document.getElementById('result-title').textContent = title;
+            document.getElementById('result-message').innerHTML = message;
+            document.getElementById('overlay').classList.add('show');
+            document.getElementById('result-modal').classList.add('show');
+        }
+
+        function startNewGame() {
+            document.getElementById('overlay').classList.remove('show');
+            document.getElementById('result-modal').classList.remove('show');
+            document.getElementById('guesses-container').innerHTML = '';
+            document.getElementById('share-button').style.display = 'none';
+            currentGuess = [];
+            guesses = [];
+            gameOver = false;
+            initializeGame();
+        }
+
+        function shareResult() {
+            const emojiMap = {
+                correct: '🟩',
+                wrongPosition: '🟨',
+                empty: '⬜'
+            };
+
+            let shareText = `Color Match ${guesses.length}/6\n`;
+            guesses.forEach(guess => {
+                const feedback = getFeedback(guess);
+                shareText += feedback.map(f => emojiMap[f]).join('') + '\n';
+            });
+
+            navigator.clipboard.writeText(shareText).then(() => {
+                alert('Result copied to clipboard!');
+            });
+        }
+
+        function getFeedback(guess) {
+            const feedback = [];
+            const correct = [];
+            const wrongPosition = [];
+
+            guess.forEach((color, index) => {
+                if (color === secretColors[index]) {
+                    correct.push(index);
+                }
+            });
+
+            guess.forEach((color, index) => {
+                if (!correct.includes(index) && secretColors.includes(color)) {
+                    wrongPosition.push(index);
+                }
+            });
+
+            return [
+                ...Array(correct.length).fill('correct'),
+                ...Array(wrongPosition.length).fill('wrongPosition'),
+                ...Array(4 - correct.length - wrongPosition.length).fill('empty')
+            ];
+        }
+
+        document.getElementById('check-button').onclick = checkGuess;
+        document.getElementById('share-button').onclick = shareResult;
+
+        // Start the game
+        initializeGame();
+    </script>
+</body>
+</html> 
