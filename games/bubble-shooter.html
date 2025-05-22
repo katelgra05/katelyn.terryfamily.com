@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div id="score">Score: 0</div>
+        <div id="startScreen">
+            <h1>Bubble Pop!</h1>
+            <p>Pop the bubbles before they reach the top!</p>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const startScreen = document.getElementById('startScreen');
+        
+        let score = 0;
+        let bubbles = [];
+        let gameLoop;
+        let difficulty = 1;
+        
+        class Bubble {
+            constructor() {
+                this.radius = Math.random() * 20 + 20;
+                this.x = Math.random() * (canvas.width - this.radius * 2) + this.radius;
+                this.y = canvas.height + this.radius;
+                this.speed = Math.random() * 2 + 1 * difficulty;
+                this.color = `hsl(${Math.random() * 360}, 70%, 50%)`;
+            }
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+            
+            update() {
+                this.y -= this.speed;
+            }
+        }
+        
+        function createBubble() {
+            if (Math.random() < 0.05 * difficulty) {
+                bubbles.push(new Bubble());
+            }
+        }
+        
+        function drawBubbles() {
+            bubbles.forEach(bubble => {
+                bubble.draw();
+                bubble.update();
+            });
+        }
+        
+        function checkCollision(x, y) {
+            bubbles.forEach((bubble, index) => {
+                const dx = x - bubble.x;
+                const dy = y - bubble.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < bubble.radius) {
+                    bubbles.splice(index, 1);
+                    score += Math.floor(100 / bubble.radius);
+                    scoreElement.textContent = `Score: ${score}`;
+                    createPopEffect(bubble.x, bubble.y, bubble.color);
+                }
+            });
+        }
+        
+        function createPopEffect(x, y, color) {
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const particle = {
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * 3,
+                    vy: Math.sin(angle) * 3,
+                    radius: 3,
+                    color: color,
+                    alpha: 1
+                };
+                
+                function animateParticle() {
+                    particle.x += particle.vx;
+                    particle.y += particle.vy;
+                    particle.alpha -= 0.02;
+                    
+                    if (particle.alpha > 0) {
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = `${particle.color}${Math.floor(particle.alpha * 255).toString(16).padStart(2, '0')}`;
+                        ctx.fill();
+                        requestAnimationFrame(animateParticle);
+                    }
+                }
+                
+                animateParticle();
+            }
+        }
+        
+        function update() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            createBubble();
+            drawBubbles();
+            
+            // Remove bubbles that are off screen
+            bubbles = bubbles.filter(bubble => bubble.y + bubble.radius > 0);
+            
+            // Check for game over
+            if (bubbles.some(bubble => bubble.y - bubble.radius < 0)) {
+                endGame();
+            }
+            
+            // Increase difficulty
+            if (score > 0 && score % 1000 === 0) {
+                difficulty += 0.2;
+            }
+        }
+        
+        function startGame() {
+            score = 0;
+            bubbles = [];
+            difficulty = 1;
+            scoreElement.textContent = 'Score: 0';
+            startScreen.style.display = 'none';
+            gameLoop = setInterval(update, 1000 / 60);
+        }
+        
+        function endGame() {
+            clearInterval(gameLoop);
+            startScreen.style.display = 'block';
+            startScreen.innerHTML = `
+                <h1>Game Over!</h1>
+                <p>Final Score: ${score}</p>
+                <button onclick="startGame()">Play Again</button>
+            `;
+        }
+        
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            checkCollision(x, y);
+        });
+    </script>
+</body>
+</html>
