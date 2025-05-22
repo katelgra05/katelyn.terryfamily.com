@@ -53,23 +53,55 @@
         .game-button:hover {
             transform: scale(1.05);
         }
-        .stats {
-            display: flex;
-            justify-content: space-around;
-            margin: 20px 0;
-            color: white;
+        .title-container {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 40px;
+            margin-bottom: 20px;
+            padding: 0 20px;
+        }
+        .title-container h1 {
+            text-align: center;
+            margin: 0;
         }
         .stat-box {
             text-align: center;
-            padding: 15px;
+            padding: 10px 20px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
-            font-size: 20px;
+            font-size: 18px;
+        }
+        .stat-box h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #ccc;
+        }
+        .stat-box p {
+            margin: 5px 0 0 0;
+            font-size: 24px;
+            color: white;
+        }
+        .left-stats {
+            justify-self: end;
+        }
+        .right-stats {
+            justify-self: start;
         }
     </style>
 </head>
 <body>
-    <h1>Bubble Pop</h1>
+    <div class="title-container">
+        <div class="stat-box left-stats">
+            <h3>High Score</h3>
+            <p id="highScore">0</p>
+        </div>
+        <h1>Bubble Pop</h1>
+        <div class="stat-box right-stats">
+            <h3>Bubbles Popped</h3>
+            <p id="bubblesPopped">0</p>
+        </div>
+    </div>
     <div class="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="score">Score: 0</div>
@@ -77,16 +109,6 @@
             <h2>Bubble Pop!</h2>
             <p>Pop the bubbles and watch them burst into beautiful particles!</p>
             <button class="game-button" onclick="startGame()">Start Game</button>
-        </div>
-    </div>
-    <div class="stats">
-        <div class="stat-box">
-            <h3>High Score</h3>
-            <p id="highScore">0</p>
-        </div>
-        <div class="stat-box">
-            <h3>Bubbles Popped</h3>
-            <p id="bubblesPopped">0</p>
         </div>
     </div>
     <div class="button-container">
@@ -113,9 +135,10 @@
                 this.radius = Math.random() * 40 + 40; // Larger bubbles (40-80px)
                 this.x = Math.random() * (canvas.width - this.radius * 2) + this.radius;
                 this.y = canvas.height + this.radius;
-                this.speed = Math.random() * 1 + 0.5 * difficulty; // Slower speed
+                this.speed = Math.random() * 1 + 0.5 * difficulty; // Reduced base speed
                 this.color = `hsl(${Math.random() * 360}, 70%, 50%)`;
-                this.opacity = 0.8 + Math.random() * 0.2; // Slight transparency variation
+                this.opacity = 0.8 + Math.random() * 0.2;
+                this.vx = (Math.random() * 2 - 1) * 0.5; // Reduced horizontal velocity
             }
             
             draw() {
@@ -135,14 +158,29 @@
             }
             
             update() {
+                // Update position
                 this.y -= this.speed;
-                // Add slight horizontal movement
-                this.x += Math.sin(this.y * 0.01) * 0.5;
+                this.x += this.vx;
+
+                // Bounce off walls
+                if (this.x - this.radius < 0) {
+                    this.x = this.radius;
+                    this.vx = Math.abs(this.vx);
+                } else if (this.x + this.radius > canvas.width) {
+                    this.x = canvas.width - this.radius;
+                    this.vx = -Math.abs(this.vx);
+                }
+
+                // Keep within bottom boundary only
+                if (this.y + this.radius > canvas.height) {
+                    this.y = canvas.height - this.radius;
+                    this.speed = -this.speed; // Reverse direction
+                }
             }
         }
         
         function createBubble() {
-            if (Math.random() < 0.03 * difficulty) { // Reduced spawn rate
+            if (Math.random() < 0.03 * difficulty) {
                 bubbles.push(new Bubble());
             }
         }
@@ -215,11 +253,14 @@
             createBubble();
             drawBubbles();
             
-            // Remove bubbles that are off screen
-            bubbles = bubbles.filter(bubble => bubble.y + bubble.radius > 0);
+            // Remove bubbles that have been on screen too long
+            bubbles = bubbles.filter(bubble => {
+                // Keep bubbles that haven't been on screen too long
+                return bubble.speed > 0 || Math.random() < 0.99;
+            });
             
-            // Check for game over
-            if (bubbles.some(bubble => bubble.y - bubble.radius < 0)) {
+            // Check for game over - if any bubble touches the top
+            if (bubbles.some(bubble => bubble.y - bubble.radius <= 0)) {
                 endGame();
             }
             
@@ -233,7 +274,7 @@
             score = 0;
             bubblesPopped = 0;
             bubbles = [];
-            difficulty = 0.5;
+            difficulty = 0.5; // Reduced initial difficulty
             scoreElement.textContent = 'Score: 0';
             bubblesPoppedElement.textContent = '0';
             startScreen.style.display = 'none';
