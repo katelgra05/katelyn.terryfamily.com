@@ -3,23 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bubble Shooter</title>
+    <title>Bubble Shooter - Katelyn's Games</title>
+    <link rel="stylesheet" href="../style.css">
     <style>
-        body {
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            font-family: Arial, sans-serif;
-        }
         #gameContainer {
             position: relative;
+            margin: 20px auto;
+            width: 400px;
         }
         canvas {
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.1);
         }
         #score {
             position: absolute;
@@ -36,8 +31,11 @@
             transform: translate(-50%, -50%);
             text-align: center;
             color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
         }
-        button {
+        .game-button {
             padding: 15px 30px;
             font-size: 20px;
             background: #4CAF50;
@@ -46,21 +44,26 @@
             border-radius: 5px;
             cursor: pointer;
             transition: transform 0.2s;
+            margin: 10px;
         }
-        button:hover {
+        .game-button:hover {
             transform: scale(1.05);
         }
     </style>
 </head>
 <body>
+    <h1>Bubble Shooter</h1>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="400" height="600"></canvas>
         <div id="score">Score: 0</div>
         <div id="startScreen">
-            <h1>Bubble Pop!</h1>
+            <h2>Bubble Shooter!</h2>
             <p>Pop the bubbles before they reach the top!</p>
-            <button onclick="startGame()">Start Game</button>
+            <button class="game-button" onclick="startGame()">Start Game</button>
         </div>
+    </div>
+    <div class="button-container">
+        <a href="../index.html" class="button">Back to Home</a>
     </div>
 
     <script>
@@ -189,9 +192,9 @@
             clearInterval(gameLoop);
             startScreen.style.display = 'block';
             startScreen.innerHTML = `
-                <h1>Game Over!</h1>
+                <h2>Game Over!</h2>
                 <p>Final Score: ${score}</p>
-                <button onclick="startGame()">Play Again</button>
+                <button class="game-button" onclick="startGame()">Play Again</button>
             `;
         }
         
