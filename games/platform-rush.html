@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Platform Rush</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 10px 0;
+            font-size: 2em;
+        }
+        .score-container, .level-container {
+            position: absolute;
+            top: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 1.2em;
+        }
+        .score-container { left: 10px; }
+        .level-container { right: 36px; }
+        .game-container {
+            position: relative;
+            width: 100vw;
+            height: calc(100vh - 100px);
+            max-width: 100vw;
+            max-height: calc(100vh - 100px);
+            margin: 0 auto;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #000;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            margin: 0;
+            background: #87CEEB;
+            display: block;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        .home-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffe4ec;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .home-btn {
+            padding: 16px 36px;
+            margin: 16px 0;
+            font-size: 1.3em;
+            border-radius: 8px;
+            border: none;
+            background: #4CAF50;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+            font-weight: bold;
+        }
+        .home-btn:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        .go-back-btn {
+            position: absolute;
+            top: 24px;
+            left: 36px;
+            background: #d72660;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 22px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 2000;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .go-back-btn:hover {
+            background: #b71c47;
+            transform: scale(1.05);
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffe4ec;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+        }
+        .overlay-content {
+            background: #f8b6c1;
+            padding: 32px 40px;
+            border-radius: 12px;
+            color: #fff;
+            text-align: center;
+            min-width: 260px;
+            max-width: 90vw;
+        }
+        .close-overlay {
+            position: absolute;
+            top: 24px;
+            right: 36px;
+            background: none;
+            border: none;
+            color: #d72660;
+            font-size: 2em;
+            cursor: pointer;
+            z-index: 1200;
+        }
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 1200;
+        }
+        .game-over-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 18px;
+        }
+        .game-over-btns button {
+            padding: 10px 24px;
+            font-size: 1.1em;
+            border-radius: 6px;
+            border: none;
+            background: #4CAF50;
+            color: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s, transform 0.2s;
+        }
+        .game-over-btns button:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        .game-over-btns .main-btn {
+            background: #d72660;
+        }
+        .game-over-btns .main-btn:hover {
+            background: #b71c47;
+        }
+        .level-complete {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        .level-complete h2 {
+            color: #4CAF50;
+            margin: 0 0 10px 0;
+        }
+        .level-complete .button {
+            margin-top: 18px;
+            padding: 16px 40px;
+            font-size: 1.3em;
+            font-weight: bold;
+            background: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        .level-complete .button:hover {
+            background: #388e3c;
+            transform: scale(1.07);
+        }
+        .name-entry {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.95);
+            color: #fff;
+            padding: 30px 40px;
+            border-radius: 10px;
+            z-index: 300;
+            text-align: center;
+        }
+        .name-entry input {
+            padding: 8px;
+            font-size: 1em;
+            border-radius: 5px;
+            border: none;
+            margin-bottom: 10px;
+            width: 80%;
+        }
+        .name-entry button {
+            padding: 8px 18px;
+            font-size: 1em;
+            border-radius: 5px;
+            border: none;
+            background: #4CAF50;
+            color: #fff;
+            cursor: pointer;
+        }
+        .name-entry button:hover {
+            background: #45a049;
+        }
+        .header-bar {
+            width: 100vw;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            position: relative;
+            height: 56px;
+            z-index: 100;
+        }
+        .header-bar h1 {
+            color: #fff;
+            font-size: 2em;
+            margin: 0 auto;
+            text-align: center;
+            flex: 1;
+            position: absolute;
+            left: 0;
+            right: 0;
+        }
+        .level-container {
+            position: relative;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            margin-right: 36px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <h1>Platform Rush</h1>
+        <div class="level-container">Level: <span id="level">1</span></div>
+    </div>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="homeScreen" class="home-screen">
+            <button class="go-back-btn" onclick="window.location.href='/'">Go Back</button>
+            <button class="home-btn" onclick="startGame()">Start Game</button>
+            <button class="home-btn" onclick="showOverlay('leaderboard')">Leaderboard</button>
+            <button class="home-btn" onclick="showOverlay('instructions')">Instructions</button>
+        </div>
+        <div id="leaderboardOverlay" class="overlay" style="display:none;">
+            <button class="close-overlay" onclick="closeOverlay('leaderboard')">×</button>
+            <div class="overlay-content">
+                <h3>Leaderboard</h3>
+                <ol class="leaderboard-list" id="leaderboardList"></ol>
+            </div>
+        </div>
+        <div id="instructionsOverlay" class="overlay" style="display:none;">
+            <button class="close-overlay" onclick="closeOverlay('instructions')">×</button>
+            <div class="overlay-content">
+                <h3>How to Play</h3>
+                <p>Jump and collect coins while avoiding enemies!</p>
+                <p>Use LEFT/RIGHT arrows to move and SPACE to jump.</p>
+                <p>Double jump by pressing SPACE again in mid-air!</p>
+                <p>Collect all coins to unlock the goal!</p>
+            </div>
+        </div>
+        <div id="nameEntry" class="name-entry" style="display:none;">
+            <h3>New High Score!</h3>
+            <p>Enter your name:</p>
+            <input type="text" id="playerName" maxlength="12" autocomplete="off" />
+            <br>
+            <button onclick="submitHighScore()">Submit</button>
+        </div>
+        <div id="gameOver" class="game-over">
+            <h2>Game Over!</h2>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <div class="game-over-btns">
+                <button onclick="addScoreToLeaderboard()">Add Score to Leaderboard</button>
+                <button onclick="replayGame()">Replay</button>
+                <button class="main-btn" onclick="showHomeScreen()">Go Back to Main Page</button>
+            </div>
+        </div>
+        <div id="levelComplete" class="level-complete">
+            <h2>Level Complete!</h2>
+            <button class="button" onclick="nextLevel()">Next Level</button>
+        </div>
+    </div>
+    <script>
+// --- CONSTANTS ---
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 400;
+const ASPECT = GAME_WIDTH / GAME_HEIGHT;
+const LEADERBOARD_KEY = 'platformrush_leaderboard';
+
+// --- DOM ELEMENTS ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let isGameRunning = false;
+let score = 0;
+let level = 1;
+let keys = {};
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
+
+// --- LEVEL CONFIGS (24 levels, last 8 with enemy jumping) ---
+const MIN_PLATFORM_GAP = 34; // player.height (30) + 4px margin
+const levelConfigs = [
+    ...[...Array(16)].map((_, i) => {
+        let platforms = [
+            { x: 0, y: GAME_HEIGHT - 50, width: GAME_WIDTH, height: 50 }
+        ];
+        let prevY = GAME_HEIGHT - 50;
+        for (let j = 0; j < 3 + Math.floor(i/2); j++) {
+            let platY = prevY - MIN_PLATFORM_GAP - 20 - (i%3)*2; // 20 is platform height, plus margin
+            if (platY < 40) platY = 40 + j*MIN_PLATFORM_GAP; // Clamp to not go off screen
+            let plat = {
+                x: 80 + (j * 120 + (i*17)%60) % (GAME_WIDTH-200),
+                y: platY,
+                width: 80 + (i%3)*20,
+                height: 20
+            };
+            platforms.push(plat);
+            prevY = platY;
+        }
+        return {
+            platforms,
+            enemies: [...Array(Math.min(1 + Math.floor(i/2), 4))].map((__, k) => ({
+                x: 100 + k*150,
+                y: GAME_HEIGHT - 80,
+                width: 30,
+                height: 30,
+                speed: Math.min(2 + (i%4), 5),
+                direction: k%2===0?1:-1
+            }))
+        };
+    }),
+    ...[...Array(8)].map((_, i) => {
+        let platforms = [
+            { x: 0, y: GAME_HEIGHT - 50, width: GAME_WIDTH, height: 50 }
+        ];
+        let prevY = GAME_HEIGHT - 50;
+        for (let j = 0; j < 4 + Math.floor(i/2); j++) {
+            let platY = prevY - MIN_PLATFORM_GAP - 20 - (i%4)*2;
+            if (platY < 40) platY = 40 + j*MIN_PLATFORM_GAP;
+            let plat = {
+                x: 60 + (j * 110 + (i*23)%80) % (GAME_WIDTH-180),
+                y: platY,
+                width: 80 + (i%2)*20,
+                height: 20
+            };
+            platforms.push(plat);
+            prevY = platY;
+        }
+        return {
+            platforms,
+            enemies: [...Array(Math.min(2 + Math.floor(i/2), 4))].map((__, k) => ({
+                x: 100 + k*180,
+                y: GAME_HEIGHT - 80,
+                width: 30,
+                height: 30,
+                speed: Math.min(2 + (i%3), 5),
+                direction: k%2===0?1:-1,
+                canJump: true
+            }))
+        };
+    })
+];
+
+// --- GAME OBJECTS ---
+const player = {
+    x: 50,
+    y: GAME_HEIGHT - 100,
+    width: 30,
+    height: 30,
+    speed: 5,
+    jumpForce: -15,
+    gravity: 0.8,
+    velocityY: 0,
+    isJumping: false,
+    canDoubleJump: true
+};
+let platforms = [];
+let coins = [];
+let enemies = [];
+let goal = { x: 700, y: 300, width: 30, height: 50 };
+
+// --- UTILITY FUNCTIONS ---
+function isPositionValid(x, y, size) {
+    for (let platform of platforms) {
+        if (x < platform.x + platform.width &&
+            x + size > platform.x &&
+            y < platform.y + platform.height &&
+            y + size > platform.y) {
+            return false;
+        }
+    }
+    return true;
+}
+function isPositionOnTopOfPlatform(x, y, size) {
+    // Check if the coin sits perfectly on top of the floor
+    if (
+        Math.abs((GAME_HEIGHT - 50) - (y + size)) <= 2 && // bottom of coin is at floor level
+        y + size <= GAME_HEIGHT - 50 + 2 &&
+        y >= GAME_HEIGHT - 50 - size - 2
+    ) {
+        // Ensure coin is not inside any platform
+        for (let platform of platforms) {
+            if (
+                platform.y < GAME_HEIGHT - 50 &&
+                x + size > platform.x &&
+                x < platform.x + platform.width &&
+                y < platform.y + platform.height &&
+                y + size > platform.y
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+    // Check if the coin sits perfectly on top of a platform
+    for (let platform of platforms) {
+        if (
+            x + size > platform.x &&
+            x < platform.x + platform.width &&
+            Math.abs(platform.y - (y + size)) <= 2 && // bottom of coin is at platform level
+            y + size <= platform.y + 2 &&
+            y >= platform.y - size - 2
+        ) {
+            // Ensure coin is not inside or intersecting any platform (including the one it's on top of)
+            for (let other of platforms) {
+                if (
+                    x + size > other.x &&
+                    x < other.x + other.width &&
+                    y < other.y + other.height &&
+                    y + size > other.y
+                ) {
+                    // If the coin is not just sitting on top, but actually inside/intersecting
+                    if (other !== platform || y + size > other.y + 2) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+    }
+    return false;
+}
+function isCoinPositionValid(x, y, size, existingCoins) {
+    for (let coin of existingCoins) {
+        const dx = x - coin.x;
+        const dy = y - coin.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < size + coin.size) {
+            return false;
+        }
+    }
+    // Check if coin overlaps with the goal
+    if (
+        x + size > goal.x &&
+        x < goal.x + goal.width &&
+        y + size > goal.y &&
+        y < goal.y + goal.height
+    ) {
+        return false;
+    }
+    // Ensure coin is on top of a platform or ground
+    return isPositionOnTopOfPlatform(x, y, size);
+}
+function isEnemyPositionValid(newEnemy, existingEnemies) {
+    // Check overlap with other enemies
+    for (let enemy of existingEnemies) {
+        if (
+            newEnemy.x < enemy.x + enemy.width &&
+            newEnemy.x + newEnemy.width > enemy.x &&
+            newEnemy.y < enemy.y + enemy.height &&
+            newEnemy.y + newEnemy.height > enemy.y
+        ) {
+            return false;
+        }
+    }
+    // Check overlap with player starting position
+    const playerStart = { x: 50, y: GAME_HEIGHT - 100, width: 30, height: 30 };
+    if (
+        newEnemy.x < playerStart.x + playerStart.width &&
+        newEnemy.x + newEnemy.width > playerStart.x &&
+        newEnemy.y < playerStart.y + playerStart.height &&
+        newEnemy.y + newEnemy.height > playerStart.y
+    ) {
+        return false;
+    }
+    // Check overlap with the goal
+    if (
+        newEnemy.x < goal.x + goal.width &&
+        newEnemy.x + newEnemy.width > goal.x &&
+        newEnemy.y < goal.y + goal.height &&
+        newEnemy.y + newEnemy.height > goal.y
+    ) {
+        return false;
+    }
+    return true;
+}
+function createEnemies(enemyConfigs) {
+    const placed = [];
+    for (let i = 0; i < enemyConfigs.length; i++) {
+        let config = { ...enemyConfigs[i] };
+        let tries = 0;
+        let enemy;
+        do {
+            enemy = { ...config };
+            // Place enemy next to the goal (alternate left/right)
+            if (i % 2 === 0) {
+                enemy.x = goal.x - enemy.width - 5; // left of goal
+            } else {
+                enemy.x = goal.x + goal.width + 5; // right of goal
+            }
+            // Clamp within bounds
+            if (enemy.x < 0) enemy.x = 0;
+            if (enemy.x + enemy.width > GAME_WIDTH) enemy.x = GAME_WIDTH - enemy.width;
+            tries++;
+            if (tries > 100) break;
+        } while (!isEnemyPositionValid(enemy, placed));
+        placed.push(enemy);
+    }
+    return placed;
+}
+function createCoins() {
+    coins = [];
+    const coinSize = 25;
+    const numCoins = 5 + level;
+    for (let i = 0; i < numCoins; i++) {
+        let x, y;
+        let tries = 0;
+        do {
+            x = Math.random() * (GAME_WIDTH - coinSize - 2) + 1;
+            y = Math.random() * (GAME_HEIGHT - coinSize - 2) + 1;
+            tries++;
+            if (tries > 100) break;
+        } while (!isPositionValid(x, y, coinSize) || !isCoinPositionValid(x, y, coinSize, coins));
+        coins.push({ x, y, size: coinSize, collected: false });
+    }
+}
+
+// --- GAME INIT/RESET ---
+function init() {
+    const config = levelConfigs[level - 1];
+    platforms = config.platforms.map((p, i) => i === 0 ? {x: 0, y: GAME_HEIGHT - 50, width: GAME_WIDTH, height: 50} : {...p});
+    placeGoal();
+    enemies = createEnemies(config.enemies);
+    createCoins();
+    player.x = 50;
+    player.y = GAME_HEIGHT - 100;
+    player.velocityY = 0;
+    player.isJumping = false;
+    player.canDoubleJump = true;
+    document.getElementById('level').textContent = level;
+}
+
+// --- RESIZE LOGIC ---
+function resizeCanvas() {
+    const winW = window.innerWidth;
+    const winH = window.innerHeight - 100;
+    let newW = winW;
+    let newH = winW / ASPECT;
+    if (newH > winH) {
+        newH = winH;
+        newW = newH * ASPECT;
+    }
+    canvas.width = newW;
+    canvas.height = newH;
+    scale = newW / GAME_WIDTH;
+    offsetX = 0;
+    offsetY = 0;
+}
+window.addEventListener('load', resizeCanvas);
+window.addEventListener('resize', resizeCanvas);
+
+// --- INPUT ---
+window.addEventListener('keydown', (e) => { keys[e.code] = true; if (e.code === 'Space') { if (!player.isJumping) { player.velocityY = player.jumpForce; player.isJumping = true; } else if (player.canDoubleJump) { player.velocityY = player.jumpForce; player.canDoubleJump = false; } } });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+// --- GAME LOOP ---
+function updatePlayer() {
+    if (keys['ArrowLeft'] || keys['KeyA']) player.x -= player.speed;
+    if (keys['ArrowRight'] || keys['KeyD']) player.x += player.speed;
+    player.velocityY += player.gravity;
+    let nextY = player.y + player.velocityY;
+    let collided = false;
+    // Platform collision (all sides)
+    platforms.forEach(platform => {
+        // Top collision (landing)
+        if (
+            player.x + player.width > platform.x &&
+            player.x < platform.x + platform.width &&
+            nextY + player.height > platform.y &&
+            player.y + player.height <= platform.y
+        ) {
+            // Land on platform
+            nextY = platform.y - player.height;
+            player.velocityY = 0;
+            player.isJumping = false;
+            player.canDoubleJump = true;
+            collided = true;
+        }
+        // Bottom collision (hitting head)
+        if (
+            player.x + player.width > platform.x &&
+            player.x < platform.x + platform.width &&
+            nextY < platform.y + platform.height &&
+            player.y >= platform.y + platform.height &&
+            player.velocityY < 0
+        ) {
+            // Hit head on platform
+            nextY = platform.y + platform.height;
+            player.velocityY = 0;
+        }
+        // Left collision (running into right side)
+        if (
+            player.y + player.height > platform.y &&
+            player.y < platform.y + platform.height &&
+            player.x + player.width > platform.x &&
+            player.x < platform.x &&
+            keys['ArrowRight']
+        ) {
+            player.x = platform.x - player.width;
+        }
+        // Right collision (running into left side)
+        if (
+            player.y + player.height > platform.y &&
+            player.y < platform.y + platform.height &&
+            player.x < platform.x + platform.width &&
+            player.x + player.width > platform.x + platform.width &&
+            keys['ArrowLeft']
+        ) {
+            player.x = platform.x + platform.width;
+        }
+    });
+    player.y = nextY;
+    if (!collided) player.isJumping = true;
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > GAME_WIDTH) player.x = GAME_WIDTH - player.width;
+    if (player.y < 0) player.y = 0;
+    if (player.y + player.height > GAME_HEIGHT) {
+        player.y = GAME_HEIGHT - player.height;
+        player.velocityY = 0;
+        player.isJumping = false;
+        player.canDoubleJump = true;
+    }
+}
+function updateEnemies() {
+    enemies.forEach(enemy => {
+        // Find the platform the enemy is on
+        let onPlatform = null;
+        for (let platform of platforms) {
+            if (
+                enemy.x + enemy.width > platform.x &&
+                enemy.x < platform.x + platform.width &&
+                Math.abs(enemy.y + enemy.height - platform.y) <= 2
+            ) {
+                onPlatform = platform;
+                break;
+            }
+        }
+        if (onPlatform) {
+            enemy.x += enemy.speed * enemy.direction;
+            // Reverse at platform edges
+            if (enemy.x < onPlatform.x) {
+                enemy.x = onPlatform.x;
+                enemy.direction *= -1;
+            }
+            if (enemy.x + enemy.width > onPlatform.x + onPlatform.width) {
+                enemy.x = onPlatform.x + onPlatform.width - enemy.width;
+                enemy.direction *= -1;
+            }
+        } else {
+            // Fall down if not on a platform
+            if (enemy.y + enemy.height < GAME_HEIGHT - 1) {
+                enemy.y += 2;
+            }
+        }
+        // For levels 17-24, allow enemies to jump to platforms
+        if (level > 16 && enemy.canJump) {
+            if (!onPlatform) {
+                let targetPlatform = platforms.find(platform =>
+                    enemy.x + enemy.width > platform.x &&
+                    enemy.x < platform.x + platform.width &&
+                    platform.y < enemy.y
+                );
+                if (targetPlatform && Math.abs(enemy.y - targetPlatform.y) > 5) {
+                    enemy.y -= 2;
+                }
+            }
+        }
+    });
+}
+function checkCollisions() {
+    coins.forEach(coin => {
+        if (!coin.collected && player.x < coin.x + coin.size && player.x + player.width > coin.x && player.y < coin.y + coin.size && player.y + player.height > coin.y) {
+            coin.collected = true;
+            score += 10;
+        }
+    });
+    const allCoinsCollected = coins.every(coin => coin.collected);
+    if (allCoinsCollected && player.x < goal.x + goal.width && player.x + player.width > goal.x && player.y < goal.y + goal.height && player.y + player.height > goal.y) {
+        isGameRunning = false;
+        document.getElementById('levelComplete').style.display = 'block';
+    }
+    enemies.forEach(enemy => {
+        if (player.x < enemy.x + enemy.width && player.x + player.width > enemy.x && player.y < enemy.y + enemy.height && player.y + player.height > enemy.y) {
+            isGameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+    });
+}
+function draw() {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    ctx.save();
+    ctx.scale(scale, scale);
+    ctx.fillStyle = '#87CEEB';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    ctx.fillStyle = '#8B4513';
+    platforms.forEach((platform, i) => { if (i === 0) { ctx.fillRect(0, platform.y, GAME_WIDTH, platform.height); } else { ctx.fillRect(platform.x, platform.y, platform.width, platform.height); } });
+    ctx.fillStyle = '#FFD700';
+    coins.forEach(coin => { if (!coin.collected) { ctx.beginPath(); ctx.arc(coin.x + coin.size/2, coin.y + coin.size/2, coin.size/2, 0, Math.PI * 2); ctx.fill(); } });
+    const allCoinsCollected = coins.every(coin => coin.collected);
+    ctx.fillStyle = allCoinsCollected ? '#006400' : '#808080';
+    ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+    ctx.fillStyle = '#FF0000';
+    enemies.forEach(enemy => { ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height); });
+    ctx.fillStyle = '#00FF00';
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.restore();
+}
+function gameLoop() {
+    if (isGameRunning) {
+        updatePlayer();
+        updateEnemies();
+        checkCollisions();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+}
+
+// --- HOME/OVERLAY LOGIC ---
+function showOverlay(type) {
+    if (type === 'leaderboard') { updateLeaderboardList(); document.getElementById('leaderboardOverlay').style.display = 'flex'; }
+    else if (type === 'instructions') { document.getElementById('instructionsOverlay').style.display = 'flex'; }
+}
+function closeOverlay(type) {
+    if (type === 'leaderboard') { document.getElementById('leaderboardOverlay').style.display = 'none'; }
+    else if (type === 'instructions') { document.getElementById('instructionsOverlay').style.display = 'none'; }
+}
+function updateLeaderboardList() {
+    const lb = getLeaderboard();
+    const list = document.getElementById('leaderboardList');
+    list.innerHTML = '';
+    lb.slice(0,5).forEach(entry => { const li = document.createElement('li'); li.textContent = `${entry.name}: ${entry.score}`; list.appendChild(li); });
+}
+function showHomeScreen() {
+    document.getElementById('gameOver').style.display = 'none';
+    isGameRunning = false;
+    level = 1;
+    score = 0;
+    document.getElementById('level').textContent = level;
+    hideLeaderboard();
+    closeOverlay('instructions');
+    closeOverlay('leaderboard');
+    document.getElementById('nameEntry').style.display = 'none';
+    document.getElementById('levelComplete').style.display = 'none';
+    document.getElementById('homeScreen').style.display = 'flex';
+}
+function hideHomeScreen() { document.getElementById('homeScreen').style.display = 'none'; }
+function hideLeaderboard() { document.getElementById('leaderboardOverlay').style.display = 'none'; }
+
+// --- GAME CONTROL BUTTONS ---
+function startGame() {
+    if (!isGameRunning) {
+        isGameRunning = true;
+        hideHomeScreen();
+        hideLeaderboard();
+        document.getElementById('nameEntry').style.display = 'none';
+        document.getElementById('gameOver').style.display = 'none';
+        document.getElementById('levelComplete').style.display = 'none';
+        init();
+        gameLoop();
+    }
+}
+function replayGame() {
+    document.getElementById('gameOver').style.display = 'none';
+    level = 1;
+    score = 0;
+    isGameRunning = true;
+    init();
+    gameLoop();
+}
+function addScoreToLeaderboard() {
+    document.getElementById('gameOver').style.display = 'none';
+    maybeShowNameEntry(score);
+}
+function nextLevel() {
+    document.getElementById('levelComplete').style.display = 'none';
+    if (level < levelConfigs.length) {
+        level++;
+        startGame();
+    } else {
+        alert('Congratulations! You completed all levels!');
+        level = 1;
+        score = 0;
+        showHomeScreen();
+    }
+}
+
+// --- LEADERBOARD LOGIC ---
+function getLeaderboard() {
+    return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
+}
+function saveLeaderboard(lb) {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(lb));
+}
+function maybeShowNameEntry(finalScore) {
+    const lb = getLeaderboard();
+    if (lb.length < 5 || finalScore > lb[lb.length-1].score) {
+        document.getElementById('nameEntry').style.display = 'block';
+        document.getElementById('playerName').focus();
+    } else {
+        showHomeScreen();
+    }
+}
+function submitHighScore() {
+    const name = document.getElementById('playerName').value.trim() || 'Player';
+    let lb = getLeaderboard();
+    lb = lb.filter(entry => entry.name.toLowerCase() !== name.toLowerCase() || entry.score > score);
+    const alreadyExists = lb.some(entry => entry.name.toLowerCase() === name.toLowerCase() && entry.score >= score);
+    if (!alreadyExists) {
+        lb.push({ name, score });
+    }
+    lb.sort((a, b) => b.score - a.score);
+    if (lb.length > 5) lb.length = 5;
+    saveLeaderboard(lb);
+    document.getElementById('nameEntry').style.display = 'none';
+    showHomeScreen();
+}
+
+// --- INITIALIZE ---
+window.onload = function() {
+    resizeCanvas();
+    showHomeScreen();
+};
+
+function placeGoal() {
+    // Try to place the goal on the rightmost platform or ground
+    let bestPlatform = platforms[0];
+    for (let platform of platforms) {
+        if (platform.x + platform.width > bestPlatform.x + bestPlatform.width) {
+            bestPlatform = platform;
+        }
+    }
+    goal.x = bestPlatform.x + bestPlatform.width - goal.width - 10;
+    goal.y = bestPlatform.y - goal.height;
+    if (goal.y < 0) goal.y = 0;
+    // Clamp within bounds
+    if (goal.x < 0) goal.x = 0;
+    if (goal.x + goal.width > GAME_WIDTH) goal.x = GAME_WIDTH - goal.width;
+}
+
+    </script>
+</body>
+</html> 
