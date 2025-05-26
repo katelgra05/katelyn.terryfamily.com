@@ -78,7 +78,7 @@
     <div class="info" id="message"></div>
   </div>
   <script>
-    const rows = 10, cols = 14;
+    const rows = 15, cols = 20;
     let maze = [], player = {x: 0, y: 0}, exit = {x: cols-1, y: rows-1};
     let timer = 0, timerInterval, gameActive = true;
 
@@ -91,21 +91,94 @@
     }
 
     function generateMaze() {
-      // Simple DFS maze generation
-      maze = Array.from({length: rows}, () => Array(cols).fill(1));
-      function carve(x, y) {
-        maze[y][x] = 0;
-        shuffle([[0,1],[1,0],[0,-1],[-1,0]]).forEach(([dx,dy]) => {
-          const nx = x + dx*2, ny = y + dy*2;
-          if (ny >= 0 && ny < rows && nx >= 0 && nx < cols && maze[ny][nx] === 1) {
-            maze[y+dy][x+dx] = 0;
-            carve(nx, ny);
+      let attempts = 0;
+      const maxAttempts = 10;
+      
+      function tryGenerateMaze() {
+        // Initialize with all walls
+        maze = Array.from({length: rows}, () => Array(cols).fill(1));
+        
+        function carve(x, y) {
+          maze[y][x] = 0;
+          const directions = shuffle([[0,1],[1,0],[0,-1],[-1,0]]);
+          for (const [dx, dy] of directions) {
+            const nx = x + dx*2, ny = y + dy*2;
+            if (ny >= 0 && ny < rows && nx >= 0 && nx < cols && maze[ny][nx] === 1) {
+              // Carve the path and the wall between
+              maze[y+dy][x+dx] = 0;
+              maze[ny][nx] = 0;
+              carve(nx, ny);
+            }
           }
-        });
+        }
+
+        // Start from a random point
+        const startX = Math.floor(Math.random() * (cols/2));
+        const startY = Math.floor(Math.random() * (rows/2));
+        carve(startX*2, startY*2);
+
+        // Ensure start and exit are clear and connected
+        maze[0][0] = 0;
+        maze[rows-1][cols-1] = 0;
+        
+        // Connect start and exit to the maze
+        function connectToMaze(x, y) {
+          const directions = shuffle([[0,1],[1,0],[0,-1],[-1,0]]);
+          for (const [dx, dy] of directions) {
+            const nx = x + dx, ny = y + dy;
+            if (ny >= 0 && ny < rows && nx >= 0 && nx < cols && maze[ny][nx] === 0) {
+              maze[y][x] = 0;
+              return true;
+            }
+          }
+          return false;
+        }
+
+        // Keep trying to connect start and exit until successful
+        while (!connectToMaze(0, 0) || !connectToMaze(cols-1, rows-1)) {
+          // If we can't connect, add a new path
+          const x = Math.floor(Math.random() * cols);
+          const y = Math.floor(Math.random() * rows);
+          if (maze[y][x] === 1) {
+            maze[y][x] = 0;
+          }
+        }
       }
-      carve(0,0);
-      maze[0][0] = 0; // Start
-      maze[rows-1][cols-1] = 0; // Exit
+
+      do {
+        tryGenerateMaze();
+        attempts++;
+      } while (!isExitReachable() && attempts < maxAttempts);
+
+      // If we still don't have a valid maze after max attempts, create a simple maze
+      if (!isExitReachable()) {
+        maze = Array.from({length: rows}, () => Array(cols).fill(1));
+        // Create a simple maze with alternating walls
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            if (y % 2 === 0 || x % 2 === 0) {
+              maze[y][x] = 0;
+            }
+          }
+        }
+        // Ensure start and exit are clear
+        maze[0][0] = 0;
+        maze[rows-1][cols-1] = 0;
+      }
+    }
+
+    function isExitReachable() {
+      const visited = Array.from({length: rows}, () => Array(cols).fill(false));
+      
+      function dfs(x, y) {
+        if (x === exit.x && y === exit.y) return true;
+        if (x < 0 || x >= cols || y < 0 || y >= rows || maze[y][x] === 1 || visited[y][x]) return false;
+        
+        visited[y][x] = true;
+        return dfs(x+1, y) || dfs(x-1, y) || dfs(x, y+1) || dfs(x, y-1);
+      }
+      
+      return dfs(0, 0);
     }
 
     function drawMaze() {
