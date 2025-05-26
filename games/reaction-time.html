@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reaction Time Test</title>
+  <style>
+    body {
+      background: #f0f4ff;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .reaction-box {
+      width: 320px;
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      border-radius: 16px;
+      margin: 30px auto;
+      background: #dbeafe;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .reaction-box.ready {
+      background: #4ade80;
+      color: #fff;
+    }
+    .reaction-box.too-soon {
+      background: #f87171;
+      color: #fff;
+    }
+    button {
+      padding: 12px 32px;
+      font-size: 1.2rem;
+      border-radius: 8px;
+      border: none;
+      background: #6366f1;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 18px;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background: #4338ca;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Reaction Time Test</h1>
+    <div id="reactionBox" class="reaction-box">Click Start to Begin</div>
+    <button id="startBtn">Start</button>
+    <div id="result" style="font-size:1.3rem;margin-top:18px;"></div>
+  </div>
+  <script>
+    const reactionBox = document.getElementById('reactionBox');
+    const startBtn = document.getElementById('startBtn');
+    const result = document.getElementById('result');
+    let waiting = false, startTime, timeoutId;
+
+    function reset() {
+      reactionBox.textContent = 'Wait for green...';
+      reactionBox.className = 'reaction-box';
+      result.textContent = '';
+      waiting = true;
+      timeoutId = setTimeout(() => {
+        reactionBox.textContent = 'Click!';
+        reactionBox.className = 'reaction-box ready';
+        startTime = Date.now();
+        waiting = false;
+      }, 1200 + Math.random() * 2000);
+    }
+
+    startBtn.onclick = () => {
+      startBtn.disabled = true;
+      reset();
+    };
+
+    reactionBox.onclick = () => {
+      if (reactionBox.classList.contains('ready')) {
+        const reaction = Date.now() - startTime;
+        reactionBox.textContent = `Your time: ${reaction} ms`;
+        result.textContent = 'Click Start to try again!';
+        reactionBox.className = 'reaction-box';
+        startBtn.disabled = false;
+      } else if (waiting) {
+        clearTimeout(timeoutId);
+        reactionBox.textContent = 'Too soon!';
+        reactionBox.className = 'reaction-box too-soon';
+        result.textContent = 'Click Start to try again!';
+        startBtn.disabled = false;
+        waiting = false;
+      }
+    };
+  </script>
+</body>
+</html> 
