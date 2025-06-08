@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Happy Birthday Avery!</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            padding-top: 0;
+        }
+
+        .password-container {
+            text-align: center;
+            background: white;
+            padding: 2vh;
+            border-radius: 1vh;
+            box-shadow: 0 0 2vh rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 30vw;
+            max-width: 400px;
+        }
+
+        .password-input {
+            padding: 1vh;
+            font-size: 1.2em;
+            width: 60%;
+            text-align: center;
+            margin: 1vh 0;
+            border: 2px solid #ddd;
+            border-radius: 0.5vh;
+        }
+
+        .submit-btn {
+            padding: 1vh 2vh;
+            font-size: 1.1em;
+            background: #ff9a9e;
+            border: none;
+            border-radius: 0.5vh;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .submit-btn:hover {
+            background: #ff7b7f;
+        }
+
+        .error-message {
+            color: #ff4444;
+            margin-top: 1vh;
+            display: none;
+        }
+
+        .card {
+            display: none;
+            position: relative;
+            width: 40vw;
+            height: 55vw;
+            max-width: 400px;
+            max-height: 550px;
+            transform-style: preserve-3d;
+            transition: transform 1.5s;
+            cursor: pointer;
+            z-index: 100;
+            margin-top: 0;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 1.5vh;
+            box-shadow: 0 0 2vh rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 4vh;
+            text-align: center;
+        }
+
+        .card-front {
+            background: linear-gradient(45deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
+            transform: rotateY(0deg);
+        }
+
+        .card-back {
+            background: linear-gradient(45deg, #a8edea 0%, #fed6e3 100%);
+            transform: rotateY(180deg);
+        }
+
+        h1 {
+            color: #333;
+            font-size: min(3vw, 2.5em);
+            margin-bottom: 2vh;
+        }
+
+        p {
+            color: #444;
+            font-size: min(1.8vw, 1.5em);
+            line-height: 1.6;
+        }
+
+        .balloon-container {
+            position: absolute;
+            width: min(6vw, 60px);
+            height: min(12vw, 120px);
+            z-index: 1;
+        }
+
+        .balloon {
+            position: absolute;
+            width: 100%;
+            height: 66.67%;
+            border-radius: 50% / 60%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            animation: float 4s ease-in-out infinite;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .balloon:nth-child(1) { background: #ff6b6b; }
+        .balloon:nth-child(2) { background: #4ecdc4; }
+        .balloon:nth-child(3) { background: #ffd93d; }
+        .balloon:nth-child(4) { background: #95e1d3; }
+        .balloon:nth-child(5) { background: #f8b195; }
+        .balloon:nth-child(6) { background: #6c5ce7; }
+        .balloon:nth-child(7) { background: #a8e6cf; }
+        .balloon:nth-child(8) { background: #ff8b94; }
+        .balloon:nth-child(9) { background: #ff6b6b; }
+        .balloon:nth-child(10) { background: #4ecdc4; }
+        .balloon:nth-child(11) { background: #ffd93d; }
+        .balloon:nth-child(12) { background: #95e1d3; }
+        .balloon:nth-child(13) { background: #f8b195; }
+        .balloon:nth-child(14) { background: #6c5ce7; }
+        .balloon:nth-child(15) { background: #a8e6cf; }
+
+        .balloon::before {
+            content: '';
+            position: absolute;
+            left: 60%;
+            top: 18%;
+            width: 18%;
+            height: 22%;
+            background: rgba(255,255,255,0.7);
+            border-radius: 50%;
+            transform: rotate(-20deg);
+            z-index: 3;
+        }
+
+        .knot {
+            position: absolute;
+            left: 50%;
+            top: 100%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 12px solid transparent;
+            z-index: 2;
+            margin-top: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .string {
+            position: relative;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 50px;
+            z-index: 1;
+            margin-top: 12px;
+        }
+
+        .string svg {
+            position: absolute;
+            left: -9px;
+            top: 0;
+            width: 18px;
+            height: 50px;
+            display: block;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-2vh) rotate(3deg); }
+        }
+
+        @media (max-width: 768px) {
+            .card {
+                width: 80vw;
+                height: 110vw;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            p {
+                font-size: 1.2em;
+            }
+            
+            .balloon-container {
+                width: 40px;
+                height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="password-container" id="passwordContainer">
+        <h1>Enter Password To Continue</h1>
+        <input type="password" class="password-input" id="passwordInput" maxlength="4" placeholder="****">
+        <br>
+        <button class="submit-btn" onclick="checkPassword()">Submit</button>
+        <p class="error-message" id="errorMessage">Incorrect password. Please try again.</p>
+    </div>
+
+    <div class="card" id="card" onclick="this.classList.toggle('flipped')">
+        <div class="card-front">
+            <h1>Happy Birthday Avery!</h1>
+            <p>Click to open your card</p>
+        </div>
+        <div class="card-back">
+            <h1>Hey Avery!</h1>
+            <p>Happy Birthday to my awesome cousin! Hope you have an amazing birthday! Thanks for being so awesome and having fun times with me! I think you are a terrific gymnast! Your skills are crazy. I love you! Wishing you an amazing year!</p>
+            <p>Love,<br>Katelyn</p>
+        </div>
+    </div>
+
+    <script>
+        function checkPassword() {
+            const password = document.getElementById('passwordInput').value;
+            const passwordContainer = document.getElementById('passwordContainer');
+            const card = document.getElementById('card');
+            const errorMessage = document.getElementById('errorMessage');
+
+            if (password === '7770') {
+                passwordContainer.style.display = 'none';
+                card.style.display = 'block';
+                createBalloons();
+            } else {
+                errorMessage.style.display = 'block';
+                document.getElementById('passwordInput').value = '';
+            }
+        }
+
+        function createBalloonContainer(index) {
+            const container = document.createElement('div');
+            container.className = 'balloon-container';
+            
+            // Determine side and spread area
+            const isLeftSide = index < 5;
+            const balloonsPerSide = 5;
+            const sideMin = isLeftSide ? 0 : 70; // left 0-30%, right 70-100%
+            const sideMax = isLeftSide ? 30 : 100;
+            // Spread vertically in 5 bands, with some randomness
+            const verticalBand = index % balloonsPerSide;
+            const topMin = verticalBand * (100 / balloonsPerSide);
+            const topMax = (verticalBand + 1) * (100 / balloonsPerSide);
+            // Random position within the band
+            const left = sideMin + Math.random() * (sideMax - sideMin - 10) + 5; // 5% padding from edge
+            const top = topMin + Math.random() * (topMax - topMin - 15) + 5; // 5% padding from band edges
+            
+            container.style.left = left + '%';
+            container.style.top = top + '%';
+            
+            // Create balloon
+            const balloon = document.createElement('div');
+            balloon.className = 'balloon';
+            const balloonColor = getBalloonColor(index);
+            balloon.style.background = balloonColor;
+            
+            // Create knot (triangle)
+            const knot = document.createElement('div');
+            knot.className = 'knot';
+            knot.style.borderBottom = '12px solid ' + balloonColor;
+            
+            // Create string (SVG for curved look, starting at tip of knot)
+            const string = document.createElement('div');
+            string.className = 'string';
+            string.innerHTML = `<svg viewBox=\"0 0 18 50\"><path d=\"M9 0 Q12 15 6 25 Q3 35 9 50\" stroke=\"black\" stroke-width=\"2\" fill=\"none\"/></svg>`;
+            
+            // Add knot as child of balloon, and string as child of knot
+            knot.appendChild(string);
+            balloon.appendChild(knot);
+            
+            // Add balloon (with knot and string) to container
+            container.appendChild(balloon);
+            
+            document.body.appendChild(container);
+        }
+
+        function getBalloonColor(index) {
+            const colors = [
+                '#ff6b6b', '#4ecdc4', '#ffd93d', '#95e1d3', '#f8b195',
+                '#6c5ce7', '#a8e6cf', '#ff8b94', '#ff6b6b', '#4ecdc4'
+            ];
+            return colors[index];
+        }
+
+        function createBalloons() {
+            // Clear any existing balloons
+            const existingBalloons = document.getElementsByClassName('balloon-container');
+            while(existingBalloons.length > 0) {
+                existingBalloons[0].remove();
+            }
+            
+            // Create 10 balloons (5 on each side)
+            for(let i = 0; i < 10; i++) {
+                createBalloonContainer(i);
+            }
+        }
+
+        document.getElementById('passwordInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkPassword();
+            }
+        });
+    </script>
+</body>
+</html> 
