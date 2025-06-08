@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Merge Fruits</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #ffffff;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .sidebar-legend {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 120px;
+            height: 100vh;
+            background: #f8f9fa;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 40px;
+            z-index: 100;
+        }
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #28a745;
+            font-size: 1.1em;
+        }
+        .legend-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            width: 100%;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 10px;
+            font-size: 1em;
+            color: #333;
+        }
+        .legend-emoji {
+            font-size: 1.2em;
+            width: 24px;
+            text-align: center;
+        }
+        @media (max-width: 700px) {
+            .sidebar-legend { display: none; }
+        }
+        .right-sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 220px;
+            height: 100vh;
+            background: #f8f9fa;
+            border-left: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 40px;
+            z-index: 100;
+        }
+        .sidebar-btn {
+            width: 160px;
+            margin-bottom: 18px;
+            padding: 12px 0;
+            font-size: 1.1em;
+            font-weight: bold;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .sidebar-btn:hover {
+            background: linear-gradient(45deg, #20c997, #28a745);
+        }
+        .order-box {
+            width: 180px;
+            min-height: 80px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.07);
+            margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 8px;
+            text-align: center;
+        }
+        .order-title {
+            font-weight: bold;
+            color: #28a745;
+            margin-bottom: 6px;
+        }
+        .order-content {
+            font-size: 1.2em;
+        }
+        @media (max-width: 900px) {
+            .right-sidebar { display: none; }
+        }
+        #game-container {
+            max-width: 900px;
+            width: 100%;
+            margin: 32px auto 0 auto;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 32px 32px 32px 32px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+            padding: 12px 32px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+            color: #28a745;
+            font-weight: bold;
+        }
+        .served-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            font-size: 1.1em;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+            color: #28a745;
+            font-weight: bold;
+        }
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .stat-separator {
+            margin: 0 18px;
+            color: #e0e0e0;
+            font-weight: normal;
+            font-size: 1.3em;
+        }
+        .game-area {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        .merge-area {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: 32px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            width: auto;
+            margin: 0 auto 24px auto;
+        }
+        .merge-slot {
+            aspect-ratio: 1;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 90px;
+            height: 90px;
+            margin: 0;
+        }
+        .fruit {
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: grab;
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            user-select: none;
+            -webkit-user-drag: element;
+        }
+        .fruit:hover {
+            transform: scale(1.1);
+        }
+        .fruit:active {
+            cursor: grabbing;
+        }
+        .shop {
+            margin-top: 20px;
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .shop-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        button {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            padding: 10px 20px;
+            color: #fff;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1.1em;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.2);
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .fruit-level {
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            color: #495057;
+        }
+        h1, h3 {
+            text-align: center;
+            color: #28a745;
+        }
+        .customer-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 500px;
+        }
+        .customer-row {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        .customer-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 18px 20px 12px 20px;
+            min-width: 110px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            transition: border 0.2s;
+        }
+        .customer-card.angry {
+            border: 2px solid #e74c3c;
+            background: #ffeaea;
+        }
+        .patience-timer {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            background: #e0f7fa;
+            color: #00796b;
+            font-size: 0.95em;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-weight: bold;
+        }
+        .patience-timer.low {
+            background: #ffeaea;
+            color: #e74c3c;
+        }
+        .customer-avatar {
+            font-size: 2.2em;
+            margin-bottom: 8px;
+        }
+        .customer-order {
+            font-size: 1.2em;
+            margin-bottom: 4px;
+        }
+        .fruit-inventory-row {
+            display: flex;
+            gap: 18px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .fruit-inventory-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #fff;
+            border-radius: 50%;
+            width: 54px;
+            height: 54px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.6em;
+            border: 2px solid #e0e0e0;
+            transition: border 0.2s;
+        }
+        .fruit-inventory-item.selected {
+            border: 2px solid #28a745;
+        }
+        .fruit-inventory-qty {
+            font-size: 0.9em;
+            color: #28a745;
+            margin-top: 2px;
+        }
+        .back-btn {
+            margin-top: 30px;
+            padding: 10px 28px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 6px;
+            background: #e0e0e0;
+            color: #333;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        /* Start Page Styles */
+        .start-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #f8f9faee;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            /* Watermelon background pattern */
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><text x="0" y="24" font-size="20">🍉</text></svg>');
+            background-repeat: repeat;
+            background-size: 140px 140px;
+        }
+        .start-whitebox {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 480px;
+            max-width: 90vw;
+            min-height: 340px;
+            background: #fff;
+            border-radius: 32px;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.10);
+            z-index: 2001;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .start-cat {
+            position: absolute;
+            right: -80px;
+            bottom: -80px;
+            font-size: 18em;
+            transform: rotate(-18deg);
+            opacity: 1;
+            pointer-events: none;
+        }
+        .start-pig {
+            position: absolute;
+            left: -30px;
+            top: -30px;
+            font-size: 8em;
+            transform: rotate(18deg);
+            opacity: 1;
+            pointer-events: none;
+        }
+        .start-title {
+            font-size: 2.6em;
+            color: #28a745;
+            font-weight: bold;
+            margin-bottom: 32px;
+            letter-spacing: 2px;
+            z-index: 2002;
+            text-align: center;
+        }
+        .start-btn, .instructions-btn {
+            font-size: 1.4em;
+            padding: 18px 48px;
+            border-radius: 12px;
+            border: none;
+            margin: 12px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(40,167,69,0.08);
+            transition: background 0.2s, transform 0.2s;
+            z-index: 2002;
+            display: block;
+            width: 70%;
+            max-width: 320px;
+        }
+        .start-btn:hover, .instructions-btn:hover {
+            background: linear-gradient(45deg, #20c997, #28a745);
+            transform: scale(1.04);
+        }
+        .instructions-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.25);
+            z-index: 2100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .instructions-content {
+            background: #fff;
+            border-radius: 16px;
+            padding: 36px 48px;
+            max-width: 420px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.12);
+            color: #222;
+            font-size: 1.1em;
+            text-align: center;
+            position: relative;
+        }
+        .close-instructions {
+            position: absolute;
+            top: 12px;
+            right: 18px;
+            font-size: 1.5em;
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="start-overlay" id="start-overlay">
+        <span class="start-pig" style="opacity:1;">🐷</span>
+        <span class="start-cat">🐱</span>
+        <div class="start-whitebox">
+            <div class="start-title">Merge Fruits</div>
+            <button class="start-btn" id="start-btn">Start</button>
+            <button class="instructions-btn" id="instructions-btn">Instructions</button>
+        </div>
+    </div>
+    <div class="instructions-modal" id="instructions-modal" style="display:none;">
+        <div class="instructions-content">
+            <button class="close-instructions" id="close-instructions">×</button>
+            <h2>How to Play</h2>
+            <ul style="text-align:left; margin: 0 auto 18px auto; max-width: 340px;">
+                <li>Buy fruits and merge them to create higher-level fruits.</li>
+                <li>Click <b>Sell Fruits</b> to serve animal customers.</li>
+                <li>Drag fruits to customers or click inventory to fulfill orders.</li>
+                <li>Each customer has a patience timer—serve them before they get angry!</li>
+                <li>Earn coins by selling fruits and try to serve as many customers as you can!</li>
+            </ul>
+            <div style="color:#28a745; font-weight:bold;">Good luck and have fun!</div>
+        </div>
+    </div>
+    <div class="sidebar-legend">
+        <div class="legend-title">Fruit Levels</div>
+        <ul class="legend-list">
+            <li class="legend-item"><span class="legend-emoji">🍎</span> Level 1</li>
+            <li class="legend-item"><span class="legend-emoji">🍐</span> Level 2</li>
+            <li class="legend-item"><span class="legend-emoji">🍊</span> Level 3</li>
+            <li class="legend-item"><span class="legend-emoji">🍋</span> Level 4</li>
+            <li class="legend-item"><span class="legend-emoji">🍇</span> Level 5</li>
+            <li class="legend-item"><span class="legend-emoji">🍓</span> Level 6</li>
+            <li class="legend-item"><span class="legend-emoji">🍑</span> Level 7</li>
+            <li class="legend-item"><span class="legend-emoji">🍍</span> Level 8</li>
+            <li class="legend-item"><span class="legend-emoji">🥝</span> Level 9</li>
+            <li class="legend-item"><span class="legend-emoji">🍉</span> Level 10</li>
+        </ul>
+    </div>
+    <div id="game-container">
+        <h1>Merge Fruits</h1>
+        <div class="stats-bar">
+            <div class="stat">
+                <span>Coins:</span>
+                <span id="coins">200</span>
+            </div>
+            <span class="stat-separator">|</span>
+            <div class="stat">
+                <span>Fruits:</span>
+                <span id="car-count">0</span>
+            </div>
+        </div>
+        <div class="served-bar">Customers Served: <span id="customers-served">0</span></div>
+        <div class="game-area" id="main-game-area">
+            <div class="merge-area" id="merge-area">
+                <h3>Merge Area</h3>
+                <!-- Merge slots will be added dynamically -->
+            </div>
+            <div style="display: flex; justify-content: center; margin: 24px 0 0 0;">
+                <button class="sidebar-btn" id="sell-fruits-btn">Sell Fruits</button>
+            </div>
+        </div>
+        <div class="shop" id="shop-area">
+            <h3>Fruit Shop</h3>
+            <div class="shop-item">
+                <span style="font-size: 2em;">🍎</span>
+                <button id="buy-car">Buy (25 coins)</button>
+            </div>
+        </div>
+        <div class="customer-screen" id="customer-screen">
+            <div class="customer-row" id="customer-row"></div>
+            <div class="fruit-inventory-row" id="fruit-inventory-row"></div>
+            <button class="back-btn" id="back-to-merge">Back</button>
+        </div>
+    </div>
+
+    <script>
+        class Fruit {
+            constructor(level = 1) {
+                this.level = level;
+                this.value = 15 * level;
+                this.element = null;
+            }
+
+            getEmoji() {
+                const emojis = ['🍎', '🍐', '🍊', '🍋', '🍇', '🍓', '🍑', '🍍', '🥝', '🍉'];
+                return emojis[Math.min(this.level - 1, emojis.length - 1)];
+            }
+
+            createElement() {
+                const fruit = document.createElement('div');
+                fruit.className = 'fruit';
+                fruit.textContent = this.getEmoji();
+                fruit.draggable = true;
+                this.element = fruit;
+                return fruit;
+            }
+        }
+
+        class Game {
+            constructor() {
+                this.coins = 200;
+                this.fruits = [];
+                this.mergeSlots = [];
+                this.selectedFruit = null;
+                this.setupGame();
+                this.setupEventListeners();
+            }
+
+            setupGame() {
+                const mergeArea = document.getElementById('merge-area');
+                for (let i = 0; i < 6; i++) {
+                    const slot = document.createElement('div');
+                    slot.className = 'merge-slot';
+                    slot.dataset.index = i;
+                    mergeArea.appendChild(slot);
+                    this.mergeSlots.push(slot);
+                }
+            }
+
+            setupEventListeners() {
+                document.getElementById('buy-car').addEventListener('click', () => this.buyFruit());
+                
+                document.addEventListener('dragstart', (e) => {
+                    if (e.target.classList.contains('fruit')) {
+                        this.selectedFruit = e.target;
+                        e.dataTransfer.setData('text/plain', '');
+                        e.dataTransfer.effectAllowed = 'move';
+                        // Hide the drag image
+                        const dragImage = e.target.cloneNode(true);
+                        dragImage.style.position = 'absolute';
+                        dragImage.style.top = '-1000px';
+                        document.body.appendChild(dragImage);
+                        e.dataTransfer.setDragImage(dragImage, 0, 0);
+                        setTimeout(() => document.body.removeChild(dragImage), 0);
+                    }
+                });
+
+                document.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                });
+
+                document.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (!this.selectedFruit) return;
+
+                    const slot = e.target.closest('.merge-slot');
+                    if (slot) {
+                        this.handleMerge(slot);
+                    }
+                });
+            }
+
+            buyFruit() {
+                // Only allow buying if there is an empty slot
+                const emptySlot = this.mergeSlots.find(slot => !slot.querySelector('.fruit'));
+                if (this.coins >= 25 && emptySlot) {
+                    this.coins -= 25;
+                    const fruit = new Fruit();
+                    const fruitElement = fruit.createElement();
+                    this.fruits.push(fruit);
+                    this.updateUI();
+                    emptySlot.appendChild(fruitElement);
+                }
+                this.updateBuyButton();
+            }
+
+            updateBuyButton() {
+                const buyBtn = document.getElementById('buy-car');
+                const emptySlot = this.mergeSlots.find(slot => !slot.querySelector('.fruit'));
+                buyBtn.disabled = !(this.coins >= 25 && emptySlot);
+            }
+
+            handleMerge(slot) {
+                if (!this.selectedFruit) return;
+
+                const existingFruit = slot.querySelector('.fruit');
+                if (existingFruit) {
+                    const fruit1 = this.fruits.find(f => f.element === this.selectedFruit);
+                    const fruit2 = this.fruits.find(f => f.element === existingFruit);
+                    
+                    if (fruit1 && fruit2 && fruit1.level === fruit2.level) {
+                        const newFruit = new Fruit(fruit1.level + 1);
+                        const newFruitElement = newFruit.createElement();
+                        
+                        this.fruits = this.fruits.filter(f => f !== fruit1 && f !== fruit2);
+                        fruit1.element.remove();
+                        fruit2.element.remove();
+                        
+                        this.fruits.push(newFruit);
+                        slot.appendChild(newFruitElement);
+                    }
+                } else {
+                    slot.appendChild(this.selectedFruit);
+                }
+                
+                this.updateUI();
+            }
+
+            addCoins(amount) {
+                this.coins += amount;
+                this.updateUI();
+            }
+
+            updateUI() {
+                document.getElementById('coins').textContent = Math.floor(this.coins);
+                document.getElementById('car-count').textContent = this.fruits.length;
+                this.updateBuyButton();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            // Hide game until start is clicked
+            document.getElementById('game-container').style.display = 'none';
+            const startOverlay = document.getElementById('start-overlay');
+            const startBtn = document.getElementById('start-btn');
+            const instructionsBtn = document.getElementById('instructions-btn');
+            const instructionsModal = document.getElementById('instructions-modal');
+            const closeInstructions = document.getElementById('close-instructions');
+
+            startBtn.onclick = () => {
+                startOverlay.style.display = 'none';
+                document.getElementById('game-container').style.display = '';
+            };
+            instructionsBtn.onclick = () => {
+                instructionsModal.style.display = 'flex';
+            };
+            closeInstructions.onclick = () => {
+                instructionsModal.style.display = 'none';
+            };
+
+            const game = new Game();
+            let customersServed = 0;
+            const customersServedSpan = document.getElementById('customers-served');
+            let patienceIntervals = [];
+
+            // --- Right Sidebar Order System ---
+            const fruitEmojis = ['🍎', '🍐', '🍊', '🍋', '🍇', '🍓', '🍑', '🍍', '🥝', '🍉'];
+            const customerAvatars = ['🦊','🐻','🐼','🐸','🐵','🐷','🐱','🐶','🐨','🐰'];
+            const sellBtn = document.getElementById('sell-fruits-btn');
+            const mainGameArea = document.getElementById('main-game-area');
+            const shopArea = document.getElementById('shop-area');
+            const customerScreen = document.getElementById('customer-screen');
+            const customerRow = document.getElementById('customer-row');
+            const fruitInventoryRow = document.getElementById('fruit-inventory-row');
+            const backBtn = document.getElementById('back-to-merge');
+
+            let currentOrders = null;
+
+            function getRandomCustomerOrder() {
+                let fruitIdx, quantity;
+                if (customersServed <= 5) {
+                    // Easy: only level 1-2, quantity 1
+                    fruitIdx = Math.floor(Math.random() * 2); // 0 or 1
+                    quantity = 1;
+                } else if (customersServed <= 15) {
+                    // Medium: level 1-4, quantity 1-2
+                    fruitIdx = Math.floor(Math.random() * 4); // 0-3
+                    quantity = Math.floor(Math.random() * 2) + 1; // 1-2
+                } else {
+                    // Hard: any fruit, quantity 2-3
+                    fruitIdx = Math.floor(Math.random() * fruitEmojis.length);
+                    quantity = Math.floor(Math.random() * 2) + 2; // 2-3
+                }
+                const avatar = customerAvatars[Math.floor(Math.random() * customerAvatars.length)];
+                return {
+                    fruit: fruitEmojis[fruitIdx],
+                    quantity,
+                    avatar,
+                    patience: 30,
+                    angry: false
+                };
+            }
+
+            function renderOrders() {
+                customerRow.innerHTML = '';
+                if (!currentOrders) return;
+                // Clear old intervals
+                patienceIntervals.forEach(clearInterval);
+                patienceIntervals = [];
+                for (let i = 0; i < currentOrders.length; i++) {
+                    const order = currentOrders[i];
+                    const card = document.createElement('div');
+                    card.className = 'customer-card';
+                    card.innerHTML = `
+                        <div class=\"customer-avatar\">${order.avatar}${order.angry ? ' 😡' : ''}</div>
+                        <div class=\"patience-timer\" id=\"patience-timer-${i}\">${order.patience}s</div>
+                        <div class=\"customer-order\" data-order-idx="${i}">${order.fruit} × ${order.quantity}</div>
+                    `;
+                    if (order.angry) card.classList.add('angry');
+                    // Timer logic
+                    if (!order.angry) {
+                        const patienceInterval = setInterval(() => {
+                            order.patience--;
+                            const timerEl = document.getElementById(`patience-timer-${i}`);
+                            if (timerEl) {
+                                timerEl.textContent = order.patience + 's';
+                                if (order.patience <= 7) timerEl.classList.add('low');
+                            }
+                            if (order.patience <= 0) {
+                                clearInterval(patienceInterval);
+                                order.angry = true;
+                                // Replace with new customer after short angry display
+                                renderOrders();
+                                setTimeout(() => {
+                                    currentOrders[i] = getRandomCustomerOrder();
+                                    renderOrders();
+                                    updateFruitInventory();
+                                }, 1200);
+                            }
+                        }, 1000);
+                        patienceIntervals.push(patienceInterval);
+                    }
+                    card.dataset.orderIdx = i;
+                    card.ondragover = (e) => { e.preventDefault(); card.style.background = '#e6ffe6'; };
+                    card.ondragleave = (e) => { card.style.background = '#fff'; };
+                    card.ondrop = (e) => {
+                        e.preventDefault();
+                        card.style.background = '#fff';
+                        const fruitEmoji = e.dataTransfer.getData('text/plain');
+                        if (fruitEmoji === order.fruit && order.quantity > 0 && !order.angry) {
+                            // Find a fruit element in merge area to remove
+                            const slots = document.querySelectorAll('.merge-slot .fruit');
+                            let removed = false;
+                            slots.forEach(fruitEl => {
+                                if (!removed && fruitEl.textContent.trim() === fruitEmoji) {
+                                    fruitEl.remove();
+                                    // Decrease fruits counter
+                                    game.fruits = game.fruits.slice(0, -1);
+                                    removed = true;
+                                }
+                            });
+                            // Fulfill one fruit for this order
+                            order.quantity--;
+                            game.addCoins(15 * (fruitEmojis.indexOf(order.fruit) + 1));
+                            // If order is done, replace with a new customer and increment counter
+                            if (order.quantity <= 0) {
+                                customersServed++;
+                                customersServedSpan.textContent = customersServed;
+                                currentOrders[i] = getRandomCustomerOrder();
+                            }
+                            renderOrders();
+                            updateFruitInventory();
+                            // If all orders are done (shouldn't happen now), reset for next time
+                            if (currentOrders.length === 0) {
+                                currentOrders = null;
+                                setTimeout(() => {
+                                    backBtn.click();
+                                }, 800);
+                            }
+                            game.updateUI();
+                        }
+                    };
+                    customerRow.appendChild(card);
+                }
+            }
+
+            // Make merge area slots accept drops for merging
+            function updateMergeSlotDroppable() {
+                document.querySelectorAll('.merge-slot').forEach(slot => {
+                    slot.ondragover = (e) => { e.preventDefault(); };
+                    slot.ondrop = (e) => {
+                        e.preventDefault();
+                        if (!game.selectedFruit) return;
+                        // Only allow merging if not in Sell Fruits area
+                        if (customerScreen.style.display !== 'flex') {
+                            game.handleMerge(slot);
+                            game.selectedFruit = null;
+                        }
+                    };
+                });
+            }
+
+            // Make merge area fruits draggable for customer drop
+            function updateMergeAreaDraggable() {
+                document.querySelectorAll('.merge-slot .fruit').forEach(fruitEl => {
+                    fruitEl.setAttribute('draggable', 'true');
+                    fruitEl.ondragstart = (e) => {
+                        e.dataTransfer.setData('text/plain', fruitEl.textContent.trim());
+                        e.dataTransfer.effectAllowed = 'move';
+                        game.selectedFruit = fruitEl;
+                        // Hide the fruit visually while dragging
+                        setTimeout(() => { fruitEl.style.visibility = 'hidden'; }, 0);
+                    };
+                    fruitEl.ondragend = (e) => {
+                        fruitEl.style.visibility = '';
+                    };
+                });
+                updateMergeSlotDroppable();
+            }
+
+            function tryFulfillOrder(idx) {
+                if (!currentOrders) return;
+                // Find all orders that match this fruit and are not angry
+                let matchingOrders = [];
+                for (let i = 0; i < currentOrders.length; i++) {
+                    const order = currentOrders[i];
+                    if (order.fruit === fruitEmojis[idx] && order.quantity > 0 && !order.angry) {
+                        matchingOrders.push({order, i});
+                    }
+                }
+                if (matchingOrders.length === 0) return;
+                // Find the order with the lowest patience
+                matchingOrders.sort((a, b) => a.order.patience - b.order.patience);
+                const {order, i} = matchingOrders[0];
+                // Count available fruits in merge area
+                let available = 0;
+                const slots = document.querySelectorAll('.merge-slot .fruit');
+                slots.forEach(fruitEl => {
+                    if (fruitEl.textContent.trim() === order.fruit) available++;
+                });
+                if (available >= order.quantity) {
+                    // Remove fruits from merge area
+                    let toRemove = order.quantity;
+                    slots.forEach(fruitEl => {
+                        if (toRemove > 0 && fruitEl.textContent.trim() === order.fruit) {
+                            fruitEl.remove();
+                            // Decrease fruits counter
+                            game.fruits = game.fruits.slice(0, -1);
+                            toRemove--;
+                        }
+                    });
+                    // Give coins for selling
+                    game.addCoins(order.quantity * 15 * (idx + 1));
+                    // Mark order as fulfilled and replace with new customer
+                    customersServed++;
+                    customersServedSpan.textContent = customersServed;
+                    currentOrders[i] = getRandomCustomerOrder();
+                    renderOrders();
+                    updateFruitInventory();
+                    game.updateUI();
+                    // If all orders are done, reset for next time
+                    return;
+                }
+            }
+
+            function updateFruitInventory() {
+                fruitInventoryRow.innerHTML = '';
+                const fruitCounts = Array(fruitEmojis.length).fill(0);
+                document.querySelectorAll('.merge-slot .fruit').forEach(fruitEl => {
+                    const emoji = fruitEl.textContent.trim();
+                    const idx = fruitEmojis.indexOf(emoji);
+                    if (idx !== -1) fruitCounts[idx]++;
+                });
+                fruitEmojis.forEach((emoji, idx) => {
+                    const item = document.createElement('div');
+                    item.className = 'fruit-inventory-item';
+                    item.innerHTML = `${emoji}<div class=\"fruit-inventory-qty\">${fruitCounts[idx]}</div>`;
+                    item.addEventListener('click', () => tryFulfillOrder(idx));
+                    fruitInventoryRow.appendChild(item);
+                });
+                updateMergeAreaDraggable();
+            }
+
+            sellBtn.addEventListener('click', () => {
+                // Hide main game, show customer screen
+                mainGameArea.style.display = 'none';
+                shopArea.style.display = 'none';
+                customerScreen.style.display = 'flex';
+                sellBtn.disabled = true;
+
+                // Only generate new orders if there are none
+                if (!currentOrders) {
+                    currentOrders = [];
+                    for (let i = 0; i < 3; i++) {
+                        currentOrders.push(getRandomCustomerOrder());
+                    }
+                }
+                renderOrders();
+                updateFruitInventory();
+                updateMergeAreaDraggable();
+            });
+
+            backBtn.addEventListener('click', () => {
+                mainGameArea.style.display = '';
+                shopArea.style.display = '';
+                customerScreen.style.display = 'none';
+                sellBtn.disabled = false;
+                // Clear patience intervals
+                patienceIntervals.forEach(clearInterval);
+                patienceIntervals = [];
+            });
+
+            game.updateBuyButton();
+        });
+    </script>
+</body>
+</html> 
