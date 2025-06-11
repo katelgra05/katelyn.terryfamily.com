@@ -719,24 +719,56 @@
             let currentOrders = null;
 
             function getRandomCustomerOrder() {
-                let fruitIdx, quantity;
+                let orderFruits = [];
+                let avatar = customerAvatars[Math.floor(Math.random() * customerAvatars.length)];
                 if (customersServed <= 5) {
-                    // Easy: only level 1-2, quantity 1
-                    fruitIdx = Math.floor(Math.random() * 2); // 0 or 1
-                    quantity = 1;
+                    // Easy: 1 fruit, level 1-2
+                    let fruitIdx = Math.floor(Math.random() * 2);
+                    orderFruits.push({ fruit: fruitEmojis[fruitIdx], qty: 1 });
                 } else if (customersServed <= 15) {
-                    // Medium: level 1-4, quantity 1-2
-                    fruitIdx = Math.floor(Math.random() * 4); // 0-3
-                    quantity = Math.floor(Math.random() * 2) + 1; // 1-2
+                    // Medium: 1 or 2 fruits, level 1-4
+                    let numFruits = Math.random() < 0.5 ? 1 : 2;
+                    let used = [];
+                    for (let i = 0; i < numFruits; i++) {
+                        let fruitIdx;
+                        do { fruitIdx = Math.floor(Math.random() * 4); } while (used.includes(fruitIdx) && numFruits === 2);
+                        used.push(fruitIdx);
+                        orderFruits.push({ fruit: fruitEmojis[fruitIdx], qty: 1 });
+                    }
+                    // 25% chance both are the same fruit
+                    if (numFruits === 2 && Math.random() < 0.25) {
+                        orderFruits[1].fruit = orderFruits[0].fruit;
+                    }
+                    // If both are the same, combine
+                    if (numFruits === 2 && orderFruits[0].fruit === orderFruits[1].fruit) {
+                        orderFruits = [{ fruit: orderFruits[0].fruit, qty: 2 }];
+                    }
                 } else {
-                    // Hard: any fruit, quantity 2-3
-                    fruitIdx = Math.floor(Math.random() * fruitEmojis.length);
-                    quantity = Math.floor(Math.random() * 2) + 2; // 2-3
+                    // Hard: 2 fruits, sometimes 3, any level
+                    let numFruits = Math.random() < 0.7 ? 2 : 3;
+                    let used = [];
+                    for (let i = 0; i < numFruits; i++) {
+                        let fruitIdx;
+                        do { fruitIdx = Math.floor(Math.random() * fruitEmojis.length); } while (used.includes(fruitIdx) && numFruits > 1);
+                        used.push(fruitIdx);
+                        orderFruits.push({ fruit: fruitEmojis[fruitIdx], qty: 1 });
+                    }
+                    // 40% chance two are the same fruit
+                    if (numFruits > 1 && Math.random() < 0.4) {
+                        let idxToCopy = Math.floor(Math.random() * numFruits);
+                        let idxToSet = (idxToCopy + 1) % numFruits;
+                        orderFruits[idxToSet].fruit = orderFruits[idxToCopy].fruit;
+                    }
+                    // Combine same fruits
+                    let combined = {};
+                    for (let ofr of orderFruits) {
+                        if (!combined[ofr.fruit]) combined[ofr.fruit] = 0;
+                        combined[ofr.fruit] += ofr.qty;
+                    }
+                    orderFruits = Object.entries(combined).map(([fruit, qty]) => ({ fruit, qty }));
                 }
-                const avatar = customerAvatars[Math.floor(Math.random() * customerAvatars.length)];
                 return {
-                    fruit: fruitEmojis[fruitIdx],
-                    quantity,
+                    orderFruits,
                     avatar,
                     patience: 30,
                     angry: false
@@ -756,7 +788,9 @@
                     card.innerHTML = `
                         <div class=\"customer-avatar\">${order.avatar}${order.angry ? ' 😡' : ''}</div>
                         <div class=\"patience-timer\" id=\"patience-timer-${i}\">${order.patience}s</div>
-                        <div class=\"customer-order\" data-order-idx="${i}">${order.fruit} × ${order.quantity}</div>
+                        <div class=\"customer-order\" data-order-idx="${i}">
+                            ${order.orderFruits.map(ofr => `${ofr.fruit} × ${ofr.qty}`).join('<br>')}
+                        </div>
                     `;
                     if (order.angry) card.classList.add('angry');
                     // Timer logic
@@ -789,7 +823,9 @@
                         e.preventDefault();
                         card.style.background = '#fff';
                         const fruitEmoji = e.dataTransfer.getData('text/plain');
-                        if (fruitEmoji === order.fruit && order.quantity > 0 && !order.angry) {
+                        // Find a matching fruit in the orderFruits array
+                        let matchIdx = order.orderFruits.findIndex(ofr => ofr.fruit === fruitEmoji && ofr.qty > 0);
+                        if (matchIdx !== -1 && !order.angry) {
                             // Find a fruit element in merge area to remove
                             const slots = document.querySelectorAll('.merge-slot .fruit');
                             let removed = false;
@@ -802,10 +838,10 @@
                                 }
                             });
                             // Fulfill one fruit for this order
-                            order.quantity--;
-                            game.addCoins(15 * (fruitEmojis.indexOf(order.fruit) + 1));
-                            // If order is done, replace with a new customer and increment counter
-                            if (order.quantity <= 0) {
+                            order.orderFruits[matchIdx].qty--;
+                            game.addCoins(30 * (fruitEmojis.indexOf(fruitEmoji) + 1));
+                            // If all fruits in the order are fulfilled, replace with a new customer and increment counter
+                            if (order.orderFruits.every(ofr => ofr.qty <= 0)) {
                                 customersServed++;
                                 customersServedSpan.textContent = customersServed;
                                 currentOrders[i] = getRandomCustomerOrder();
@@ -862,29 +898,30 @@
 
             function tryFulfillOrder(idx) {
                 if (!currentOrders) return;
-                // Find all orders that match this fruit and are not angry
+                // Find all orders that want this fruit and are not angry
                 let matchingOrders = [];
                 for (let i = 0; i < currentOrders.length; i++) {
                     const order = currentOrders[i];
-                    if (order.fruit === fruitEmojis[idx] && order.quantity > 0 && !order.angry) {
-                        matchingOrders.push({order, i});
+                    let matchIdx = order.orderFruits.findIndex(ofr => ofr.fruit === fruitEmojis[idx] && ofr.qty > 0);
+                    if (matchIdx !== -1 && !order.angry) {
+                        matchingOrders.push({order, i, matchIdx});
                     }
                 }
                 if (matchingOrders.length === 0) return;
                 // Find the order with the lowest patience
                 matchingOrders.sort((a, b) => a.order.patience - b.order.patience);
-                const {order, i} = matchingOrders[0];
+                const {order, i, matchIdx} = matchingOrders[0];
                 // Count available fruits in merge area
                 let available = 0;
                 const slots = document.querySelectorAll('.merge-slot .fruit');
                 slots.forEach(fruitEl => {
-                    if (fruitEl.textContent.trim() === order.fruit) available++;
+                    if (fruitEl.textContent.trim() === order.orderFruits[matchIdx].fruit) available++;
                 });
-                if (available >= order.quantity) {
+                if (available >= order.orderFruits[matchIdx].qty) {
                     // Remove fruits from merge area
-                    let toRemove = order.quantity;
+                    let toRemove = order.orderFruits[matchIdx].qty;
                     slots.forEach(fruitEl => {
-                        if (toRemove > 0 && fruitEl.textContent.trim() === order.fruit) {
+                        if (toRemove > 0 && fruitEl.textContent.trim() === order.orderFruits[matchIdx].fruit) {
                             fruitEl.remove();
                             // Decrease fruits counter
                             game.fruits = game.fruits.slice(0, -1);
@@ -892,11 +929,15 @@
                         }
                     });
                     // Give coins for selling
-                    game.addCoins(order.quantity * 15 * (idx + 1));
-                    // Mark order as fulfilled and replace with new customer
-                    customersServed++;
-                    customersServedSpan.textContent = customersServed;
-                    currentOrders[i] = getRandomCustomerOrder();
+                    game.addCoins(order.orderFruits[matchIdx].qty * 30 * (fruitEmojis.indexOf(order.orderFruits[matchIdx].fruit) + 1));
+                    // Mark this fruit as fulfilled
+                    order.orderFruits[matchIdx].qty = 0;
+                    // If all fruits in the order are fulfilled, replace with new customer and increment counter
+                    if (order.orderFruits.every(ofr => ofr.qty <= 0)) {
+                        customersServed++;
+                        customersServedSpan.textContent = customersServed;
+                        currentOrders[i] = getRandomCustomerOrder();
+                    }
                     renderOrders();
                     updateFruitInventory();
                     game.updateUI();

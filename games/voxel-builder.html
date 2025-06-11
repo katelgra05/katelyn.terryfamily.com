@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Voxel Builder</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #block-selector {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        .block-option {
+            width: 40px;
+            height: 40px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+        }
+        .block-option.selected {
+            border-color: white;
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #inventory {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform: translate(-50%, 50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+            z-index: 1000;
+        }
+        #inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        #hotbar {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .inventory-slot {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #555;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+        }
+        .inventory-slot.selected {
+            border-color: white;
+        }
+        .inventory-slot .count {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 12px;
+            color: white;
+        }
+        .inventory-slot:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        #loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            font-size: 2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        #error-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,0,0,0.85);
+            color: #fff;
+            font-size: 2em;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 3000;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">Loading textures and world...</div>
+    <div id="error-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,0,0,0.85);color:#fff;font-size:2em;z-index:3000;align-items:center;justify-content:center;text-align:center;">No blocks were created! Check console for errors.</div>
+    <div id="game-container">
+        <div id="ui-container">
+            <div>FPS: <span id="fps">0</span></div>
+            <div>Position: <span id="position">0, 0, 0</span></div>
+        </div>
+        <div id="inventory">
+            <div id="inventory-grid"></div>
+            <div id="hotbar"></div>
+        </div>
+        <div id="block-selector">
+            <div class="block-option selected" data-block="dirt">🟫</div>
+            <div class="block-option" data-block="grass">🟩</div>
+            <div class="block-option" data-block="stone">⬜</div>
+            <div class="block-option" data-block="wood">🟫</div>
+        </div>
+        <div id="instructions">
+            <h3>Controls:</h3>
+            <p>WASD - Move</p>
+            <p>Space - Jump</p>
+            <p>Left Click - Place Block</p>
+            <p>Right Click - Remove Block</p>
+            <p>1-4 - Select Block Type</p>
+            <p>1-9 - Select Hotbar Slot</p>
+            <p>E - Open/Close Inventory</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Game constants
+        const CHUNK_SIZE = 16;
+        const WORLD_SIZE = 2; // Slightly larger world for more ground
+        const GRAVITY = 20; // Reduced from 30 for smoother falling
+        const JUMP_FORCE = 8; // Reduced from 10 for better control
+        const MOVE_SPEED = 8; // Reduced from 10 for smoother movement
+        const TREE_CHANCE = 0.02;
+        const TREE_HEIGHT = { min: 4, max: 7 };
+        const TREE_LEAVES_RADIUS = { min: 2, max: 3 };
+        const WATER_LEVEL = 5;
+        const CAVE_CHANCE = 0.1;
+        const CAVE_SIZE = { min: 3, max: 6 };
+        const LAVA_CHANCE = 0.3;
+        const BAT_SPAWN_CHANCE = 0.4;
+        const TARGET_FPS = 60;
+        const FRAME_TIME = 1000 / TARGET_FPS;
+        let lastFrameTime = 0;
+
+        // Texture loader
+        const textureLoader = new THREE.TextureLoader();
+        const blockTextures = {};
+        let texturesLoaded = false;
+        let texturesFailed = false;
+        let texturesProgress = 0;
+        let texturesTotal = 0;
+
+        // Load textures with progress, timeout, and fallback
+        function loadTextures() {
+            return new Promise((resolve) => {
+                const textureFiles = {
+                    dirt: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/dirt.png',
+                    grass_top: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/grass_top.png',
+                    grass_side: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/grass_side.png',
+                    stone: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/stone.png',
+                    wood_top: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/log_top.png',
+                    wood_side: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/log.png',
+                    leaves: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/leaves.png',
+                    sand: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/sand.png',
+                    water: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/water.png',
+                    lava: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/lava.png',
+                    bedrock: 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/bedrock.png'
+                };
+
+                texturesTotal = Object.keys(textureFiles).length;
+                texturesProgress = 0;
+                let loadedCount = 0;
+                let failedCount = 0;
+                let finished = false;
+
+                function updateOverlay() {
+                    const overlay = document.getElementById('loading-overlay');
+                    overlay.textContent = `Loading textures: ${texturesProgress}/${texturesTotal}`;
+                }
+
+                function finish(success) {
+                    if (finished) return;
+                    finished = true;
+                    texturesLoaded = success;
+                    texturesFailed = !success;
+                    resolve();
+                }
+
+                // Timeout after 10 seconds
+                setTimeout(() => {
+                    if (!finished) {
+                        console.error('Texture loading timed out. Using fallback colors.');
+                        finish(false);
+                    }
+                }, 10000);
+
+                // Load each texture
+                for (const [key, url] of Object.entries(textureFiles)) {
+                    textureLoader.load(url, (texture) => {
+                        texture.magFilter = THREE.NearestFilter;
+                        texture.minFilter = THREE.NearestFilter;
+                        blockTextures[key] = texture;
+                        loadedCount++;
+                        texturesProgress++;
+                        updateOverlay();
+                        if (loadedCount + failedCount === texturesTotal) {
+                            finish(true);
+                        }
+                    }, undefined, (err) => {
+                        console.warn('Failed to load texture', key, url, err);
+                        failedCount++;
+                        texturesProgress++;
+                        updateOverlay();
+                        if (loadedCount + failedCount === texturesTotal) {
+                            finish(failedCount === 0);
+                        }
+                    });
+                }
+            });
+        }
+
+        // Mob constants
+        const MOB_TYPES = {
+            DEER: { 
+                speed: 5, 
+                friendly: true, 
+                spawnChance: 0.01, 
+                health: 3,
+                scale: 0.5,
+                color: 0x8B4513
+            },
+            RABBIT: { 
+                speed: 7, 
+                friendly: true, 
+                spawnChance: 0.02, 
+                health: 1,
+                scale: 0.3,
+                color: 0xFFFFFF
+            },
+            BIRD: { 
+                speed: 8, 
+                friendly: true, 
+                spawnChance: 0.03, 
+                health: 1, 
+                flying: true,
+                scale: 0.2,
+                color: 0x4682B4,
+                variants: [
+                    { color: 0x4682B4, name: 'Blue' },  // Blue
+                    { color: 0xFFD700, name: 'Gold' },  // Gold
+                    { color: 0xFF0000, name: 'Red' },   // Red
+                    { color: 0x32CD32, name: 'Green' }  // Green
+                ]
+            },
+            WOLF: { 
+                speed: 6, 
+                friendly: false, 
+                spawnChance: 0.005, 
+                health: 4, 
+                attackRange: 2, 
+                damage: 1,
+                scale: 0.4,
+                color: 0x808080
+            },
+            BEAR: { 
+                speed: 4, 
+                friendly: false, 
+                spawnChance: 0.003, 
+                health: 6, 
+                attackRange: 2, 
+                damage: 2,
+                scale: 0.7,
+                color: 0x8B4513
+            },
+            BAT: { 
+                speed: 10, 
+                friendly: false, 
+                spawnChance: 0.0,
+                health: 1, 
+                flying: true,
+                scale: 0.15,
+                color: 0x2F4F4F,
+                damage: 0.5
+            },
+            FISH: {
+                speed: 6,
+                friendly: true,
+                spawnChance: 0.02,
+                health: 1,
+                swimming: true,
+                scale: 0.2,
+                color: 0xFF69B4,
+                variants: [
+                    { color: 0xFF69B4, name: 'Pink' },   // Pink
+                    { color: 0x00FFFF, name: 'Cyan' },   // Cyan
+                    { color: 0xFFD700, name: 'Gold' },   // Gold
+                    { color: 0xFF4500, name: 'Orange' }  // Orange
+                ]
+            },
+            SNAKE: {
+                speed: 4,
+                friendly: false,
+                spawnChance: 0.01,
+                health: 2,
+                scale: 0.3,
+                color: 0x32CD32,
+                damage: 1,
+                variants: [
+                    { color: 0x32CD32, name: 'Green' },  // Green
+                    { color: 0x8B4513, name: 'Brown' },  // Brown
+                    { color: 0xFFD700, name: 'Gold' }    // Gold
+                ]
+            },
+            HORSE: {
+                speed: 12,
+                friendly: true,
+                spawnChance: 0.005,
+                health: 8,
+                scale: 0.8,
+                color: 0x8B4513,
+                variants: [
+                    { color: 0x8B4513, name: 'Brown' },  // Brown
+                    { color: 0xFFFFFF, name: 'White' },  // White
+                    { color: 0x000000, name: 'Black' }   // Black
+                ]
+            },
+            FOX: {
+                speed: 8,
+                friendly: true,
+                spawnChance: 0.008,
+                health: 4,
+                scale: 0.4,
+                color: 0xFF8C00,
+                variants: [
+                    { color: 0xFF8C00, name: 'Orange' },  // Orange
+                    { color: 0x8B4513, name: 'Brown' },   // Brown
+                    { color: 0xFFFFFF, name: 'Arctic' }   // White
+                ]
+            },
+            PIG: {
+                speed: 5,
+                friendly: true,
+                spawnChance: 0.015,
+                health: 5,
+                scale: 0.5,
+                color: 0xFFB6C1,
+                variants: [
+                    { color: 0xFFB6C1, name: 'Pink' },    // Pink
+                    { color: 0x8B4513, name: 'Brown' },   // Brown
+                    { color: 0x000000, name: 'Black' }    // Black
+                ]
+            },
+            SHEEP: {
+                speed: 4,
+                friendly: true,
+                spawnChance: 0.01,
+                health: 4,
+                scale: 0.5,
+                color: 0xFFFFFF,
+                variants: [
+                    { color: 0xFFFFFF, name: 'White' },   // White
+                    { color: 0x000000, name: 'Black' },   // Black
+                    { color: 0x8B4513, name: 'Brown' }    // Brown
+                ]
+            }
+        };
+
+        // Game state
+        let camera, scene, renderer;
+        let player = {
+            position: new THREE.Vector3(0, 0, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            onGround: false,
+            rotation: new THREE.Euler(0, 0, 0, 'YXZ'),
+            health: 10,
+            isAttacking: false,
+            inventory: {
+                hotbar: Array(9).fill(null),
+                main: Array(27).fill(null),
+                selectedSlot: 0
+            }
+        };
+        let selectedBlock = 'dirt';
+        let chunks = new Map();
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        let clock = new THREE.Clock();
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let mobs = new Map();
+        let lastMobSpawn = 0;
+        let mobSpawnInterval = 5000;
+        let isInventoryOpen = false;
+
+        // Block data with texture information
+        const blockData = {
+            dirt: { 
+                emoji: '🟫', 
+                maxStack: 64, 
+                textures: {
+                    top: 'dirt',
+                    side: 'dirt',
+                    bottom: 'dirt'
+                }
+            },
+            grass: { 
+                emoji: '🟩', 
+                maxStack: 64, 
+                textures: {
+                    top: 'grass_top',
+                    side: 'grass_side',
+                    bottom: 'dirt'
+                }
+            },
+            stone: { 
+                emoji: '⬜', 
+                maxStack: 64, 
+                textures: {
+                    top: 'stone',
+                    side: 'stone',
+                    bottom: 'stone'
+                }
+            },
+            wood: { 
+                emoji: '🟫', 
+                maxStack: 64, 
+                textures: {
+                    top: 'wood_top',
+                    side: 'wood_side',
+                    bottom: 'wood_top'
+                }
+            },
+            leaves: { 
+                emoji: '🟢', 
+                maxStack: 64, 
+                textures: {
+                    top: 'leaves',
+                    side: 'leaves',
+                    bottom: 'leaves'
+                }
+            },
+            sand: { 
+                emoji: '🟨', 
+                maxStack: 64, 
+                textures: {
+                    top: 'sand',
+                    side: 'sand',
+                    bottom: 'sand'
+                }
+            },
+            water: { 
+                emoji: '💧', 
+                maxStack: 64, 
+                textures: {
+                    top: 'water',
+                    side: 'water',
+                    bottom: 'water'
+                }
+            },
+            lava: { 
+                emoji: '🔥', 
+                maxStack: 64, 
+                textures: {
+                    top: 'lava',
+                    side: 'lava',
+                    bottom: 'lava'
+                }
+            },
+            bedrock: { 
+                emoji: '⬛', 
+                maxStack: 64, 
+                textures: {
+                    top: 'bedrock',
+                    side: 'bedrock',
+                    bottom: 'bedrock'
+                }
+            }
+        };
+
+        // Block breaking state
+        let breakingBlock = null;
+        let breakingTimeout = null;
+        let breakingMesh = null;
+        let cracksMesh = null;
+        const BREAK_TIME = 700; // ms
+        const REACH_DISTANCE = 5;
+
+        // Day/night cycle
+        let timeOfDay = 0; // 0 to 1, where 0 is midnight, 0.5 is noon
+        const DAY_LENGTH = 600; // 600 seconds = 10 minutes for a full day/night cycle
+        let ambientLight, directionalLight;
+
+        // Block highlight
+        let highlightMesh = null;
+
+        // Initialize inventory
+        function initInventory() {
+            // Initialize hotbar
+            const hotbar = document.getElementById('hotbar');
+            for (let i = 0; i < 9; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inventory-slot';
+                slot.dataset.slot = i;
+                slot.addEventListener('click', () => selectInventorySlot(i));
+                hotbar.appendChild(slot);
+            }
+
+            // Initialize main inventory
+            const inventoryGrid = document.getElementById('inventory-grid');
+            for (let i = 0; i < 27; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inventory-slot';
+                slot.dataset.slot = i + 9;
+                slot.addEventListener('click', () => selectInventorySlot(i + 9));
+                inventoryGrid.appendChild(slot);
+            }
+
+            // Add initial blocks to inventory
+            addBlockToInventory('dirt', 64);
+            addBlockToInventory('grass', 64);
+            addBlockToInventory('stone', 64);
+            addBlockToInventory('wood', 64);
+            addBlockToInventory('leaves', 64);
+            addBlockToInventory('sand', 64);
+            addBlockToInventory('water', 64);
+            addBlockToInventory('lava', 64);
+            addBlockToInventory('bedrock', 64);
+
+            updateInventoryUI();
+        }
+
+        // Add block to inventory
+        function addBlockToInventory(blockType, count) {
+            const blockInfo = blockData[blockType];
+            if (!blockInfo) return;
+
+            // Try to stack with existing blocks
+            for (let i = 0; i < player.inventory.hotbar.length; i++) {
+                if (player.inventory.hotbar[i] && player.inventory.hotbar[i].type === blockType) {
+                    const space = blockInfo.maxStack - player.inventory.hotbar[i].count;
+                    if (space > 0) {
+                        const add = Math.min(space, count);
+                        player.inventory.hotbar[i].count += add;
+                        count -= add;
+                        if (count === 0) break;
+                    }
+                }
+            }
+
+            // If still have blocks, try main inventory
+            if (count > 0) {
+                for (let i = 0; i < player.inventory.main.length; i++) {
+                    if (player.inventory.main[i] && player.inventory.main[i].type === blockType) {
+                        const space = blockInfo.maxStack - player.inventory.main[i].count;
+                        if (space > 0) {
+                            const add = Math.min(space, count);
+                            player.inventory.main[i].count += add;
+                            count -= add;
+                            if (count === 0) break;
+                        }
+                    }
+                }
+            }
+
+            // If still have blocks, find empty slots
+            if (count > 0) {
+                // Try hotbar first
+                for (let i = 0; i < player.inventory.hotbar.length; i++) {
+                    if (!player.inventory.hotbar[i]) {
+                        player.inventory.hotbar[i] = { type: blockType, count: Math.min(count, blockInfo.maxStack) };
+                        count -= player.inventory.hotbar[i].count;
+                        if (count === 0) break;
+                    }
+                }
+
+                // Then try main inventory
+                if (count > 0) {
+                    for (let i = 0; i < player.inventory.main.length; i++) {
+                        if (!player.inventory.main[i]) {
+                            player.inventory.main[i] = { type: blockType, count: Math.min(count, blockInfo.maxStack) };
+                            count -= player.inventory.main[i].count;
+                            if (count === 0) break;
+                        }
+                    }
+                }
+            }
+
+            updateInventoryUI();
+        }
+
+        // Update inventory UI
+        function updateInventoryUI() {
+            // Update hotbar
+            const hotbarSlots = document.querySelectorAll('#hotbar .inventory-slot');
+            hotbarSlots.forEach((slot, i) => {
+                const block = player.inventory.hotbar[i];
+                slot.innerHTML = block ? `${blockData[block.type].emoji}<span class="count">${block.count}</span>` : '';
+                slot.classList.toggle('selected', i === player.inventory.selectedSlot);
+            });
+
+            // Update main inventory
+            const mainSlots = document.querySelectorAll('#inventory-grid .inventory-slot');
+            mainSlots.forEach((slot, i) => {
+                const block = player.inventory.main[i];
+                slot.innerHTML = block ? `${blockData[block.type].emoji}<span class="count">${block.count}</span>` : '';
+            });
+
+            // Update selected block
+            const selectedBlock = player.inventory.hotbar[player.inventory.selectedSlot];
+            if (selectedBlock) {
+                updateBlockSelector(selectedBlock.type);
+            }
+        }
+
+        // Select inventory slot
+        function selectInventorySlot(slotIndex) {
+            if (slotIndex < 9) {
+                player.inventory.selectedSlot = slotIndex;
+                const selectedBlock = player.inventory.hotbar[slotIndex];
+                if (selectedBlock) {
+                    updateBlockSelector(selectedBlock.type);
+                }
+            }
+            updateInventoryUI();
+        }
+
+        // Toggle inventory
+        function toggleInventory() {
+            isInventoryOpen = !isInventoryOpen;
+            document.getElementById('inventory').style.display = isInventoryOpen ? 'block' : 'none';
+            if (isInventoryOpen) {
+                document.exitPointerLock();
+            } else {
+                renderer.domElement.requestPointerLock();
+            }
+        }
+
+        // Update block selector
+        function updateBlockSelector(blockType) {
+            selectedBlock = blockType;
+            document.querySelectorAll('.block-option').forEach(option => {
+                option.classList.remove('selected');
+                if (option.dataset.block === selectedBlock) {
+                    option.classList.add('selected');
+                }
+            });
+        }
+
+        // Handle keyboard input (smooth movement)
+        function onKeyDown(event) {
+            // Always allow closing inventory with E
+            if (event.code === 'KeyE') {
+                toggleInventory();
+                return;
+            }
+            if (isInventoryOpen) return;
+            switch(event.code) {
+                case 'KeyW':
+                    moveForward = true;
+                    break;
+                case 'KeyS':
+                    moveBackward = true;
+                    break;
+                case 'KeyA':
+                    moveLeft = true;
+                    break;
+                case 'KeyD':
+                    moveRight = true;
+                    break;
+                case 'Space':
+                    if (player.onGround) {
+                        player.velocity.y = JUMP_FORCE;
+                        player.onGround = false;
+                    }
+                    break;
+                case 'Digit1':
+                case 'Digit2':
+                case 'Digit3':
+                case 'Digit4':
+                case 'Digit5':
+                case 'Digit6':
+                case 'Digit7':
+                case 'Digit8':
+                case 'Digit9':
+                    const slot = parseInt(event.code.replace('Digit', '')) - 1;
+                    selectInventorySlot(slot);
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch(event.code) {
+                case 'KeyW':
+                    moveForward = false;
+                    break;
+                case 'KeyS':
+                    moveBackward = false;
+                    break;
+                case 'KeyA':
+                    moveLeft = false;
+                    break;
+                case 'KeyD':
+                    moveRight = false;
+                    break;
+            }
+        }
+
+        // Place a block (with reach limit)
+        function placeBlock() {
+            const selectedBlock = player.inventory.hotbar[player.inventory.selectedSlot];
+            if (!selectedBlock || selectedBlock.count <= 0) return;
+
+            raycaster.setFromCamera(mouse, camera);
+            const objectsToIntersect = scene.children.filter(obj => obj !== highlightMesh);
+            const intersects = raycaster.intersectObjects(objectsToIntersect, true);
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                // Reach check
+                if (intersect.distance > REACH_DISTANCE) return;
+                // Place block adjacent to the highlighted block
+                const basePos = intersect.object.position.clone();
+                const normal = intersect.face.normal.clone();
+                const placePos = basePos.add(normal);
+                const chunkX = Math.floor(placePos.x / CHUNK_SIZE);
+                const chunkZ = Math.floor(placePos.z / CHUNK_SIZE);
+                const chunk = chunks.get(`${chunkX},${chunkZ}`);
+                if (chunk) {
+                    // Don't place blocks inside the player
+                    const playerPos = new THREE.Vector3(
+                        Math.floor(player.position.x),
+                        Math.floor(player.position.y),
+                        Math.floor(player.position.z)
+                    );
+                    const blockPos = new THREE.Vector3(
+                        Math.floor(placePos.x),
+                        Math.floor(placePos.y),
+                        Math.floor(placePos.z)
+                    );
+                    if (playerPos.distanceTo(blockPos) > 1) {
+                        createBlock(
+                            Math.floor(placePos.x),
+                            Math.floor(placePos.y),
+                            Math.floor(placePos.z),
+                            selectedBlock.type,
+                            chunk
+                        );
+                        selectedBlock.count--;
+                        if (selectedBlock.count <= 0) {
+                            player.inventory.hotbar[player.inventory.selectedSlot] = null;
+                        }
+                        updateInventoryUI();
+                    }
+                }
+            }
+        }
+
+        // Block breaking with hold and cracks
+        function startBreakingBlock() {
+            if (breakingBlock) return;
+            raycaster.setFromCamera(mouse, camera);
+            const objectsToIntersect = scene.children.filter(obj => obj !== highlightMesh);
+            const intersects = raycaster.intersectObjects(objectsToIntersect, true);
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                if (intersect.distance > REACH_DISTANCE) return;
+                breakingBlock = intersect.object;
+                breakingMesh = intersect.object;
+                // Add cracks overlay (simple semi-transparent cube)
+                if (cracksMesh) scene.remove(cracksMesh);
+                const cracksGeo = new THREE.BoxGeometry(1.01, 1.01, 1.01);
+                const cracksMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+                cracksMesh = new THREE.Mesh(cracksGeo, cracksMat);
+                cracksMesh.position.copy(breakingMesh.position);
+                scene.add(cracksMesh);
+                // Start break timer
+                breakingTimeout = setTimeout(() => {
+                    removeBlockAtMesh(breakingMesh);
+                    if (cracksMesh) scene.remove(cracksMesh);
+                    breakingBlock = null;
+                    cracksMesh = null;
+                }, BREAK_TIME);
+            }
+        }
+
+        function cancelBreakingBlock() {
+            if (breakingTimeout) clearTimeout(breakingTimeout);
+            if (cracksMesh) scene.remove(cracksMesh);
+            breakingBlock = null;
+            cracksMesh = null;
+        }
+
+        function removeBlockAtMesh(mesh) {
+            if (mesh && mesh.parent) {
+                const blockType = mesh.userData.type;
+                mesh.parent.remove(mesh);
+                addBlockToInventory(blockType, 1);
+            }
+        }
+
+        // Override onMouseDown and onMouseUp for breaking
+        function onMouseDown(event) {
+            if (event.button === 0) { // Left click
+                player.isAttacking = true;
+                startBreakingBlock();
+            } else if (event.button === 2) { // Right click
+                placeBlock();
+            }
+        }
+
+        function onMouseUp(event) {
+            if (event.button === 0) {
+                player.isAttacking = false;
+                cancelBreakingBlock();
+            }
+        }
+
+        // Remove a block
+        function removeBlock() {
+            raycaster.setFromCamera(mouse, camera);
+            const objectsToIntersect = scene.children.filter(obj => obj !== highlightMesh);
+            const intersects = raycaster.intersectObjects(objectsToIntersect, true);
+            
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                const block = intersect.object;
+                if (block.parent) {
+                    const blockType = block.userData.type;
+                    block.parent.remove(block);
+                    addBlockToInventory(blockType, 1);
+                }
+            }
+        }
+
+        // Mob class
+        class Mob {
+            constructor(type, x, y, z) {
+                this.type = type;
+                this.position = new THREE.Vector3(x, y, z);
+                this.velocity = new THREE.Vector3(0, 0, 0);
+                this.target = null;
+                this.health = MOB_TYPES[type].health;
+                this.lastDirectionChange = 0;
+                this.directionChangeInterval = 2000 + Math.random() * 3000;
+                this.movementDirection = new THREE.Vector3(
+                    Math.random() - 0.5,
+                    0,
+                    Math.random() - 0.5
+                ).normalize();
+
+                // Select random variant if available
+                if (MOB_TYPES[type].variants) {
+                    this.variant = MOB_TYPES[type].variants[
+                        Math.floor(Math.random() * MOB_TYPES[type].variants.length)
+                    ];
+                }
+
+                this.animationTime = 0;
+                this.animationSpeed = 1 + Math.random() * 0.5; // Randomize animation speed slightly
+
+                this.createModel();
+            }
+
+            createModel() {
+                const mobType = MOB_TYPES[this.type];
+                const group = new THREE.Group();
+                const color = this.variant ? this.variant.color : mobType.color;
+                
+                if (this.type === 'FOX') {
+                    // Create fox body
+                    const bodyGeometry = new THREE.BoxGeometry(0.8, 0.5, 0.6);
+                    const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                    body.position.y = 0.25;
+                    group.add(body);
+
+                    // Create fox head
+                    const headGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+                    const headMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const head = new THREE.Mesh(headGeometry, headMaterial);
+                    head.position.set(0.4, 0.5, 0);
+                    group.add(head);
+
+                    // Create fox legs
+                    const legGeometry = new THREE.BoxGeometry(0.15, 0.4, 0.15);
+                    const legMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    
+                    // Front legs
+                    const frontLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontLeftLeg.position.set(0.3, 0.2, 0.2);
+                    group.add(frontLeftLeg);
+                    
+                    const frontRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontRightLeg.position.set(0.3, 0.2, -0.2);
+                    group.add(frontRightLeg);
+                    
+                    // Back legs
+                    const backLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backLeftLeg.position.set(-0.3, 0.2, 0.2);
+                    group.add(backLeftLeg);
+                    
+                    const backRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backRightLeg.position.set(-0.3, 0.2, -0.2);
+                    group.add(backRightLeg);
+
+                    // Create fox tail
+                    const tailGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.6);
+                    const tailMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const tail = new THREE.Mesh(tailGeometry, tailMaterial);
+                    tail.position.set(-0.4, 0.3, 0);
+                    group.add(tail);
+
+                    // Store parts for animation
+                    this.legs = [frontLeftLeg, frontRightLeg, backLeftLeg, backRightLeg];
+                    this.tail = tail;
+
+                } else if (this.type === 'PIG') {
+                    // Create pig body
+                    const bodyGeometry = new THREE.BoxGeometry(0.8, 0.6, 0.8);
+                    const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                    body.position.y = 0.3;
+                    group.add(body);
+
+                    // Create pig head
+                    const headGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+                    const headMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const head = new THREE.Mesh(headGeometry, headMaterial);
+                    head.position.set(0.4, 0.5, 0);
+                    group.add(head);
+
+                    // Create pig snout
+                    const snoutGeometry = new THREE.BoxGeometry(0.2, 0.15, 0.2);
+                    const snoutMaterial = new THREE.MeshLambertMaterial({ color: 0xFFB6C1 });
+                    const snout = new THREE.Mesh(snoutGeometry, snoutMaterial);
+                    snout.position.set(0.6, 0.45, 0);
+                    group.add(snout);
+
+                    // Create pig legs
+                    const legGeometry = new THREE.BoxGeometry(0.2, 0.4, 0.2);
+                    const legMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    
+                    // Front legs
+                    const frontLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontLeftLeg.position.set(0.3, 0.2, 0.3);
+                    group.add(frontLeftLeg);
+                    
+                    const frontRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontRightLeg.position.set(0.3, 0.2, -0.3);
+                    group.add(frontRightLeg);
+                    
+                    // Back legs
+                    const backLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backLeftLeg.position.set(-0.3, 0.2, 0.3);
+                    group.add(backLeftLeg);
+                    
+                    const backRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backRightLeg.position.set(-0.3, 0.2, -0.3);
+                    group.add(backRightLeg);
+
+                    // Store parts for animation
+                    this.legs = [frontLeftLeg, frontRightLeg, backLeftLeg, backRightLeg];
+                    this.snout = snout;
+
+                } else if (this.type === 'SHEEP') {
+                    // Create sheep body
+                    const bodyGeometry = new THREE.BoxGeometry(0.8, 0.7, 0.8);
+                    const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                    body.position.y = 0.35;
+                    group.add(body);
+
+                    // Create sheep head
+                    const headGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+                    const headMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const head = new THREE.Mesh(headGeometry, headMaterial);
+                    head.position.set(0.4, 0.6, 0);
+                    group.add(head);
+
+                    // Create sheep legs
+                    const legGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
+                    const legMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    
+                    // Front legs
+                    const frontLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontLeftLeg.position.set(0.3, 0.25, 0.3);
+                    group.add(frontLeftLeg);
+                    
+                    const frontRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontRightLeg.position.set(0.3, 0.25, -0.3);
+                    group.add(frontRightLeg);
+                    
+                    // Back legs
+                    const backLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backLeftLeg.position.set(-0.3, 0.25, 0.3);
+                    group.add(backLeftLeg);
+                    
+                    const backRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backRightLeg.position.set(-0.3, 0.25, -0.3);
+                    group.add(backRightLeg);
+
+                    // Store parts for animation
+                    this.legs = [frontLeftLeg, frontRightLeg, backLeftLeg, backRightLeg];
+                } else {
+                    // Create body
+                    const bodyGeometry = new THREE.BoxGeometry(1, 1, 1.5);
+                    const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                    body.position.y = 0.5;
+                    group.add(body);
+
+                    // Create head
+                    const headGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+                    const headMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    const head = new THREE.Mesh(headGeometry, headMaterial);
+                    head.position.set(0, 0.8, 0.8);
+                    group.add(head);
+
+                    // Add legs
+                    const legGeometry = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+                    const legMaterial = new THREE.MeshLambertMaterial({ color: color });
+                    
+                    // Front legs
+                    const frontLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontLeftLeg.position.set(0.3, 0.3, 0.5);
+                    group.add(frontLeftLeg);
+                    
+                    const frontRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    frontRightLeg.position.set(-0.3, 0.3, 0.5);
+                    group.add(frontRightLeg);
+                    
+                    // Back legs
+                    const backLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backLeftLeg.position.set(0.3, 0.3, -0.5);
+                    group.add(backLeftLeg);
+                    
+                    const backRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                    backRightLeg.position.set(-0.3, 0.3, -0.5);
+                    group.add(backRightLeg);
+
+                    // Add ears for rabbit
+                    if (this.type === 'RABBIT') {
+                        const earGeometry = new THREE.BoxGeometry(0.1, 0.4, 0.1);
+                        const earMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+                        
+                        const leftEar = new THREE.Mesh(earGeometry, earMaterial);
+                        leftEar.position.set(0.2, 1.2, 0.8);
+                        group.add(leftEar);
+                        
+                        const rightEar = new THREE.Mesh(earGeometry, earMaterial);
+                        rightEar.position.set(-0.2, 1.2, 0.8);
+                        group.add(rightEar);
+                    }
+
+                    // Add antlers for deer
+                    if (this.type === 'DEER') {
+                        const antlerGeometry = new THREE.BoxGeometry(0.1, 0.4, 0.1);
+                        const antlerMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                        
+                        const leftAntler = new THREE.Mesh(antlerGeometry, antlerMaterial);
+                        leftAntler.position.set(0.2, 1.2, 0.8);
+                        leftAntler.rotation.z = Math.PI / 6;
+                        group.add(leftAntler);
+                        
+                        const rightAntler = new THREE.Mesh(antlerGeometry, antlerMaterial);
+                        rightAntler.position.set(-0.2, 1.2, 0.8);
+                        rightAntler.rotation.z = -Math.PI / 6;
+                        group.add(rightAntler);
+                    }
+
+                    // Add wings for bird
+                    if (this.type === 'BIRD') {
+                        const wingGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.4);
+                        const wingMaterial = new THREE.MeshLambertMaterial({ color: color });
+                        
+                        const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+                        leftWing.position.set(0.5, 0.5, 0);
+                        group.add(leftWing);
+                        
+                        const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+                        rightWing.position.set(-0.5, 0.5, 0);
+                        group.add(rightWing);
+                    }
+                }
+
+                // Scale the entire model
+                group.scale.set(mobType.scale, mobType.scale, mobType.scale);
+                
+                // Add to scene
+                this.model = group;
+                scene.add(this.model);
+            }
+
+            update(delta, playerPosition) {
+                const now = Date.now();
+                const mobType = MOB_TYPES[this.type];
+
+                // Update animation time
+                this.animationTime += delta * this.animationSpeed;
+
+                // Update position
+                if (mobType.flying) {
+                    this.position.y = Math.sin(now * 0.002) * 0.5 + 3;
+                } else if (mobType.swimming) {
+                    this.position.y = WATER_LEVEL - 0.5 + Math.sin(now * 0.003) * 0.3;
+                }
+
+                // Change direction randomly
+                if (now - this.lastDirectionChange > this.directionChangeInterval) {
+                    this.movementDirection.set(
+                        Math.random() - 0.5,
+                        0,
+                        Math.random() - 0.5
+                    ).normalize();
+                    this.lastDirectionChange = now;
+                }
+
+                // Hostile mob behavior
+                if (!mobType.friendly) {
+                    const distanceToPlayer = this.position.distanceTo(playerPosition);
+                    if (distanceToPlayer < 10) {
+                        // Chase player
+                        this.movementDirection = new THREE.Vector3()
+                            .subVectors(playerPosition, this.position)
+                            .normalize();
+                        
+                        // Attack if in range
+                        if (distanceToPlayer < (mobType.attackRange || 1.5) && player.isAttacking) {
+                            player.health -= (mobType.damage || 1) * delta;
+                        }
+                    }
+                }
+
+                // Move mob
+                this.position.add(
+                    this.movementDirection.clone()
+                        .multiplyScalar(mobType.speed * delta)
+                );
+
+                // Keep mobs within world bounds
+                const minX = -WORLD_SIZE * CHUNK_SIZE + 1;
+                const maxX = (WORLD_SIZE - 1) * CHUNK_SIZE + CHUNK_SIZE - 2;
+                const minZ = -WORLD_SIZE * CHUNK_SIZE + 1;
+                const maxZ = (WORLD_SIZE - 1) * CHUNK_SIZE + CHUNK_SIZE - 2;
+                this.position.x = Math.max(minX, Math.min(maxX, this.position.x));
+                this.position.z = Math.max(minZ, Math.min(maxZ, this.position.z));
+
+                // Keep fish in water
+                if (mobType.swimming) {
+                    this.position.x = Math.max(-WORLD_SIZE * CHUNK_SIZE, Math.min(WORLD_SIZE * CHUNK_SIZE, this.position.x));
+                    this.position.z = Math.max(-WORLD_SIZE * CHUNK_SIZE, Math.min(WORLD_SIZE * CHUNK_SIZE, this.position.z));
+                }
+
+                // Update animations
+                if (this.legs) {
+                    // Leg animation for walking
+                    const legOffset = Math.sin(this.animationTime * 5) * 0.2;
+                    this.legs[0].rotation.x = legOffset;
+                    this.legs[1].rotation.x = -legOffset;
+                    this.legs[2].rotation.x = -legOffset;
+                    this.legs[3].rotation.x = legOffset;
+                }
+
+                if (this.type === 'FOX' && this.tail) {
+                    // Tail wagging animation
+                    this.tail.rotation.z = Math.sin(this.animationTime * 3) * 0.3;
+                }
+
+                if (this.type === 'PIG' && this.snout) {
+                    // Snout twitching animation
+                    this.snout.rotation.x = Math.sin(this.animationTime * 8) * 0.1;
+                }
+
+                if (this.type === 'FISH') {
+                    // Fish swimming animation
+                    const bodyRotation = Math.sin(this.animationTime * 4) * 0.2;
+                    this.model.rotation.z = bodyRotation;
+                }
+
+                if (this.type === 'SNAKE') {
+                    // Snake slithering animation
+                    const segments = this.model.children;
+                    for (let i = 0; i < segments.length; i++) {
+                        const offset = i * 0.2;
+                        segments[i].rotation.y = Math.sin(this.animationTime * 3 + offset) * 0.2;
+                    }
+                }
+
+                // Update model position and rotation
+                if (this.model) {
+                    this.model.position.copy(this.position);
+                    if (this.movementDirection.length() > 0) {
+                        this.model.rotation.y = Math.atan2(this.movementDirection.x, this.movementDirection.z);
+                    }
+                }
+            }
+
+            remove() {
+                if (this.model) {
+                    scene.remove(this.model);
+                }
+            }
+        }
+
+        // Initialize the game
+        async function init() {
+            // Show loading overlay
+            const overlay = document.getElementById('loading-overlay');
+            overlay.style.display = 'flex';
+            overlay.textContent = 'Loading textures: 0/0';
+
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0);
+
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            // Add lighting
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            scene.add(directionalLight);
+
+            // Load textures and wait for them to complete
+            await loadTextures();
+
+            // If textures failed, show error for 2 seconds then continue
+            if (texturesFailed) {
+                overlay.textContent = 'Some textures failed to load. Using fallback colors.';
+                await new Promise(r => setTimeout(r, 2000));
+            }
+
+            // Generate initial world
+            generateWorld();
+
+            // Find safe spawn position (always on ground)
+            findSafeSpawnPosition();
+
+            // Check if any blocks exist in the scene
+            let blockCount = 0;
+            scene.traverse(obj => { if (obj.isMesh) blockCount++; });
+            if (blockCount === 0) {
+                document.getElementById('error-overlay').style.display = 'flex';
+                console.error('No blocks were created in the world!');
+            }
+
+            // Add event listeners
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('pointerlockchange', onPointerLockChange);
+            document.addEventListener('mouseup', onMouseUp);
+
+            // Request pointer lock on click
+            renderer.domElement.addEventListener('click', () => {
+                renderer.domElement.requestPointerLock();
+            });
+
+            // Initialize inventory
+            initInventory();
+
+            // Hide loading overlay
+            overlay.style.display = 'none';
+
+            // Start game loop
+            animate();
+        }
+
+        // Generate the world
+        function generateWorld() {
+            if (!texturesLoaded && !texturesFailed) return;
+
+            for (let x = -WORLD_SIZE; x < WORLD_SIZE; x++) {
+                for (let z = -WORLD_SIZE; z < WORLD_SIZE; z++) {
+                    generateChunk(x, z);
+                }
+            }
+        }
+
+        // Generate a single chunk
+        function generateChunk(chunkX, chunkZ) {
+            const chunk = new THREE.Group();
+            const chunkKey = `${chunkX},${chunkZ}`;
+            chunks.set(chunkKey, chunk);
+            scene.add(chunk);
+
+            // --- Guaranteed flat ground layer at y=0 ---
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                for (let z = 0; z < CHUNK_SIZE; z++) {
+                    const worldX = chunkX * CHUNK_SIZE + x;
+                    const worldZ = chunkZ * CHUNK_SIZE + z;
+                    createBlock(worldX, 0, worldZ, 'grass', chunk);
+                }
+            }
+            // --- End guaranteed ground ---
+                    
+            // Generate terrain (above ground)
+            for (let x = 0; x < CHUNK_SIZE; x++) {
+                for (let z = 0; z < CHUNK_SIZE; z++) {
+                    const worldX = chunkX * CHUNK_SIZE + x;
+                    const worldZ = chunkZ * CHUNK_SIZE + z;
+                    // Improved height map using multiple octaves of noise
+                    const height = Math.floor(
+                        (Math.sin(worldX * 0.1) * Math.cos(worldZ * 0.1) * 2) +
+                        (Math.sin(worldX * 0.05) * Math.cos(worldZ * 0.05) * 4) +
+                        (Math.sin(worldX * 0.02) * Math.cos(worldZ * 0.02) * 8) +
+                        10
+                    );
+                    // Only generate blocks above y=0
+                    for (let y = 1; y < height; y++) {
+                        let blockType;
+                        if (y === height - 1) {
+                            blockType = 'grass';
+                        } else if (y > height - 4) {
+                            blockType = 'dirt';
+                        } else {
+                            blockType = 'stone';
+                        }
+                        createBlock(worldX, y, worldZ, blockType, chunk);
+                    }
+                }
+            }
+            // Debug log
+            console.log(`Chunk ${chunkX},${chunkZ} generated with ground layer.`);
+        }
+
+        // Generate a tree
+        function generateTree(x, y, z, chunk) {
+            const treeHeight = Math.floor(Math.random() * (TREE_HEIGHT.max - TREE_HEIGHT.min + 1)) + TREE_HEIGHT.min;
+            const leavesRadius = Math.floor(Math.random() * (TREE_LEAVES_RADIUS.max - TREE_LEAVES_RADIUS.min + 1)) + TREE_LEAVES_RADIUS.min;
+
+            // Generate trunk
+            for (let i = 0; i < treeHeight; i++) {
+                createBlock(x, y + i, z, 'wood', chunk);
+            }
+
+            // Generate leaves
+            for (let lx = -leavesRadius; lx <= leavesRadius; lx++) {
+                for (let ly = -leavesRadius; ly <= leavesRadius; ly++) {
+                    for (let lz = -leavesRadius; lz <= leavesRadius; lz++) {
+                        // Skip corners for a more rounded shape
+                        if (Math.abs(lx) === leavesRadius && Math.abs(ly) === leavesRadius && Math.abs(lz) === leavesRadius) continue;
+                        if (Math.abs(lx) === leavesRadius && Math.abs(ly) === leavesRadius) continue;
+                        if (Math.abs(lx) === leavesRadius && Math.abs(lz) === leavesRadius) continue;
+                        if (Math.abs(ly) === leavesRadius && Math.abs(lz) === leavesRadius) continue;
+
+                        // Create leaves sphere
+                        const distance = Math.sqrt(lx * lx + ly * ly + lz * lz);
+                        if (distance <= leavesRadius) {
+                            createBlock(x + lx, y + treeHeight - 1 + ly, z + lz, 'leaves', chunk);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Generate a cave
+        function generateCave(x, y, z, chunk) {
+            const caveSize = Math.floor(Math.random() * (CAVE_SIZE.max - CAVE_SIZE.min + 1)) + CAVE_SIZE.min;
+            const hasLava = Math.random() < LAVA_CHANCE;
+            const hasBats = Math.random() < BAT_SPAWN_CHANCE;
+
+            // Create cave chamber
+            for (let dx = -caveSize; dx <= caveSize; dx++) {
+                for (let dy = -caveSize; dy <= caveSize; dy++) {
+                    for (let dz = -caveSize; dz <= caveSize; dz++) {
+                        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        if (distance <= caveSize) {
+                            // Remove blocks to create cave
+                            const block = findBlockAt(x + dx, y + dy, z + dz);
+                            if (block) {
+                                block.parent.remove(block);
+                            }
+
+                            // Add lava at the bottom of the cave
+                            if (hasLava && dy === -caveSize) {
+                                createBlock(x + dx, y + dy, z + dz, 'lava', chunk);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Spawn bats in the cave
+            if (hasBats) {
+                const numBats = Math.floor(Math.random() * 3) + 1;
+                for (let i = 0; i < numBats; i++) {
+                    const batX = x + (Math.random() - 0.5) * caveSize;
+                    const batY = y + (Math.random() - 0.5) * caveSize;
+                    const batZ = z + (Math.random() - 0.5) * caveSize;
+                    const bat = new Mob('BAT', batX, batY, batZ);
+                    mobs.set(`${batX},${batY},${batZ}`, bat);
+                }
+            }
+        }
+
+        // Create a single block with proper textures
+        function createBlock(x, y, z, type, parent) {
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const blockInfo = blockData[type];
+            if (!blockInfo) {
+                console.warn('createBlock skipped: unknown block type', type);
+                return;
+            }
+
+            // Helper to get texture or fallback
+            function getTextureOrFallback(texKey, fallbackColor) {
+                if (blockTextures[texKey]) {
+                    return new THREE.MeshLambertMaterial({ map: blockTextures[texKey] });
+                } else {
+                    console.warn('Missing texture for', texKey, 'using fallback color');
+                    return new THREE.MeshLambertMaterial({ color: fallbackColor });
+                }
+            }
+
+            // Fallback colors for each block type
+            const fallbackColors = {
+                dirt: 0x8B4513,
+                grass: 0x567d46,
+                stone: 0x808080,
+                wood: 0x8B4513,
+                leaves: 0x2d5a27,
+                sand: 0xc2b280,
+                water: 0x4682B4,
+                lava: 0xFF4500,
+                bedrock: 0x404040
+            };
+            const fallback = fallbackColors[type] || 0xffffff;
+
+            // Create materials for each face
+            const materials = [
+                getTextureOrFallback(blockInfo.textures.side, fallback), // right
+                getTextureOrFallback(blockInfo.textures.side, fallback), // left
+                getTextureOrFallback(blockInfo.textures.top, fallback), // top
+                getTextureOrFallback(blockInfo.textures.bottom, fallback), // bottom
+                getTextureOrFallback(blockInfo.textures.side, fallback), // front
+                getTextureOrFallback(blockInfo.textures.side, fallback) // back
+            ];
+
+            // Special materials for water and lava
+            if (type === 'water') {
+                materials.forEach(material => {
+                    material.transparent = true;
+                    material.opacity = 0.6;
+                });
+            } else if (type === 'lava') {
+                materials.forEach(material => {
+                    material.emissive = new THREE.Color(0xff4500);
+                    material.emissiveIntensity = 0.5;
+                });
+            }
+
+            const block = new THREE.Mesh(geometry, materials);
+            block.position.set(x, y, z);
+            block.userData.type = type;
+            parent.add(block);
+            // Debug log
+            //console.log('Block created:', type, x, y, z);
+        }
+
+        // Find block at position
+        function findBlockAt(x, y, z) {
+            const chunkX = Math.floor(x / CHUNK_SIZE);
+            const chunkZ = Math.floor(z / CHUNK_SIZE);
+            const chunk = chunks.get(`${chunkX},${chunkZ}`);
+            
+            if (!chunk) return null;
+
+            for (const block of chunk.children) {
+                if (block.position.x === x && block.position.y === y && block.position.z === z) {
+                    return block;
+                }
+            }
+            return null;
+        }
+
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Handle mouse input
+        function onMouseMove(event) {
+            if (document.pointerLockElement === renderer.domElement) {
+                // Update player rotation based on mouse movement
+                player.rotation.y -= event.movementX * 0.002;
+                player.rotation.x -= event.movementY * 0.002;
+                
+                // Clamp vertical rotation to prevent flipping
+                player.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, player.rotation.x));
+                
+                // Update camera rotation
+                camera.rotation.copy(player.rotation);
+            }
+        }
+
+        // Handle pointer lock
+        function onPointerLockChange() {
+            if (document.pointerLockElement === renderer.domElement) {
+                document.addEventListener('mousemove', onMouseMove);
+            } else {
+                document.removeEventListener('mousememove', onMouseMove);
+            }
+        }
+
+        // Game loop
+        function animate() {
+            const now = Date.now();
+            const delta = (now - lastFrameTime) / FRAME_TIME;
+            lastFrameTime = now;
+
+            // Spawn mobs
+            spawnMobs();
+
+            // Update mobs
+            for (const mob of mobs.values()) {
+                mob.update(delta, player.position);
+            }
+
+            // Calculate movement direction based on camera rotation
+            const moveDirection = new THREE.Vector3();
+            if (moveForward) moveDirection.z -= 1;
+            if (moveBackward) moveDirection.z += 1;
+            if (moveLeft) moveDirection.x -= 1;
+            if (moveRight) moveDirection.x += 1;
+            // Normalize movement direction
+            if (moveDirection.length() > 0) moveDirection.normalize();
+            // Apply rotation to movement direction
+            moveDirection.applyEuler(new THREE.Euler(0, player.rotation.y, 0));
+            // Update player velocity
+            player.velocity.x = moveDirection.x * MOVE_SPEED;
+            player.velocity.z = moveDirection.z * MOVE_SPEED;
+
+            // --- Minecraft-style auto-step up (auto-jump) ---
+            if (moveDirection.length() > 0 && player.onGround) {
+                const nextX = player.position.x + moveDirection.x * 0.2;
+                const nextZ = player.position.z + moveDirection.z * 0.2;
+                const baseY = Math.floor(player.position.y - 1.6);
+                // Check for block at foot level
+                const blockAtFeet = findBlockAt(Math.floor(nextX), baseY, Math.floor(nextZ));
+                const blockAtHead = findBlockAt(Math.floor(nextX), baseY + 2, Math.floor(nextZ));
+                // If there is a block at foot but not at head, try to step up
+                if (blockAtFeet && !blockAtHead) {
+                    // Check if the block is only 1 block higher
+                    const blockAbove = findBlockAt(Math.floor(nextX), baseY + 1, Math.floor(nextZ));
+                    if (!blockAbove) {
+                        // Smoothly move up
+                        player.position.y += 0.2; // step up
+                    }
+                }
+            }
+            // --- End auto-step up ---
+
+            // Update player position
+            const oldPosition = player.position.clone();
+            player.position.add(player.velocity.clone().multiplyScalar(delta));
+            player.velocity.y -= GRAVITY * delta;
+
+            // Prevent jumping up more than 1 block
+            if (player.velocity.y > 0) {
+                const headY = Math.floor(player.position.y + 0.6);
+                const blockAbove = findBlockAt(Math.floor(player.position.x), headY, Math.floor(player.position.z));
+                if (blockAbove) {
+                    player.velocity.y = 0;
+                    player.position.y = headY - 0.6;
+                }
+            }
+
+            // Clamp player position to world bounds, but keep 1 block away from the edge
+            const minX = -WORLD_SIZE * CHUNK_SIZE + 1;
+            const maxX = (WORLD_SIZE - 1) * CHUNK_SIZE + CHUNK_SIZE - 2;
+            const minZ = -WORLD_SIZE * CHUNK_SIZE + 1;
+            const maxZ = (WORLD_SIZE - 1) * CHUNK_SIZE + CHUNK_SIZE - 2;
+            player.position.x = Math.max(minX, Math.min(maxX, player.position.x));
+            player.position.z = Math.max(minZ, Math.min(maxZ, player.position.z));
+
+            // Always keep player above ground
+            let safeY = findHighestBlock(Math.floor(player.position.x), Math.floor(player.position.z));
+            if (safeY === -1) {
+                // If no ground under player, teleport to center
+                safeY = findHighestBlock(0, 0);
+                player.position.x = 0;
+                player.position.z = 0;
+            }
+            if (player.position.y < safeY + 1.6) {
+                player.position.y = safeY + 1.6;
+                player.velocity.y = 0;
+                player.onGround = true;
+            }
+
+            // Update camera position with smooth interpolation
+            const targetCameraPos = player.position.clone();
+            targetCameraPos.y += 1.6; // Eye height
+            camera.position.lerp(targetCameraPos, 0.5);
+
+            // Check for water and lava collision with improved detection
+            const blockBelow = findBlockAt(
+                Math.floor(player.position.x),
+                Math.floor(player.position.y - 0.1),
+                Math.floor(player.position.z)
+            );
+
+            if (blockBelow) {
+                if (blockBelow.userData.type === 'water') {
+                    // Smooth water movement
+                    player.velocity.multiplyScalar(0.9);
+                    // Prevent jumping in water
+                    player.onGround = true;
+                    // Add slight upward force in water
+                    player.velocity.y = Math.min(player.velocity.y, 2);
+                } else if (blockBelow.userData.type === 'lava') {
+                    // Smoother lava damage
+                    player.health -= delta * 3;
+                    // Add slight upward force in lava
+                    player.velocity.y = Math.min(player.velocity.y, 1);
+                }
+            }
+
+            // --- Day/night cycle ---
+            timeOfDay += delta / DAY_LENGTH;
+            if (timeOfDay > 1) timeOfDay -= 1;
+            // Calculate sun angle (0 = midnight, 0.5 = noon)
+            const sunAngle = timeOfDay * Math.PI * 2;
+            // Sky color
+            const dayColor = new THREE.Color(0x87CEEB); // blue
+            const nightColor = new THREE.Color(0x0a0a23); // dark blue/black
+            // Use cosine to interpolate (noon = 1, midnight = 0)
+            const dayFactor = Math.max(0, Math.cos(sunAngle));
+            const skyColor = dayColor.clone().lerp(nightColor, 1 - dayFactor);
+            scene.background = skyColor;
+            // Light intensity
+            ambientLight.intensity = 0.2 + 0.5 * dayFactor;
+            directionalLight.intensity = 0.2 + 0.6 * dayFactor;
+            // Sun position
+            directionalLight.position.set(Math.sin(sunAngle) * 30, Math.max(5, Math.cos(sunAngle) * 30), Math.cos(sunAngle) * 30);
+            // --- End day/night cycle ---
+
+            // --- Block highlight ---
+            raycaster.setFromCamera(mouse, camera);
+            const objectsToIntersect = scene.children.filter(obj => obj !== highlightMesh);
+            const intersects = raycaster.intersectObjects(objectsToIntersect, true);
+            let foundHighlight = false;
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                // Only highlight if within reach
+                if (intersect.object && intersect.distance <= REACH_DISTANCE) {
+                    if (!highlightMesh) {
+                        const outlineGeo = new THREE.BoxGeometry(1.05, 1.05, 1.05);
+                        const outlineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true });
+                        highlightMesh = new THREE.Mesh(outlineGeo, outlineMat);
+                        highlightMesh.renderOrder = 999;
+                    }
+                    highlightMesh.position.copy(intersect.object.position);
+                    scene.add(highlightMesh);
+                    foundHighlight = true;
+                }
+            }
+            if (!foundHighlight && highlightMesh) {
+                scene.remove(highlightMesh);
+                highlightMesh = null;
+            }
+            // --- End block highlight ---
+
+            // Update UI
+            updateUI();
+
+            // Render scene
+            renderer.render(scene, camera);
+            
+            // Request next frame
+            requestAnimationFrame(animate);
+        }
+
+        // Find the highest block at a given x,z position
+        function findHighestBlock(x, z) {
+            let highestY = -1;
+            const chunkX = Math.floor(x / CHUNK_SIZE);
+            const chunkZ = Math.floor(z / CHUNK_SIZE);
+            const chunk = chunks.get(`${chunkX},${chunkZ}`);
+            
+            if (chunk) {
+                for (const block of chunk.children) {
+                    if (block.position.x === x && block.position.z === z) {
+                        highestY = Math.max(highestY, block.position.y);
+                    }
+                }
+            }
+            return highestY;
+        }
+
+        // Find a safe spawn position (always on ground)
+        function findSafeSpawnPosition() {
+            // Try to find the highest block near the center of the world
+            const maxRadius = CHUNK_SIZE * WORLD_SIZE;
+            let found = false;
+            let spawnX = 0, spawnZ = 0, spawnY = -1;
+            // Spiral search out from center
+            for (let r = 0; r <= maxRadius && !found; r++) {
+                for (let dx = -r; dx <= r && !found; dx++) {
+                    for (let dz = -r; dz <= r && !found; dz++) {
+                        const x = dx;
+                        const z = dz;
+                        const y = findHighestBlock(x, z);
+                        if (y !== -1) {
+                            spawnX = x;
+                            spawnZ = z;
+                            spawnY = y;
+                            found = true;
+                        }
+                    }
+                }
+            }
+            if (found) {
+                // Spawn 2 blocks above the highest block
+                player.position.set(spawnX, spawnY + 2, spawnZ);
+                camera.position.copy(player.position);
+                camera.position.y += 1.6; // Eye height
+                console.log('Spawned at:', player.position, 'Camera at:', camera.position);
+            } else {
+                // Fallback spawn position if no blocks found
+                player.position.set(0, 1, 0);
+                camera.position.copy(player.position);
+                camera.position.y += 1.6;
+                console.warn('Fallback spawn at (0,1,0)');
+            }
+        }
+
+        // Spawn mobs
+        function spawnMobs() {
+            const now = Date.now();
+            if (now - lastMobSpawn < mobSpawnInterval) return;
+            lastMobSpawn = now;
+
+            // Spawn new mobs
+            for (const [type, data] of Object.entries(MOB_TYPES)) {
+                if (Math.random() < data.spawnChance) {
+                    const x = (Math.random() - 0.5) * WORLD_SIZE * CHUNK_SIZE;
+                    const z = (Math.random() - 0.5) * WORLD_SIZE * CHUNK_SIZE;
+                    let y;
+
+                    if (data.swimming) {
+                        // Spawn fish in water
+                        y = WATER_LEVEL - 0.5;
+                    } else if (data.flying) {
+                        // Spawn flying mobs in the air
+                        y = 10 + Math.random() * 5;
+                    } else {
+                        // Spawn ground mobs on the surface
+                        y = findHighestBlock(Math.floor(x), Math.floor(z)) + 1;
+                    }
+
+                    if (y !== -1) {
+                        const mob = new Mob(type, x, y, z);
+                        mobs.set(`${x},${y},${z}`, mob);
+                    }
+                }
+            }
+
+            // Remove mobs that are too far from player
+            for (const [key, mob] of mobs.entries()) {
+                if (mob.position.distanceTo(player.position) > WORLD_SIZE * CHUNK_SIZE) {
+                    mob.remove();
+                    mobs.delete(key);
+                }
+            }
+        }
+
+        // Update UI to show health
+        function updateUI() {
+            document.getElementById('fps').textContent = Math.round(1 / clock.getDelta());
+            document.getElementById('position').textContent = 
+                `${Math.floor(player.position.x)}, ${Math.floor(player.position.y)}, ${Math.floor(player.position.z)}`;
+            
+            // Update health display
+            const healthDisplay = document.getElementById('health') || (() => {
+                const health = document.createElement('div');
+                health.id = 'health';
+                health.style.position = 'absolute';
+                health.style.top = '10px';
+                health.style.left = '50%';
+                health.style.transform = 'translateX(-50%)';
+                health.style.background = 'rgba(0, 0, 0, 0.7)';
+                health.style.color = 'white';
+                health.style.padding = '10px';
+                health.style.borderRadius = '5px';
+                health.style.zIndex = '1000';
+                document.getElementById('game-container').appendChild(health);
+                return health;
+            })();
+            
+            healthDisplay.textContent = `❤️ Health: ${Math.max(0, Math.floor(player.health))}`;
+            if (player.health <= 0) {
+                healthDisplay.style.color = 'red';
+            }
+        }
+
+        // Start the game
+        init();
+    </script>
+</body>
+</html> 
