@@ -1,0 +1,25 @@
+{
+  "name": "io-game-server",
+  "version": "1.0.0",
+  "description": "Real-time multiplayer IO game server",
+  "main": "io-server.js",
+  "scripts": {
+    "start": "node io-server.js",
+    "dev": "nodemon io-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "keywords": [
+    "game",
+    "multiplayer",
+    "websocket",
+    "io",
+    "real-time"
+  ],
+  "author": "IO Game Developer",
+  "license": "MIT"
+} 
