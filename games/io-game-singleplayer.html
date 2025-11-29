@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Doto.io – Start</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #2b2d42 0%, #0b1020 60%);
+      color:#fff; overflow:hidden;
+    }
+    #gameContainer { position:relative; width:100vw; height:100vh; }
+    #gameCanvas { display:block; width:100%; height:100%; background: radial-gradient(circle at center, #151729 0%, #050612 70%); }
+    #ui { position:absolute; inset:0; pointer-events:none; z-index:10; }
+    #topBar {
+      position:absolute; top:16px; left:50%; transform:translateX(-50%); display:flex; gap:20px; padding:10px 20px;
+      border-radius:999px; background:rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+      border:1px solid rgba(255,255,255,0.08); pointer-events:auto;
+    }
+    .stat { display:flex; align-items:center; gap:6px; font-size:14px; font-weight:600; }
+    .stat-icon { font-size:18px; }
+    #leaderboard {
+      position:absolute; top:16px; right:16px; width:220px; max-height:260px; background:rgba(3,5,15,0.9);
+      border-radius:16px; padding:12px; border:1px solid rgba(255,255,255,0.06); backdrop-filter: blur(10px); pointer-events:auto;
+    }
+    #leaderboard h3 { font-size:14px; text-align:center; margin-bottom:8px; color:#ffd66b; }
+    .leaderboard-entry { display:flex; align-items:center; justify-content:space-between; font-size:12px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .leaderboard-entry:last-child { border-bottom:none; }
+    .rank { width:20px; color:#ffd66b; font-weight:700; }
+    .player-name { flex:1; margin:0 4px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    .you-tag { font-size:10px; color:#6cf3ff; margin-left:4px; }
+    .score { min-width:32px; text-align:right; color:#7df09b; font-weight:600; }
+    #controls { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); padding:10px 18px; border-radius:999px; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.08); font-size:12px; color:#cfd2ff; pointer-events:auto; }
+    #controls strong { color:#fff; }
+    #minimap { position:absolute; bottom:16px; right:16px; width:140px; height:140px; border-radius:16px; border:1px solid rgba(255,255,255,0.08); background: radial-gradient(circle at center, #050612 0%, #020308 80%); overflow:hidden; }
+    #minimapCanvas { width:100%; height:100%; display:block; }
+    #mainMenu { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background: radial-gradient(circle at top, #2f2d9b 0%, #050612 55%); z-index:20; }
+    .menu-card { display:flex; gap:28px; padding:28px 32px; border-radius:24px; background:rgba(3,6,26,0.92); border:1px solid rgba(255,255,255,0.08); box-shadow:0 30px 80px rgba(0,0,0,0.65); max-width:640px; width:92%; align-items:center; }
+    .menu-main { width:100%; text-align:center; }
+    .menu-title { font-size:32px; font-weight:800; letter-spacing:0.05em; color:#fff; text-shadow:0 0 20px rgba(100,181,246,0.5); margin-bottom:6px; }
+    .menu-subtitle { margin-top:4px; font-size:13px; color:#cbd5ff; margin-bottom:12px; }
+    .menu-assign { font-size:13px; color:#dbe6ff; margin:10px 0; }
+    .assigned-name {
+      display:inline-block; padding:8px 12px; border-radius:999px; background:linear-gradient(135deg, rgba(102,230,255,0.12), rgba(124,242,155,0.08)); color:#e9fbff; font-weight:700; letter-spacing:0.02em;
+    }
+    .menu-color-row { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px; }
+    #menuColor { width:36px; height:32px; border-radius:10px; border:1px solid rgba(255,255,255,0.3); background:transparent; cursor:pointer; pointer-events:auto; }
+    .menu-button { margin-top:18px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 22px; border-radius:999px; border:none; background:linear-gradient(135deg,#66e6ff,#7cf29b); color:#050717; font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 12px 30px rgba(102,230,255,0.4); pointer-events:auto; }
+    .menu-note { font-size:12px; color:#a9b9ff; margin-top:8px; }
+    #gameOver { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background: radial-gradient(circle at top, rgba(0,0,0,0.85), rgba(0,0,0,0.92)); z-index:30; }
+    .gameover-card { background:rgba(5,7,22,0.97); padding:26px 32px 22px; border-radius:20px; border:1px solid rgba(255,255,255,0.08); text-align:center; width:320px; box-shadow:0 26px 60px rgba(0,0,0,0.7); }
+    .gameover-title { font-size:24px; margin-bottom:6px; }
+    .gameover-subtitle { font-size:13px; color:#cbd5ff; margin-bottom:14px; }
+    .gameover-stats { font-size:13px; color:#e2e8ff; margin-bottom:16px; }
+    .gameover-stats span.value { font-weight:700; color:#7cf29b; }
+    .gameover-buttons { display:flex; gap:10px; justify-content:center; }
+    .btn-secondary, .btn-primary { border-radius:999px; padding:8px 16px; font-size:13px; cursor:pointer; border:none; }
+    .btn-secondary { background:rgba(255,255,255,0.05); color:#e2e8ff; }
+    .btn-primary { background:linear-gradient(135deg,#66e6ff,#7cf29b); color:#050717; font-weight:700; }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui">
+      <div id="topBar">
+        <div class="stat"><span class="stat-icon">⭐</span><span id="statScore">0</span></div>
+        <div class="stat"><span class="stat-icon">🎯</span><span id="statKills">0</span></div>
+        <div class="stat"><span class="stat-icon">💎</span><span id="statSize">20</span></div>
+      </div>
+
+      <div id="leaderboard">
+        <h3>🏆 Arena Standings</h3>
+        <div id="leaderboardList"></div>
+      </div>
+
+      <div id="controls">
+        <strong>WASD</strong> move • <strong>Mouse</strong> aim • <strong>Click</strong> shoot • <strong>Esc</strong> return to menu
+      </div>
+
+      <div id="minimap">
+        <canvas id="minimapCanvas"></canvas>
+      </div>
+    </div>
+
+    <div id="mainMenu">
+      <div class="menu-card">
+        <div class="menu-main">
+          <div class="menu-title">Doto.io</div>
+          <div class="menu-subtitle">Fast paced • Other players • Fast rounds</div>
+
+          <div class="menu-assign">
+            Assigned name:
+            <span id="assignedName" class="assigned-name">—</span>
+          </div>
+
+          <div class="menu-color-row">
+            <label style="font-size:12px;color:#b0b8ff; margin-right:8px;">Player color</label>
+            <input id="menuColor" type="color" value="#66e6ff" />
+          </div>
+
+          <div>
+            <button id="menuPlay" class="menu-button"><span class="emoji">▶️</span><span>Find Solo Match</span></button>
+          </div>
+
+          <div class="menu-note">This game is an insane project that I have been working on. Hope you enjoy it!</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="gameOver">
+      <div class="gameover-card">
+        <div class="gameover-title" id="gameOverTitle">💀 You were eliminated</div>
+        <div class="gameover-subtitle" id="gameOverSubtitle">Someone else secured the arena this time.</div>
+        <div class="gameover-stats">
+          Score: <span class="value" id="goScore">0</span><br />
+          Kills: <span class="value" id="goKills">0</span><br />
+          Survival time: <span class="value" id="goTime">0s</span>
+        </div>
+        <div class="gameover-buttons">
+          <button class="btn-secondary" id="btnReplay">Play again</button>
+          <button class="btn-primary" id="btnMenu">Main menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // helpers
+    function randRange(min, max) { return Math.random() * (max - min) + min; }
+    function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    class SoloIOGame {
+      constructor() {
+        // canvas + contexts
+        this.canvas = document.getElementById("gameCanvas");
+        this.ctx = this.canvas.getContext("2d");
+        this.miniCanvas = document.getElementById("minimapCanvas");
+        this.miniCtx = this.miniCanvas.getContext("2d");
+
+        // sizing
+        this.resize();
+        window.addEventListener("resize", () => this.resize());
+
+        // world & arrays
+        this.worldSize = 4800;
+        this.players = [];
+        this.bullets = [];
+        this.food = [];
+        this.heals = [];
+        this.particles = [];
+
+        // control & state
+        this.running = false;
+        this.lastTime = performance.now();
+        this.elapsed = 0;
+
+        // input
+        this.keys = { w:false, a:false, s:false, d:false };
+        this.mouse = { x:0, y:0, down:false };
+
+        this.attachInput();
+
+        // name pool + personalities
+        this.namePool = this.generateNames(600); // big pool
+        this.personalityPool = ["aggressive","cautious","evasive","hungry","chaser"];
+
+        // UI events
+        document.getElementById("menuPlay").addEventListener("click", () => this.startFromMenu());
+        document.getElementById("btnReplay").addEventListener("click", () => this.restart());
+        document.getElementById("btnMenu").addEventListener("click", () => this.backToMenu());
+        document.getElementById("menuColor").addEventListener("input", (e) => {
+          this.pendingColor = e.target.value;
+        });
+
+        // initially pick a name to display (but not editable)
+        this.pendingColor = document.getElementById("menuColor").value || "#66e6ff";
+        this.pickAssignedName();
+
+        // loop
+        this.loop = this.loop.bind(this);
+        requestAnimationFrame(this.loop);
+      }
+
+      // generate many names by combining arrays
+      generateNames(targetCount) {
+        const adjectives = ["Nova","Pixel","Luna","Shadow","Neon","Glitch","Echo","Quantum","Solar","Frost","Binary","Plasma","Night","Vortex","Turbo","Astro","Hyper","Silent","Rogue","Crystal","Pulse","Blaze","Storm","Phantom","Zen","Mighty","Swift","Iron","Silver","Golden","Scarlet","Cobalt","Onyx","Echo","Nebula","Radial","Orbit","Spectra","Vivid","Obsidian","Marble"];
+        const nouns = ["Blaze","Phantom","Byte","Shift","Fang","Fox","Flare","Spark","Beast","Paw","Cipher","Vibe","Tide","Knight","Wisp","Shard","Skiff","Gale","Warden","Rift","Sprite","Bolt","Specter","Comet","Strider","Skye","Quark","Pulse","Arc","Drift","Glyph"];
+        const suffixes = ["", "", "X", "99", "Prime", "II", "III", "Bot", "Z", "Pro", "Max", "Lite", "One", "a", "er"];
+        const set = new Set();
+
+        // always include some branded bases
+        const base = ["Doto","Dotoio","DotArena","GlowDots","DotBrawl","OrbFight","BitBlitz","PixelRush","Dotrix","DotoCore"];
+        base.forEach(b => set.add(b));
+
+        while (set.size < targetCount) {
+          const a = choice(adjectives);
+          const n = choice(nouns);
+          const s = choice(suffixes);
+          const addNum = Math.random() < 0.22;
+          const num = addNum ? Math.floor(Math.random() * 999) : "";
+          const candidate = `${a}${n}${s}${num}`.replace(/\s+/g,'');
+          set.add(candidate);
+        }
+        return Array.from(set);
+      }
+
+      // put a random name into the menu display (players can't edit it)
+      pickAssignedName() {
+        const name = choice(this.namePool);
+        this.assignedName = name;
+        const el = document.getElementById("assignedName");
+        el.textContent = name;
+      }
+
+      resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.miniCanvas.width = 140;
+        this.miniCanvas.height = 140;
+      }
+
+      attachInput() {
+        window.addEventListener("keydown", e => {
+          if (e.code === "KeyW") this.keys.w = true;
+          if (e.code === "KeyA") this.keys.a = true;
+          if (e.code === "KeyS") this.keys.s = true;
+          if (e.code === "KeyD") this.keys.d = true;
+          if (e.code === "Escape") { if (this.running) this.backToMenu(); }
+        });
+        window.addEventListener("keyup", e => {
+          if (e.code === "KeyW") this.keys.w = false;
+          if (e.code === "KeyA") this.keys.a = false;
+          if (e.code === "KeyS") this.keys.s = false;
+          if (e.code === "KeyD") this.keys.d = false;
+        });
+        this.canvas.addEventListener("mousemove", e => {
+          const rect = this.canvas.getBoundingClientRect();
+          this.mouse.x = e.clientX - rect.left;
+          this.mouse.y = e.clientY - rect.top;
+        });
+        this.canvas.addEventListener("mousedown", () => { this.mouse.down = true; });
+        window.addEventListener("mouseup", () => { this.mouse.down = false; });
+      }
+
+      startFromMenu() {
+        // use the assigned name (no edit)
+        this.localName = this.assignedName || choice(this.namePool);
+        this.localColor = this.pendingColor || "#66e6ff";
+
+        // hide menu
+        document.getElementById("mainMenu").style.display = "none";
+        document.getElementById("gameOver").style.display = "none";
+
+        this.startMatch();
+      }
+
+      startMatch() {
+        // clear world
+        this.players = [];
+        this.bullets = [];
+        this.food = [];
+        this.heals = [];
+        this.particles = [];
+        this.elapsed = 0;
+        this.running = true;
+        this.lastTime = performance.now();
+
+        // create local player (can't change name in-game)
+        const me = this.createPlayer(this.localName, this.localColor, false, true);
+        this.me = me;
+
+        // spawn bots; ensure unique names (avoid localName)
+        const botCount = 13 + Math.floor(Math.random() * 3);
+        const used = new Set([this.localName]);
+        for (let i=0;i<botCount;i++) {
+          let n = choice(this.namePool);
+          let tries = 0;
+          while (used.has(n) && tries < 100) {
+            n = choice(this.namePool) + Math.floor(Math.random()*100);
+            tries++;
+          }
+          used.add(n);
+          const color = `hsl(${Math.floor(randRange(0,360))}deg,80%,60%)`;
+          const bot = this.createPlayer(n, color, true, false, choice(this.personalityPool));
+          this.players.push(bot);
+        }
+
+        // add the local player to the players list (so bots can target them)
+        this.players.push(me);
+
+        // spawn food pellets & heals
+        for (let i=0;i<220;i++) this.spawnFood();
+        for (let i=0;i<28;i++) this.spawnHeal();
+      }
+
+      createPlayer(name, color, isBot=false, isLocal=false, personality="aggressive") {
+        return {
+          name, color,
+          x: randRange(400, this.worldSize-400),
+          y: randRange(400, this.worldSize-400),
+          vx:0, vy:0,
+          size: randRange(18,26),
+          health: 100,
+          alive: true,
+          isBot, isLocal,
+          personality,
+          shootCooldown:0,
+          target: null,
+          wanderAngle: Math.random() * Math.PI * 2,
+          aimJitter: randRange(0.05, 0.2),
+          reactionDelay: randRange(200, 600),
+          lastDecision: 0,
+          score:0, kills:0
+        };
+      }
+
+      spawnFood() {
+        this.food.push({
+          x: randRange(100, this.worldSize-100),
+          y: randRange(100, this.worldSize-100),
+          size: randRange(3,5),
+          value: 5,
+          color: `hsl(${Math.floor(randRange(0,360))}deg,90%,60%)`
+        });
+      }
+
+      spawnHeal() {
+        this.heals.push({
+          x: randRange(150, this.worldSize-150),
+          y: randRange(150, this.worldSize-150),
+          size: 7,
+          heal: 20,
+          color: "#6cffc4",
+          pulse: Math.random() * Math.PI * 2
+        });
+      }
+
+      loop(now) {
+        const dt = (now - this.lastTime) / 1000;
+        this.lastTime = now;
+        if (this.running) {
+          this.elapsed += dt;
+          this.update(dt);
+          this.render();
+        } else {
+          this.renderBackgroundOnly();
+        }
+        requestAnimationFrame(this.loop);
+      }
+
+      update(dt) {
+        if (!this.me || !this.me.alive) return;
+
+        const speedBase = 240;
+
+        // local movement
+        let mx=0,my=0;
+        if (this.keys.w) my -= 1;
+        if (this.keys.s) my += 1;
+        if (this.keys.a) mx -= 1;
+        if (this.keys.d) mx += 1;
+        let len = Math.hypot(mx,my);
+        if (len>0) { mx/=len; my/=len; }
+        const moveSpeed = speedBase * (20 / this.me.size);
+        this.me.vx = mx * moveSpeed;
+        this.me.vy = my * moveSpeed;
+
+        // shooting by holding mouse
+        if (this.mouse.down) {
+          this.tryShoot(this.me, this.mouseWorldX(), this.mouseWorldY());
+        }
+
+        // bots AI decisions
+        const now = performance.now();
+        for (const p of this.players) {
+          if (!p.alive || !p.isBot) continue;
+          if (now - p.lastDecision > p.reactionDelay) {
+            this.updateBotDecision(p);
+            p.lastDecision = now;
+          }
+        }
+
+        // move players and clamp
+        for (const p of this.players) {
+          if (!p.alive) continue;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.x = Math.max(p.size, Math.min(this.worldSize - p.size, p.x));
+          p.y = Math.max(p.size, Math.min(this.worldSize - p.size, p.y));
+          if (p.shootCooldown > 0) p.shootCooldown -= dt;
+        }
+
+        // bullets update
+        for (const b of this.bullets) {
+          b.x += b.vx * dt;
+          b.y += b.vy * dt;
+          b.life -= dt;
+        }
+        this.bullets = this.bullets.filter(b => b.life > 0 && b.x > 0 && b.x < this.worldSize && b.y > 0 && b.y < this.worldSize);
+
+        // collisions: food & heals
+        for (const p of this.players) {
+          if (!p.alive) continue;
+
+          // food
+          for (let i=this.food.length-1;i>=0;i--) {
+            const f = this.food[i];
+            const d = Math.hypot(p.x - f.x, p.y - f.y);
+            if (d < p.size + f.size) {
+              this.food.splice(i,1);
+              p.size = Math.min(60, p.size + 0.8);
+              p.score += f.value;
+              if (p.isLocal) this.spawnParticles(f.x, f.y, f.color, 10);
+              if (Math.random() < 0.4) this.spawnFood();
+            }
+          }
+
+          // heals
+          for (let i=this.heals.length-1;i>=0;i--) {
+            const h = this.heals[i];
+            const d = Math.hypot(p.x - h.x, p.y - h.y);
+            if (d < p.size + h.size) {
+              this.heals.splice(i,1);
+              p.health = Math.min(100, p.health + h.heal);
+              if (p.isLocal) this.spawnParticles(h.x, h.y, h.color, 18);
+              // respawn with a chance later
+              if (Math.random() < 0.6) this.spawnHeal();
+            }
+          }
+        }
+
+        // bullets hitting players
+        for (let i=this.bullets.length-1;i>=0;i--) {
+          const b = this.bullets[i];
+          for (const p of this.players) {
+            if (!p.alive || p.name === b.ownerName) continue;
+            const d = Math.hypot(p.x - b.x, p.y - b.y);
+            if (d < p.size + b.size) {
+              // hit
+              this.bullets.splice(i,1);
+              this.spawnParticles(b.x, b.y, b.color, 12);
+              p.health -= b.damage;
+              if (p.health <= 0) {
+                p.alive = false;
+                // reward owner (if it's local)
+                if (b.ownerName === this.me.name) {
+                  this.me.kills++;
+                  this.me.score += 50;
+                }
+                const killer = this.players.find(pl => pl.name === b.ownerName);
+                if (killer) {
+                  killer.kills++;
+                  killer.score += 30;
+                  killer.size = Math.min(65, killer.size + 2);
+                }
+              }
+              break;
+            }
+          }
+        }
+
+        // particles
+        for (const p of this.particles) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.life -= dt;
+        }
+        this.particles = this.particles.filter(p => p.life > 0);
+
+        // local death check
+        if (!this.me.alive) {
+          this.endMatch(false);
+        }
+
+        // update top stats and leaderboard
+        document.getElementById("statScore").textContent = this.me.score;
+        document.getElementById("statKills").textContent = this.me.kills;
+        document.getElementById("statSize").textContent = Math.round(this.me.size);
+        this.updateLeaderboard();
+      }
+
+      updateBotDecision(bot) {
+        const others = this.players.filter(p => p.alive && p !== bot);
+        if (others.length === 0) return;
+
+        // sometimes target the local player to make it feel real
+        if (Math.random() < 0.42) bot.target = this.me;
+        else bot.target = choice(others);
+
+        let tx = bot.target.x;
+        let ty = bot.target.y;
+
+        const dx = tx - bot.x;
+        const dy = ty - bot.y;
+        let dist = Math.hypot(dx,dy) || 1;
+        let dirx = dx / dist;
+        let diry = dy / dist;
+
+        const base = 210 * (22 / bot.size);
+        let speedMul = 1;
+
+        switch (bot.personality) {
+          case "aggressive": speedMul = 1.15; break;
+          case "cautious": speedMul = dist < 280 ? -0.7 : 0.9; break;
+          case "evasive": speedMul = 1; [dirx,diry] = [dy/dist, -dx/dist]; break;
+          case "hungry":
+            let bestFood = null, bestD = Infinity;
+            for (const f of this.food) {
+              const fd = Math.hypot(bot.x - f.x, bot.y - f.y);
+              if (fd < bestD) { bestD = fd; bestFood = f; }
+            }
+            if (bestFood) {
+              const fdx = bestFood.x - bot.x, fdy = bestFood.y - bot.y;
+              const fdist = Math.hypot(fdx,fdy) || 1;
+              dirx = fdx / fdist; diry = fdy / fdist;
+            }
+            speedMul = 1;
+            break;
+          case "chaser": speedMul = dist > 300 ? 1.3 : 1; break;
+        }
+
+        const moveSpeed = base * speedMul;
+        bot.vx = dirx * moveSpeed;
+        bot.vy = diry * moveSpeed;
+
+        const aimX = bot.target.x + randRange(-this.me.size * bot.aimJitter, this.me.size * bot.aimJitter);
+        const aimY = bot.target.y + randRange(-this.me.size * bot.aimJitter, this.me.size * bot.aimJitter);
+
+        if (dist < 650 && Math.random() < 0.7) {
+          this.tryShoot(bot, aimX, aimY);
+        }
+      }
+
+      tryShoot(player, tx, ty) {
+        if (player.shootCooldown > 0) return;
+        const ang = Math.atan2(ty - player.y, tx - player.x);
+        const speed = 520;
+        const spread = player.isBot ? randRange(-0.05, 0.05) : 0;
+        const a = ang + spread;
+        const size = 4;
+        this.bullets.push({
+          x: player.x + Math.cos(a) * (player.size + 6),
+          y: player.y + Math.sin(a) * (player.size + 6),
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          size,
+          life: 1.4,
+          color: player.color,
+          ownerName: player.name,
+          damage: 18
+        });
+        player.shootCooldown = player.isBot ? randRange(0.45, 0.9) : 0.25;
+      }
+
+      spawnParticles(x,y,color,count) {
+        for (let i=0;i<count;i++) {
+          const ang = Math.random() * Math.PI * 2;
+          const sp = randRange(40,130);
+          this.particles.push({
+            x,y,
+            vx: Math.cos(ang) * sp,
+            vy: Math.sin(ang) * sp,
+            life: randRange(0.2,0.6),
+            color
+          });
+        }
+      }
+
+      mouseWorldX() {
+        const camX = this.me.x - this.canvas.width / 2;
+        return camX + this.mouse.x;
+      }
+      mouseWorldY() {
+        const camY = this.me.y - this.canvas.height / 2;
+        return camY + this.mouse.y;
+      }
+
+      renderBackgroundOnly() {
+        const ctx = this.ctx;
+        ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+        ctx.fillStyle = "#050612";
+        ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+      }
+
+      render() {
+        const ctx = this.ctx;
+        ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+
+        if (!this.me) return;
+
+        const camX = this.me.x - this.canvas.width / 2;
+        const camY = this.me.y - this.canvas.height / 2;
+
+        // grid background
+        ctx.strokeStyle = "rgba(255,255,255,0.04)";
+        ctx.lineWidth = 1;
+        const grid = 120;
+        const startX = -((camX % grid) + grid);
+        const startY = -((camY % grid) + grid);
+        for (let x = startX; x < this.canvas.width + grid; x += grid) {
+          ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,this.canvas.height); ctx.stroke();
+        }
+        for (let y = startY; y < this.canvas.height + grid; y += grid) {
+          ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(this.canvas.width,y); ctx.stroke();
+        }
+
+        // world border (visible)
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth = 8;
+        ctx.strokeRect(-camX, -camY, this.worldSize, this.worldSize);
+        ctx.restore();
+
+        // draw food
+        for (const f of this.food) {
+          const sx = f.x - camX, sy = f.y - camY;
+          ctx.beginPath();
+          ctx.fillStyle = f.color;
+          ctx.arc(sx, sy, f.size, 0, Math.PI*2);
+          ctx.fill();
+        }
+
+        // draw heals (pulsing)
+        for (const h of this.heals) {
+          h.pulse += 0.06;
+          const px = h.x - camX, py = h.y - camY;
+          const pulseScale = 1 + Math.sin(h.pulse) * 0.12;
+          ctx.beginPath();
+          ctx.globalAlpha = 0.95;
+          ctx.fillStyle = h.color;
+          ctx.arc(px, py, h.size * pulseScale, 0, Math.PI*2);
+          ctx.fill();
+          // small plus sign to indicate heal
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = "#003f2f";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(px - 3, py); ctx.lineTo(px + 3, py);
+          ctx.moveTo(px, py - 3); ctx.lineTo(px, py + 3);
+          ctx.stroke();
+        }
+
+        // bullets
+        for (const b of this.bullets) {
+          const sx = b.x - camX, sy = b.y - camY;
+          ctx.beginPath();
+          ctx.fillStyle = b.color;
+          ctx.arc(sx, sy, b.size, 0, Math.PI*2);
+          ctx.fill();
+        }
+
+        // particles
+        for (const p of this.particles) {
+          const sx = p.x - camX, sy = p.y - camY;
+          ctx.beginPath();
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = Math.max(0, p.life);
+          ctx.arc(sx, sy, 2, 0, Math.PI*2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        // players
+        for (const pl of this.players) {
+          if (!pl.alive) continue;
+          const sx = pl.x - camX, sy = pl.y - camY;
+
+          const grad = ctx.createRadialGradient(sx, sy, pl.size*0.3, sx, sy, pl.size);
+          grad.addColorStop(0, pl.color);
+          grad.addColorStop(1, "#050612");
+          ctx.beginPath();
+          ctx.fillStyle = grad;
+          ctx.arc(sx, sy, pl.size, 0, Math.PI*2);
+          ctx.fill();
+
+          // health arc
+          const hpFrac = Math.max(0, pl.health / 100);
+          ctx.beginPath();
+          ctx.strokeStyle = hpFrac > 0.6 ? "#7cf29b" : hpFrac > 0.3 ? "#ffd66b" : "#ff7b7b";
+          ctx.lineWidth = 3;
+          ctx.arc(sx, sy, pl.size + 4, -Math.PI/2, -Math.PI/2 + Math.PI*2*hpFrac);
+          ctx.stroke();
+
+          // name and YOU tag
+          ctx.font = "11px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(pl.name, sx, sy - pl.size - 10);
+          if (pl.isLocal) {
+            ctx.fillStyle = "#7cf29b";
+            ctx.fillText("YOU", sx, sy - pl.size - 22);
+          }
+        }
+
+        // minimap render
+        this.renderMinimap();
+      }
+
+      renderMinimap() {
+        const ctx = this.miniCtx;
+        const w = this.miniCanvas.width, h = this.miniCanvas.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = "#050612";
+        ctx.fillRect(0,0,w,h);
+
+        const scale = w / this.worldSize;
+
+        // food
+        ctx.fillStyle = "rgba(255,255,255,0.25)";
+        for (const f of this.food) {
+          ctx.fillRect(f.x * scale, f.y * scale, 1.5, 1.5);
+        }
+
+        // heals on minimap (green)
+        for (const h of this.heals) {
+          ctx.beginPath();
+          ctx.fillStyle = "#6cffc4";
+          ctx.arc(h.x * scale, h.y * scale, 1.3, 0, Math.PI*2);
+          ctx.fill();
+        }
+
+        // players
+        for (const pl of this.players) {
+          if (!pl.alive) continue;
+          ctx.beginPath();
+          ctx.fillStyle = pl.isLocal ? "#ffffff" : pl.color;
+          const r = pl.isLocal ? 3.5 : 2.5;
+          ctx.arc(pl.x * scale, pl.y * scale, r, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      updateLeaderboard() {
+        const list = document.getElementById("leaderboardList");
+        list.innerHTML = "";
+        const ranking = [...this.players].sort((a,b) => b.score - a.score);
+        ranking.slice(0,8).forEach((p,i) => {
+          const div = document.createElement("div");
+          div.className = "leaderboard-entry";
+          const youTag = p.isLocal ? '<span class="you-tag">YOU</span>' : "";
+          div.innerHTML = `
+            <span class="rank">${i+1}</span>
+            <span class="player-name" style="color:${p.color}">${p.name}${youTag}</span>
+            <span class="score">${p.score}</span>
+          `;
+          list.appendChild(div);
+        });
+      }
+
+      endMatch(won) {
+        this.running = false;
+        const go = document.getElementById("gameOver");
+        const title = document.getElementById("gameOverTitle");
+        const sub = document.getElementById("gameOverSubtitle");
+        const scoreEl = document.getElementById("goScore");
+        const killsEl = document.getElementById("goKills");
+        const timeEl = document.getElementById("goTime");
+
+        const secs = Math.max(1, Math.round(this.elapsed));
+
+        if (won) {
+          title.textContent = "🏆 Last Player Standing!";
+          sub.textContent = "You controlled the arena this round.";
+        } else {
+          title.textContent = "💀 You were eliminated";
+          sub.textContent = "Someone else secured the arena this time.";
+        }
+        scoreEl.textContent = this.me.score;
+        killsEl.textContent = this.me.kills;
+        timeEl.textContent = secs + "s";
+
+        go.style.display = "flex";
+      }
+
+      restart() {
+        document.getElementById("gameOver").style.display = "none";
+        // pick a new assigned name for the next match (keeps it fresh)
+        this.pickAssignedName();
+        document.getElementById("assignedName").textContent = this.assignedName;
+        this.startMatch();
+      }
+
+      backToMenu() {
+        this.running = false;
+        document.getElementById("gameOver").style.display = "none";
+        // show main menu and pick a fresh assigned name
+        this.pickAssignedName();
+        document.getElementById("assignedName").textContent = this.assignedName;
+        document.getElementById("mainMenu").style.display = "flex";
+      }
+    }
+
+    // launch
+    new SoloIOGame();
+  </script>
+</body>
+</html>
