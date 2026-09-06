@@ -285,7 +285,7 @@
     let running = false, over = false, rafId = null, lastT = 0;
     let endShown = false, endTimer = 0;
     let blocks = [], cur = null, debris = [], popups = [];
-    let level = 0, best = 0, coneX = 0, camY = 0;
+    let level = 0, best = 0, coneX = 0, camY = 0, lastWasCherry = false;
     let dragging = false, lastPX = 0;
     const keys = { left: false, right: false };
     let muted = false;
@@ -374,6 +374,7 @@
       blocks = [{ dx: 0, w, fl: 0 }];
       level = 0;
       coneX = W / 2;
+      lastWasCherry = false;
       debris = [];
       popups = [];
       camY = camTarget();
@@ -393,8 +394,9 @@
     const topCX = () => coneX + blocks[blocks.length - 1].dx;
 
     function spawnCurrent() {
-      // usually a scoop drops... but sometimes a bonus cherry instead!
-      const cherry = level >= 3 && Math.random() < 0.15;
+      // usually a scoop drops... but sometimes a bonus cherry instead (never twice in a row!)
+      const cherry = !lastWasCherry && level >= 3 && Math.random() < 0.15;
+      lastWasCherry = cherry;
       const w = cherry ? 44 : baseWidth();
       const landWy = topWorldY() - BLOCK_H;
       const spawnWy = landWy - Math.max(420, H * 0.5);
