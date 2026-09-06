@@ -337,9 +337,9 @@
       return groundY() - blocks.length * BLOCK_H;
     }
 
-    // camera keeps the cone row near the bottom; scrolls only once the tower outgrows the screen
+    // camera drifts up from the very first scoop; follows the top once the tower outgrows the screen
     function camTarget() {
-      return Math.min(groundY() - (H - 170), topWorldY() - 120);
+      return Math.min(groundY() - (H - 170) - blocks.length * 10, topWorldY() - 100);
     }
 
     // falling scoop reaches the top scoop — catch it or drop everything!
