@@ -322,24 +322,28 @@
     const topCX = () => coneX + blocks[blocks.length - 1].dx;
 
     function spawnCurrent() {
-      // scoop drops from the top of the screen near the tower, always reachable
+      // scoop drops from the top of the screen near the tower, always reachable,
+      // with enough fall distance to react even when falling fast
       const w = baseWidth();
-      const fallDist = (topWorldY() - BLOCK_H) - (camY - 80);
+      const landWy = topWorldY() - BLOCK_H;
+      const spawnWy = landWy - Math.max(420, H * 0.5);
+      const fallDist = landWy - spawnWy;
       const reach = Math.max(120, KEY_SPEED * (fallDist / fallSpeed(level)) * 0.75);
       const anchor = blocks.length ? topCX() : coneX;
       const lo = Math.max(w / 2, anchor - reach);
       const hi = Math.min(W - w / 2, anchor + reach);
       const cx = lo + Math.random() * Math.max(1, hi - lo);
-      cur = { x: cx - w / 2, w, lvl: level + 1, wy: camY - 80 };
+      cur = { x: cx - w / 2, w, lvl: level + 1, wy: spawnWy };
     }
 
     function topWorldY() {
       return groundY() - blocks.length * BLOCK_H;
     }
 
-    // camera drifts up from the very first scoop; follows the top once the tower outgrows the screen
+    // camera drifts up from the very first scoop; then pins the tower top
+    // lower on screen (cone gets left behind) so high towers stay visible
     function camTarget() {
-      return Math.min(groundY() - (H - 170) - blocks.length * 10, topWorldY() - 100);
+      return Math.min(groundY() - (H - 170) - blocks.length * 10, topWorldY() - H * 0.35);
     }
 
     // falling scoop reaches the top scoop — catch it or drop everything!
