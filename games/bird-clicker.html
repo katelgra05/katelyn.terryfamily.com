@@ -117,16 +117,6 @@
       gap: 8px;
       align-items: flex-end;
     }
-    .best-card {
-      background: rgba(10, 8, 30, 0.62);
-      border: 1px solid rgba(255, 255, 255, 0.22);
-      backdrop-filter: blur(8px);
-      border-radius: 12px;
-      padding: 6px 12px;
-      color: #ffd94d;
-      font-weight: 800;
-      font-size: clamp(13px, 2.6vmin, 16px);
-    }
     .icon-row { display: flex; gap: 8px; }
     .icon-btn {
       width: 44px;
@@ -428,7 +418,6 @@
         <div class="rates" id="genLine" style="color:#ffd94d;font-weight:800;">🌱 First life</div>
       </div>
       <div class="hud-right">
-        <div class="best-card" id="best">🏆 0</div>
         <div class="icon-row">
           <button id="boardBtn" class="icon-btn" title="Leaderboard">🏆</button>
           <button id="musicBtn" class="icon-btn" onclick="toggleMusic()" title="Music on/off">🎵</button>
@@ -1629,7 +1618,7 @@
       const s = Math.floor(score), b = Math.floor(best);
       if (force || s !== lastShown.score) { scoreEl.textContent = s.toLocaleString(); lastShown.score = s; }
       if (force || b !== lastShown.best) {
-        bestEl.textContent = '🏆 ' + b.toLocaleString();
+        if (bestEl) bestEl.textContent = '🏆 ' + b.toLocaleString();
         bestStartEl.textContent = '🏆 Best: ' + b.toLocaleString();
         lastShown.best = b;
       }
@@ -1859,7 +1848,7 @@
     perClick = 1; perSec = 0;
     generation = 0; mode = 'play';
     bird.dizzy = false;
-    bestEl.textContent = '🏆 ' + Math.floor(best).toLocaleString();
+    if (bestEl) bestEl.textContent = '🏆 ' + Math.floor(best).toLocaleString();
     bestStartEl.textContent = '🏆 Best: ' + Math.floor(best).toLocaleString();
     muteBtn.textContent = muted ? '🔇' : '🔊';
     muteBtn.classList.toggle('off', muted);
