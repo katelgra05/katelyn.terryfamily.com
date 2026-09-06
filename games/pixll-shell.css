@@ -3,6 +3,9 @@
    Only styles `pixll-*` components + known start-screen IDs.
    Never touches generic `body`, `.cell`, canvas, etc. so gameplay can't break. */
 
+/* Games run fullscreen — the marketing hero lives on the homepage, not on game pages. */
+.pixll-hero { display: none; }
+
 .pixll-topbar {
   position: fixed;
   top: 12px;

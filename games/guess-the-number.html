@@ -10,8 +10,9 @@
             font-family: Arial, sans-serif;
             text-align: center;
             margin: 0;
-            padding: 0;
-            min-height: 100vh;
+            padding: 70px 12px 26px 12px;
+            box-sizing: border-box;
+            min-height: 100dvh;
             background-image: url('./galaxy.webp');
             background-position: center;
             background-repeat: no-repeat;
@@ -22,11 +23,14 @@
             align-items: center;
         }
         .game-container {
-            max-width: 600px; /* Increased width */
-            padding: 40px; /* Increased padding */
+            max-width: 700px; /* Increased width */
+            width: min(96vw, 700px);
+            box-sizing: border-box;
+            padding: clamp(24px, 5vmin, 48px); /* Increased padding */
             background-color: white;
-            border-radius: 10px;
+            border-radius: 16px;
             box-shadow: 0 0 20px rgba(0,0,0,0.2); /* Increased shadow */
+            font-size: clamp(17px, 2.6vmin, 21px);
         }
         .diff-row {
             display: flex;
@@ -80,9 +84,9 @@
         }
         input {
             padding: 15px; /* Increased padding */
-            font-size: 20px; /* Increased font size */
+            font-size: clamp(20px, 3.4vmin, 26px); /* Increased font size */
             margin: 15px; /* Increased margin */
-            width: 150px; /* Increased width */
+            width: min(200px, 50vw); /* Increased width */
         }
         button:not(.back-button) {
             padding: 22px 44px;
@@ -105,7 +109,7 @@
 </head>
 <body>
     <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🔢 Guess the Number</span></nav>
-    <div style="padding-top:60px;display:flex;flex-direction:column;align-items:center;width:100%;padding-left:16px;padding-right:16px;">
+    <div style="display:flex;flex-direction:column;align-items:center;width:100%;">
     <header class="pixll-hero" style="margin:0 0 16px;max-width:600px;width:100%;">
       <div class="pixll-hero-emoji">🔢</div>
       <h2 class="pixll-hero-title">Guess the Number</h2>

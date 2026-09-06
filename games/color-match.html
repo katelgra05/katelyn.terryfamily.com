@@ -15,19 +15,35 @@
             --error-color: #e74c3c;
         }
 
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        body {
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 70px 12px 26px 12px;
+            box-sizing: border-box;
+        }
+
         .game-container {
-            max-width: 500px;
-            margin: 20px auto;
-            padding: 20px;
+            max-width: 720px;
+            width: min(96vw, 720px);
+            margin: 0 auto;
+            padding: clamp(16px, 3vmin, 30px);
             background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
         }
 
         .color-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
+            gap: min(2.5vmin, 14px);
             margin: 20px 0;
         }
 
@@ -57,8 +73,8 @@
         }
 
         .guess-slot {
-            width: 50px;
-            height: 50px;
+            width: clamp(52px, 13vmin, 76px);
+            height: clamp(52px, 13vmin, 76px);
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.1);
             border: 2px solid rgba(255, 255, 255, 0.3);
@@ -172,6 +188,7 @@
     </header>
     <h1 style="display:none;">Color Match</h1>
     <div class="game-container">
+        <p style="text-align:center;margin-top:0;">Pick 4 colors, hit Check — 🟩 exact spot, 🟨 right color wrong spot!</p>
         <div class="stats">
             <div class="stat-box">
                 <h3>Streak</h3>

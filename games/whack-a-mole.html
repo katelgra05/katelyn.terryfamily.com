@@ -6,27 +6,40 @@
     <title>Whack-A-Mole!</title>
     <link rel="stylesheet" href="./pixll-shell.css">
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
         body {
             text-align: center;
             background-color: #90EE90;
             font-family: Arial;
             touch-action: manipulation;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 64px 10px 20px 10px;
+            box-sizing: border-box;
         }
         .game-container, .difficulty-container {
-            width: 450px;
-            margin: 20px auto;
+            width: min(96vw, 660px);
+            margin: 0 auto;
             background: #8B4513;
             padding: 20px;
             border-radius: 20px;
+            box-sizing: border-box;
         }
         .grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
+            gap: min(2vmin, 14px);
+            justify-items: center;
         }
         .hole {
-            width: 140px;
-            height: 140px;
+            width: min(28vw, 22dvh, 190px);
+            height: min(28vw, 22dvh, 190px);
             background: #3A1F00;
             border-radius: 50%;
             display: inline-block;

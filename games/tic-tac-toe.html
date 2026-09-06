@@ -6,35 +6,48 @@
     <title>Tic Tac Toe</title>
     <link rel="stylesheet" href="./pixll-shell.css">
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
         body {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            margin: 0;
+            min-height: 100dvh;
             font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+            padding: 70px 12px 24px 12px;
+            box-sizing: border-box;
         }
 
         .game-container {
             text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        .game-container h1 {
+            display: none; /* badge in the topbar names the game */
         }
 
         .board {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin: 20px 0;
+            gap: min(2vmin, 14px);
+            margin: 12px 0;
+            width: min(94vw, 62dvh, 560px);
         }
 
         .cell {
-            width: 100px;
-            height: 100px;
+            width: 100%;
+            aspect-ratio: 1;
             background: white;
             border: none;
             border-radius: 12px;
-            font-size: 48px;
+            font-size: clamp(48px, 14vmin, 110px);
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 16px rgba(0,0,0,0.1);
