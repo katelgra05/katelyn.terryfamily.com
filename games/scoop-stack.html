@@ -162,6 +162,50 @@
       margin-top: 10px;
     }
     .game-button:hover { transform: scale(1.06); }
+    #boardList {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 12px 0;
+      max-height: 30vh;
+      overflow-y: auto;
+    }
+    .brow {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .brow.me {
+      background: linear-gradient(90deg, #ff8ab5, #c084fc);
+    }
+    .brow .bscore { color: #ffd94d; }
+    .brow.me .bscore { color: #fff; }
+    #nameInput {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      font-family: inherit;
+      margin-top: 4px;
+    }
+    #nameInput::placeholder { color: rgba(255, 255, 255, 0.55); }
+    .game-button.small {
+      padding: 10px 26px;
+      font-size: 16px;
+    }
+    #boardMsg { min-height: 1.4em; font-weight: 800; color: #7cf29b; }
   </style>
 </head>
 <body>
@@ -190,7 +234,20 @@
       <p class="big-score">🍨 <span id="finalScore">0</span> scoops</p>
       <p id="newBest" style="font-weight:bold;color:#ffd94d;display:none;">🎉 New best! 🎉</p>
       <p style="color:rgba(255,255,255,0.85);">🏆 Best: <span id="finalBest">0</span></p>
-      <button class="game-button" onclick="startGame()">↻ Stack Again!</button>
+      <button class="game-button" onclick="startGame()">↻ Stack Again!</button><br>
+      <button class="game-button small" id="boardBtn" style="background:linear-gradient(135deg,#ffd94d,#ff9a3d);margin-top:12px;">🏆 Leaderboard</button>
+    </div>
+    <div class="overlay" id="boardScreen" style="display:none;">
+      <div style="font-size:44px;margin-bottom:4px;">🏆</div>
+      <h2>Leaderboard</h2>
+      <p id="boardYou" style="font-weight:800;color:#ffd94d;"></p>
+      <div id="boardList"></div>
+      <div id="boardForm">
+        <input id="nameInput" maxlength="12" placeholder="Your name..." autocomplete="off">
+        <button class="game-button small" id="saveScoreBtn" style="margin-top:10px;">Save my score</button>
+      </div>
+      <p id="boardMsg"></p>
+      <button class="game-button small" id="boardBackBtn">← Back</button>
     </div>
   </div>
 
@@ -207,6 +264,14 @@
     const overScreen = document.getElementById('overScreen');
     const overTitleEl = document.getElementById('overTitle');
     const muteBtn = document.getElementById('muteBtn');
+    const boardScreen = document.getElementById('boardScreen');
+    const boardList = document.getElementById('boardList');
+    const boardYou = document.getElementById('boardYou');
+    const nameInput = document.getElementById('nameInput');
+    const saveScoreBtn = document.getElementById('saveScoreBtn');
+    const boardMsg = document.getElementById('boardMsg');
+    const boardBackBtn = document.getElementById('boardBackBtn');
+    const boardBtn = document.getElementById('boardBtn');
 
     let W = 0, H = 0;
     function resizeCanvas() {
@@ -318,6 +383,7 @@
       running = true;
       startScreen.style.display = 'none';
       overScreen.style.display = 'none';
+      boardScreen.style.display = 'none';
       spawnCurrent();
       updateHUD();
       lastT = performance.now();
@@ -440,6 +506,79 @@
       scoreEl.textContent = level;
       bestEl.textContent = best;
     }
+
+    // ============ leaderboard (per-device top 10) ============
+    let boardScore = 0;
+    function loadBoard() {
+      try {
+        const a = JSON.parse(localStorage.getItem('scoop_board'));
+        if (!Array.isArray(a)) return [];
+        return a
+          .filter(e => e && typeof e.name === 'string' && typeof e.score === 'number')
+          .map(e => ({ name: e.name.slice(0, 12), score: Math.max(0, Math.floor(e.score)) }))
+          .slice(0, 10);
+      } catch (e) { return []; }
+    }
+    function saveBoard(b) {
+      try { localStorage.setItem('scoop_board', JSON.stringify(b.slice(0, 10))); } catch (e) {}
+    }
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function renderBoard(highlight) {
+      const board = loadBoard();
+      if (!board.length) {
+        boardList.innerHTML = '<div class="brow"><span>No scores yet…</span><span class="bscore">be the first! 🎉</span></div>';
+        return;
+      }
+      const medals = ['🥇', '🥈', '🥉'];
+      boardList.innerHTML = board.map((e, i) => {
+        const rank = medals[i] || ('#' + (i + 1));
+        const me = highlight && e.name.toLowerCase() === highlight.toLowerCase() && e.score === boardScore ? ' me' : '';
+        return '<div class="brow' + me + '"><span>' + rank + ' ' + escapeHtml(e.name) + '</span><span class="bscore">' + e.score.toLocaleString() + ' 🍨</span></div>';
+      }).join('');
+    }
+    function openBoard() {
+      boardScore = level;
+      boardYou.textContent = 'Your run: ' + level.toLocaleString() + ' 🍨';
+      boardMsg.textContent = '';
+      try { nameInput.value = localStorage.getItem('scoop_name') || ''; } catch (e) {}
+      renderBoard(null);
+      overScreen.style.display = 'none';
+      boardScreen.style.display = '';
+    }
+    function saveScore() {
+      const name = nameInput.value.trim().slice(0, 12);
+      if (!name) {
+        boardMsg.textContent = 'Type your name first! ☝️';
+        return;
+      }
+      const board = loadBoard();
+      const idx = board.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
+      if (idx >= 0) {
+        if (boardScore > board[idx].score) {
+          board[idx] = { name: board[idx].name, score: boardScore };
+          boardMsg.textContent = '🎉 New best for ' + board[idx].name + '!';
+        } else {
+          boardMsg.textContent = board[idx].name + ' already has ' + board[idx].score.toLocaleString() + ' — beat it!';
+          renderBoard(board[idx].name);
+          return;
+        }
+      } else {
+        board.push({ name, score: boardScore });
+        boardMsg.textContent = 'Saved! 🎉';
+      }
+      board.sort((a, b) => b.score - a.score);
+      saveBoard(board);
+      try { localStorage.setItem('scoop_name', name); } catch (e) {}
+      renderBoard(name);
+    }
+    boardBtn.addEventListener('click', () => { ensureAudio(); openBoard(); });
+    saveScoreBtn.addEventListener('click', saveScore);
+    boardBackBtn.addEventListener('click', () => {
+      boardScreen.style.display = 'none';
+      overScreen.style.display = '';
+    });
 
     // ============ update ============
     function update(dt) {
