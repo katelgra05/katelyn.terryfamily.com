@@ -181,13 +181,13 @@
       <div style="font-size:52px;margin-bottom:8px;">🍨</div>
       <h2>Scoop Stack!</h2>
       <p>Tap to drop each sliding scoop!<br>
-      Stack high — overhangs slice off and tumble!<br>
-      Miss the tower and it's game over!</p>
+      Whole scoops stay — nothing gets sliced!<br>
+      Keep the tower balanced or it topples! ⚖️</p>
       <button class="game-button" onclick="startGame()">▶ Start Stacking!</button>
     </div>
     <div class="overlay" id="overScreen" style="display:none;">
       <div style="font-size:52px;margin-bottom:8px;">💦</div>
-      <h2>Splat!</h2>
+      <h2 id="overTitle">Splat!</h2>
       <p class="big-score">🍨 <span id="finalScore">0</span> scoops</p>
       <p id="newBest" style="font-weight:bold;color:#ffd94d;display:none;">🎉 New best! 🎉</p>
       <p style="color:rgba(255,255,255,0.85);">🏆 Best: <span id="finalBest">0</span></p>
@@ -206,6 +206,7 @@
     const newBestEl = document.getElementById('newBest');
     const startScreen = document.getElementById('startScreen');
     const overScreen = document.getElementById('overScreen');
+    const overTitleEl = document.getElementById('overTitle');
     const muteBtn = document.getElementById('muteBtn');
 
     let W = 0, H = 0;
@@ -219,7 +220,7 @@
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
     let blocks = [], cur = null, debris = [], popups = [];
-    let level = 0, best = 0, camY = 0;
+    let level = 0, best = 0, camY = 0, lean = 0;
     let muted = false;
     try {
       best = parseInt(localStorage.getItem('scoop_best')) || 0;
@@ -228,6 +229,7 @@
 
     const BLOCK_H = 46;
     const PERFECT_TOL = 9;
+    const maxLean = () => baseWidth() * 0.5;
     const FLAVORS = [
       { c: '#ff8ab5', d: '#e0559a' },
       { c: '#9ff0c8', d: '#3fbf7f' },
@@ -297,6 +299,7 @@
       const w = baseWidth();
       blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       level = 0;
+      lean = 0;
       debris = [];
       popups = [];
       camY = 0;
@@ -311,7 +314,7 @@
     }
 
     function spawnCurrent() {
-      const w = blocks[blocks.length - 1].w;
+      const w = baseWidth();
       const dir = (level % 2 === 0) ? 1 : -1;
       cur = { x: dir === 1 ? -w : W, w, dir, lvl: level + 1 };
     }
@@ -325,31 +328,30 @@
       const prev = blocks[blocks.length - 1];
       const a0 = cur.x, a1 = cur.x + cur.w;
       const b0 = prev.x, b1 = prev.x + prev.w;
-      const o0 = Math.max(a0, b0), o1 = Math.min(a1, b1);
-      const overlap = o1 - o0;
+      const overlap = Math.min(a1, b1) - Math.max(a0, b0);
       if (overlap <= 0) {
         // total miss — the scoop tumbles away
         debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: cur.dir * 220, vy: -160, rot: 0, vr: cur.dir * 4, life: 1.4 });
         cur = null;
         sndFall();
-        gameOver();
+        gameOver('miss');
         return;
       }
-      if (Math.abs(cur.x - prev.x) <= PERFECT_TOL && cur.w === prev.w) {
-        // perfect landing — no slice
-        blocks.push({ x: prev.x, w: prev.w, lvl: cur.lvl, perfect: true });
+      // whole scoop stays — no slicing! Off-center landings lean the tower.
+      const offset = (cur.x + cur.w / 2) - (prev.x + prev.w / 2);
+      lean = lean * 0.85 + offset;
+      if (Math.abs(offset) <= PERFECT_TOL) {
+        // centered landing steadies the tower
+        blocks.push({ x: prev.x, w: cur.w, lvl: cur.lvl });
+        lean *= 0.4;
         popups.push({ x: prev.x + prev.w / 2, wy: topWorldY(), text: '✨ Perfect!', life: 1 });
         sndPerfect();
       } else {
-        // slice the overhang
-        if (a0 < o0) {
-          debris.push({ x: a0, w: o0 - a0, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: -160, vy: -60, rot: 0, vr: -3, life: 1.2 });
-        }
-        if (a1 > o1) {
-          debris.push({ x: o1, w: a1 - o1, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: 160, vy: -60, rot: 0, vr: 3, life: 1.2 });
-        }
-        blocks.push({ x: o0, w: overlap, lvl: cur.lvl });
+        blocks.push({ x: cur.x, w: cur.w, lvl: cur.lvl });
         sndPlace();
+        if (Math.abs(lean) > maxLean() * 0.65) {
+          popups.push({ x: cur.x + cur.w / 2, wy: topWorldY(), text: '😬 Wobbly!', life: 1 });
+        }
       }
       level++;
       if (level > best) {
@@ -357,14 +359,37 @@
         try { localStorage.setItem('scoop_best', String(best)); } catch (e) {}
       }
       updateHUD();
+      if (Math.abs(lean) > maxLean()) {
+        // leaned too far — the whole tower topples!
+        topple();
+        gameOver('topple');
+        return;
+      }
       spawnCurrent();
     }
 
-    function gameOver() {
+    function topple() {
+      const dir = lean >= 0 ? 1 : -1;
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+        debris.push({
+          x: b.x, w: b.w, lvl: b.lvl,
+          wy: groundY() - (i + 1) * BLOCK_H,
+          vx: dir * (120 + Math.random() * 140), vy: -60 - i * 34,
+          rot: 0, vr: dir * (2 + Math.random() * 3), life: 1.8
+        });
+      }
+      blocks = [];
+      cur = null;
+      tone(300, 0.5, 'sawtooth', 0.07, 0, 70);
+    }
+
+    function gameOver(reason) {
       over = true;
       running = false;
       cancelAnimationFrame(rafId);
-      // let the missed scoop fall for a beat, then show the panel
+      overTitleEl.textContent = reason === 'topple' ? '🍨 Timber!' : '💦 Splat!';
+      // let things fall for a beat, then show the panel
       let shown = false;
       const finish = () => {
         if (shown) return;
@@ -594,7 +619,15 @@
           ctx.stroke();
         }
       }
-      // placed scoops (bottom-up)
+      // placed scoops (bottom-up), swaying with the tower's lean
+      const leanRatio = Math.max(-1, Math.min(1, lean / maxLean()));
+      const sway = leanRatio * 0.09 + Math.sin(t * 4) * 0.012 * Math.abs(leanRatio);
+      const pivotX = blocks.length ? blocks[0].x + blocks[0].w / 2 : W / 2;
+      const pivotY = toSY(groundY());
+      ctx.save();
+      ctx.translate(pivotX, pivotY);
+      ctx.rotate(sway);
+      ctx.translate(-pivotX, -pivotY);
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         const wy = groundY() - (i + 1) * BLOCK_H;
@@ -602,6 +635,7 @@
         if (sy > H + 60 || sy + BLOCK_H < -80) continue;
         drawScoop(b.x, sy, b.w, b.lvl, i === blocks.length - 1 && !cur);
       }
+      ctx.restore();
       // sliding scoop
       if (cur && !over) {
         const wy = groundY() - (blocks.length + 1) * BLOCK_H;
@@ -636,6 +670,27 @@
         ctx.fillText(p.text, p.x, toSY(p.wy));
       });
       ctx.globalAlpha = 1;
+      // balance meter (only while stacking)
+      if ((running || !over) && blocks.length > 0) {
+        const bw = Math.min(200, W * 0.44), bx = W / 2 - bw / 2, by = 112;
+        const danger = Math.abs(leanRatio);
+        ctx.fillStyle = 'rgba(10, 8, 30, 0.62)';
+        roundRect(bx - 8, by - 8, bw + 16, 26, 13);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        roundRect(bx, by, bw, 10, 5);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(W / 2 - 1, by - 3, 2, 16);
+        const mx = W / 2 + leanRatio * (bw / 2 - 8);
+        ctx.fillStyle = danger > 0.65 ? '#ff5d5d' : (danger > 0.35 ? '#ffd94d' : '#7cf29b');
+        ctx.beginPath();
+        ctx.arc(mx, by + 5, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.stroke();
+      }
     }
 
     // ============ main loop ============
