@@ -181,7 +181,7 @@
       <div style="font-size:52px;margin-bottom:8px;">🍨</div>
       <h2>Scoop Stack!</h2>
       <p>Slide your cone 👈👉 to catch falling scoops on top!<br>
-      Land centered or the whole stack tumbles! 🍨</p>
+      Way off-center and the whole stack tumbles! 🍨</p>
       <button class="game-button" onclick="startGame()">▶ Start Stacking!</button>
     </div>
     <div class="overlay" id="overScreen" style="display:none;">
@@ -229,7 +229,8 @@
     } catch (e) {}
 
     const BLOCK_H = 46;
-    const CATCH_TOL = 14;
+    const PERFECT_TOL = 8;
+    const MIN_OVERLAP = 25;
     const KEY_SPEED = 460;
     const FLAVORS = [
       { c: '#ff8ab5', d: '#e0559a' },
@@ -307,7 +308,7 @@
       coneX = W / 2;
       debris = [];
       popups = [];
-      camY = topWorldY() - H * 0.42;
+      camY = camTarget();
       over = false;
       running = true;
       startScreen.style.display = 'none';
@@ -336,6 +337,11 @@
       return groundY() - blocks.length * BLOCK_H;
     }
 
+    // camera keeps the cone row near the bottom; scrolls only once the tower outgrows the screen
+    function camTarget() {
+      return Math.min(groundY() - (H - 170), topWorldY() - 120);
+    }
+
     // falling scoop reaches the top scoop — catch it or drop everything!
     function catchCheck() {
       const prev = blocks[blocks.length - 1];
@@ -354,14 +360,20 @@
         return;
       }
       const offset = scoopCX - prevCX;
-      if (Math.abs(offset) <= CATCH_TOL) {
+      if (Math.abs(offset) <= PERFECT_TOL) {
         // stacked! whole scoop stays on the cone
         blocks.push({ dx: scoopCX - coneX, w: cur.w, lvl: cur.lvl });
         cur = null;
-        popups.push({ x: scoopCX, wy: topWorldY(), text: level > 0 && Math.abs(offset) <= 6 ? '✨ Perfect!' : '+1 🍨', life: 1 });
-        if (Math.abs(offset) <= 6) sndPerfect(); else sndPlace();
+        popups.push({ x: scoopCX, wy: topWorldY(), text: '✨ Perfect!', life: 1 });
+        sndPerfect();
+      } else if (overlap > MIN_OVERLAP) {
+        // on there, slightly crooked — stays up!
+        blocks.push({ dx: scoopCX - coneX, w: cur.w, lvl: cur.lvl });
+        cur = null;
+        popups.push({ x: scoopCX, wy: topWorldY(), text: '+1 🍨', life: 1 });
+        sndPlace();
       } else {
-        // off-center — the whole stack falls!
+        // WAY off-center — the whole stack falls!
         const side = offset >= 0 ? 1 : -1;
         debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: side * 200, vy: 40, rot: 0, vr: side * 5, life: 1.6 });
         cur = null;
@@ -436,7 +448,7 @@
         }
       }
       // camera scrolls up with the tower like someone scrolling
-      const target = topWorldY() - H * 0.42;
+      const target = camTarget();
       camY += (target - camY) * Math.min(1, dt * 4);
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
@@ -845,7 +857,7 @@
       const w = baseWidth();
       blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       coneX = W / 2;
-      camY = topWorldY() - H * 0.42;
+      camY = camTarget();
       draw(performance.now());
     }
     window.addEventListener('pagehide', () => cancelAnimationFrame(rafId));
