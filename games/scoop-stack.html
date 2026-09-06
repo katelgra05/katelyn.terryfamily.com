@@ -232,6 +232,7 @@
     const BLOCK_H = 46;
     const PERFECT_TOL = 9;
     const KEY_SPEED = 460;
+    const REST_T = 0.35, FLY_T = 0.3;
     const maxLean = () => baseWidth() * 0.6;
     const FLAVORS = [
       { c: '#ff8ab5', d: '#e0559a' },
@@ -454,9 +455,12 @@
         }
       }
       if (placing && !over) {
-        // caught scoop flies up onto the tower
-        placing.t += dt / 0.24;
-        if (placing.t >= 1) finishPlacing();
+        // caught scoop rides in the cone for a beat, THEN flies up to the tower
+        placing.t += dt;
+        if (placing.t >= REST_T && !placing.fly) {
+          placing.fly = { x: coneX - placing.w / 2, y: camY + coneSY() - BLOCK_H + 10 };
+        }
+        if (placing.t >= REST_T + FLY_T) finishPlacing();
       }
       // camera scrolls up with the tower like someone scrolling
       const target = topWorldY() - H * 0.42;
@@ -742,15 +746,17 @@
         ctx.arc(lx, ly + 20, 6, 0, Math.PI * 2);
         ctx.fill();
       });
-      // shop counter
+      // shop counter: slim checkered strip, solid floor below
       ctx.fillStyle = '#f9b8d4';
-      ctx.fillRect(0, gyS, W, H - gyS + 60);
+      ctx.fillRect(0, gyS, W, 54);
       ctx.fillStyle = '#ffffff';
       for (let x = 0; x < W; x += 48) {
-        ctx.fillRect(x, gyS, 24, Math.max(0, H - gyS + 60));
+        ctx.fillRect(x, gyS, 24, 54);
       }
       ctx.fillStyle = '#e0559a';
       ctx.fillRect(0, gyS, W, 8);
+      ctx.fillStyle = '#e79ec4';
+      ctx.fillRect(0, gyS + 54, W, Math.max(0, H - gyS - 54));
       // cone: glued to the bottom of the SCREEN (x only, never up/down)
       {
         const cw = baseWidth();
@@ -799,16 +805,20 @@
       if (cur && !over) {
         drawScoop(cur.x, toSY(cur.wy), cur.w, cur.lvl, false);
       }
-      // caught scoop flying up to the tower
+      // caught scoop: first rests in the cone, then flies up to the tower
       if (placing && !over) {
-        const prev = blocks[blocks.length - 1];
-        const prevCX = prev.x + prev.w / 2;
-        const off = Math.max(-placing.w * 0.7, Math.min(placing.w * 0.7, placing.touchDX * 0.45));
-        const tx = prevCX + off - placing.w / 2;
-        const ty = topWorldY() - BLOCK_H;
-        const k = Math.min(1, placing.t);
-        const e = 1 - Math.pow(1 - k, 2);
-        drawScoop(placing.sx + (tx - placing.sx) * e, toSY(placing.sy + (ty - placing.sy) * e), placing.w, placing.lvl, true);
+        if (!placing.fly) {
+          drawScoop(coneX - placing.w / 2, coneSY() - BLOCK_H + 10, placing.w, placing.lvl, false);
+        } else {
+          const prev = blocks[blocks.length - 1];
+          const prevCX = prev.x + prev.w / 2;
+          const off = Math.max(-placing.w * 0.7, Math.min(placing.w * 0.7, placing.touchDX * 0.45));
+          const tx = prevCX + off - placing.w / 2;
+          const ty = topWorldY() - BLOCK_H;
+          const k = Math.min(1, (placing.t - REST_T) / FLY_T);
+          const e = 1 - Math.pow(1 - k, 2);
+          drawScoop(placing.fly.x + (tx - placing.fly.x) * e, toSY(placing.fly.y + (ty - placing.fly.y) * e), placing.w, placing.lvl, true);
+        }
       }
       // falling debris
       debris.forEach(d => {
