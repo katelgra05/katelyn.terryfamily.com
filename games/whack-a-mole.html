@@ -10,6 +10,7 @@
             text-align: center;
             background-color: #90EE90;
             font-family: Arial;
+            touch-action: manipulation;
         }
         .game-container, .difficulty-container {
             width: 450px;
@@ -36,6 +37,16 @@
             background-size: 80%;
             background-repeat: no-repeat;
             background-position: center;
+            animation: molePop 0.25s ease;
+        }
+        .mole.golden {
+            background-image: url('data:image/svg+xml,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="gold"/><circle cx="35" cy="40" r="5" fill="black"/><circle cx="65" cy="40" r="5" fill="black"/><path d="M 40 60 Q 50 70 60 60" stroke="black" fill="none" stroke-width="3"/></svg>');
+            box-shadow: 0 0 24px gold;
+        }
+        @keyframes molePop {
+            0% { transform: scale(0.3); }
+            60% { transform: scale(1.15); }
+            100% { transform: scale(1); }
         }
         #score {
             font-size: 24px;
@@ -74,6 +85,38 @@
             color: white;
             margin: 10px;
         }
+        #combo {
+            font-size: 22px;
+            font-weight: bold;
+            color: #ffd94d;
+            min-height: 28px;
+            margin: 4px;
+        }
+        #bestLine {
+            font-size: 18px;
+            color: #ffe9a8;
+            margin: 4px;
+        }
+        #timeBar {
+            width: 90%;
+            height: 14px;
+            background: rgba(0,0,0,0.35);
+            border-radius: 999px;
+            margin: 6px auto;
+            overflow: hidden;
+        }
+        #timeFill {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #43e97b, #38f9d7);
+            border-radius: 999px;
+            transition: width 0.3s linear;
+        }
+        #muteBtn {
+            font-size: 20px !important;
+            padding: 10px 16px !important;
+            margin: 6px !important;
+        }
     </style>
 </head>
 <body>
@@ -91,7 +134,11 @@
     <div class="game-container" id="gameScreen" style="display: none;">
         <h1>🔨 Whack-A-Mole! 🦫</h1>
         <div id="score">Score: 0/0</div>
+        <div id="bestLine">🏆 Best: 0</div>
+        <div id="combo"></div>
         <div id="timer">Time Left: 30</div>
+        <div id="timeBar"><div id="timeFill"></div></div>
+        <button id="muteBtn" onclick="toggleMute()" title="Sound on/off">🔊</button>
         <button id="startBtn" onclick="startGame()">Start Game</button>
         <div class="grid">
             <div class="hole" onclick="whack(0)"></div>
@@ -117,8 +164,58 @@
         let moleSpeed = 1000; // Default speed for medium difficulty
         let winScore = 20; // Default win score for medium difficulty
         let timeLeft = 30; // Default game time in seconds
+        let combo = 0;
+        let lastHitAt = 0;
+        let difficulty = 'medium';
+        let muted = false;
+        try { muted = localStorage.getItem('wam_muted') === '1'; } catch (e) {}
+
+        // ---- tiny synth sounds ----
+        let wamAudio = null;
+        function wamTone(freq, dur, type, vol, delay) {
+            if (muted) return;
+            try {
+                if (!wamAudio) wamAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = wamAudio.currentTime + (delay || 0);
+                const osc = wamAudio.createOscillator();
+                const gain = wamAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.12, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(wamAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function whackSound() { wamTone(300 + Math.min(combo, 10) * 40, 0.1, 'square', 0.08); }
+        function goldenSound() { wamTone(880, 0.1, 'triangle', 0.12); wamTone(1318, 0.16, 'triangle', 0.12, 0.07); }
+        function missSound() { wamTone(150, 0.12, 'sawtooth', 0.06); }
+        function winSound() { wamTone(523, 0.12, 'triangle', 0.12); wamTone(784, 0.2, 'triangle', 0.12, 0.1); }
+        function loseSound() { wamTone(300, 0.2, 'sawtooth', 0.08); wamTone(200, 0.3, 'sawtooth', 0.08, 0.15); }
+        function toggleMute() {
+            muted = !muted;
+            try { localStorage.setItem('wam_muted', muted ? '1' : '0'); } catch (e) {}
+            document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+        }
+        function bestKey() { return 'wam_best_' + difficulty; }
+        function loadBest() {
+            try { return parseInt(localStorage.getItem(bestKey())) || 0; }
+            catch (e) { return 0; }
+        }
+        function showBest() {
+            document.getElementById('bestLine').textContent = '🏆 Best: ' + loadBest();
+        }
+        function updateCombo() {
+            const mult = combo >= 6 ? 3 : combo >= 3 ? 2 : 1;
+            document.getElementById('combo').textContent =
+                combo >= 2 ? `🔥 Combo x${combo} (${mult}x points!)` : '';
+        }
+        document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
 
         function setDifficulty(level) {
+            difficulty = level;
             switch(level) {
                 case 'easy':
                     moleSpeed = 1500;
@@ -136,6 +233,8 @@
             document.getElementById('difficultyScreen').style.display = 'none';
             document.getElementById('gameScreen').style.display = 'block';
             document.getElementById('score').textContent = 'Score: 0/' + winScore;
+            showBest();
+            updateCombo();
         }
 
         function startGame() {
@@ -143,10 +242,12 @@
             
             // Reset game
             score = 0;
+            combo = 0;
             timeLeft = 30;
             gameRunning = true;
             document.getElementById('score').textContent = 'Score: 0/' + winScore;
             document.getElementById('timer').textContent = 'Time Left: 30';
+            document.getElementById('timeFill').style.width = '100%';
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('gameOverMessage').style.display = 'none';
             document.getElementById('winMessage').style.display = 'none';
@@ -160,6 +261,7 @@
             timer = setInterval(function() {
                 timeLeft--;
                 document.getElementById('timer').textContent = 'Time left: ' + timeLeft;
+                document.getElementById('timeFill').style.width = Math.max(0, timeLeft / 30 * 100) + '%';
                 if (timeLeft <= 0) {
                     endGame();
                 }
@@ -169,16 +271,20 @@
         function moveMole() {
             // Clear old mole
             if (currentMole >= 0) {
-                document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
+                const old = document.getElementsByClassName('hole')[currentMole];
+                old.classList.remove('mole');
+                old.classList.remove('golden');
             }
 
-            // Place new mole
+            // Place new mole (12% chance of a golden bonus mole!)
             let newMole;
             do {
                 newMole = Math.floor(Math.random() * 9);
             } while (newMole === currentMole);
             currentMole = newMole;
-            document.getElementsByClassName('hole')[currentMole].classList.add('mole');
+            const hole = document.getElementsByClassName('hole')[currentMole];
+            hole.classList.add('mole');
+            if (Math.random() < 0.12) hole.classList.add('golden');
 
             // Set next move
             moleTimer = setTimeout(moveMole, Math.random() * moleSpeed + 500);
@@ -188,11 +294,22 @@
             if (!gameRunning) return;
 
             if (index === currentMole) {
-                score++;
+                const hole = document.getElementsByClassName('hole')[currentMole];
+                const golden = hole.classList.contains('golden');
+                // combo chain: whacks within 1.5s build up
+                const now = Date.now();
+                combo = (now - lastHitAt < 1500) ? combo + 1 : 1;
+                lastHitAt = now;
+                const mult = combo >= 6 ? 3 : combo >= 3 ? 2 : 1;
+                const points = (golden ? 3 : 1) * mult;
+                score += points;
+                if (golden) goldenSound(); else whackSound();
+                updateCombo();
                 document.getElementById('score').textContent = 'Score: ' + score + '/' + winScore;
-                
+
                 // Remove the mole immediately after it's hit
-                document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
+                hole.classList.remove('mole');
+                hole.classList.remove('golden');
                 currentMole = -1; // Reset currentMole to prevent multiple hits
 
                 // Immediately move mole
@@ -203,6 +320,11 @@
                 if (score >= winScore) {
                     endGame(true);
                 }
+            } else {
+                // bonked an empty hole — combo fizzles
+                if (combo >= 2) missSound();
+                combo = 0;
+                updateCombo();
             }
         }
 
@@ -213,8 +335,19 @@
             
             // Clear last mole
             if (currentMole >= 0) {
-                document.getElementsByClassName('hole')[currentMole].classList.remove('mole');
+                const last = document.getElementsByClassName('hole')[currentMole];
+                last.classList.remove('mole');
+                last.classList.remove('golden');
             }
+
+            // Save best score for this difficulty
+            if (score > loadBest()) {
+                try { localStorage.setItem(bestKey(), String(score)); } catch (e) {}
+            }
+            showBest();
+            combo = 0;
+            updateCombo();
+            if (won) winSound(); else loseSound();
 
             document.getElementById('startBtn').textContent = 'Play Again';
             document.getElementById('startBtn').style.display = 'block';
