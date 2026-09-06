@@ -26,6 +26,19 @@
             border-radius: 5px;
             z-index: 100;
         }
+        #ui-container button {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 6px;
+            padding: 4px 8px;
+            margin-right: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        #ui-container button:hover { background: rgba(255,255,255,0.25); }
+        .save-row { margin-top: 6px; }
+        #saveMsg { font-size: 12px; color: #7cf29b; }
         #block-selector {
             position: absolute;
             bottom: 10px;
@@ -142,26 +155,36 @@
         <div id="ui-container">
             <div>FPS: <span id="fps">0</span></div>
             <div>Position: <span id="position">0, 0, 0</span></div>
+            <div class="save-row">
+                <button id="saveBtn" title="Save world now">💾 Save</button>
+                <button id="newWorldBtn" title="Erase and start a new world">🌍 New</button>
+                <span id="saveMsg"></span>
+            </div>
         </div>
         <div id="inventory">
             <div id="inventory-grid"></div>
             <div id="hotbar"></div>
         </div>
         <div id="block-selector">
-            <div class="block-option selected" data-block="dirt">🟫</div>
-            <div class="block-option" data-block="grass">🟩</div>
-            <div class="block-option" data-block="stone">⬜</div>
-            <div class="block-option" data-block="wood">🟫</div>
+            <div class="block-option selected" data-block="dirt" data-idx="0">🟫</div>
+            <div class="block-option" data-block="grass" data-idx="1">🟩</div>
+            <div class="block-option" data-block="stone" data-idx="2">⬜</div>
+            <div class="block-option" data-block="wood" data-idx="3">🟫</div>
+            <div class="block-option" data-block="leaves" data-idx="4">🟢</div>
+            <div class="block-option" data-block="sand" data-idx="5">🟨</div>
+            <div class="block-option" data-block="water" data-idx="6">💧</div>
+            <div class="block-option" data-block="lava" data-idx="7">🔥</div>
+            <div class="block-option" data-block="bedrock" data-idx="8">⬛</div>
         </div>
         <div id="instructions">
             <h3>Controls:</h3>
             <p>WASD - Move</p>
             <p>Space - Jump</p>
-            <p>Left Click - Place Block</p>
-            <p>Right Click - Remove Block</p>
-            <p>1-4 - Select Block Type</p>
-            <p>1-9 - Select Hotbar Slot</p>
+            <p>Left Click (hold) - Mine Block ⛏️</p>
+            <p>Right Click - Place Block 🧱</p>
+            <p>Click blocks below / 1-9 - Select</p>
             <p>E - Open/Close Inventory</p>
+            <p>World auto-saves 💾</p>
         </div>
     </div>
 
@@ -425,6 +448,10 @@
         };
         let selectedBlock = 'dirt';
         let chunks = new Map();
+        // player-made world edits for saving: "x,y,z" -> block type, or null if removed
+        let worldEdits = {};
+        const SAVE_KEY = 'voxel_save_v1';
+        const MAX_EDITS = 20000;
         let raycaster = new THREE.Raycaster();
         let mouse = new THREE.Vector2();
         let clock = new THREE.Clock();
@@ -538,8 +565,92 @@
         // Block highlight
         let highlightMesh = null;
 
+        // ---- world save / load (edits + inventory + position + time of day) ----
+        function editKey(x, y, z) {
+            return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
+        }
+        function trackEdit(x, y, z, type) {
+            worldEdits[editKey(x, y, z)] = type;
+            // cap memory: drop oldest edits if it grows huge
+            const keys = Object.keys(worldEdits);
+            if (keys.length > MAX_EDITS) {
+                for (let i = 0; i < keys.length - MAX_EDITS; i++) delete worldEdits[keys[i]];
+            }
+        }
+        function flashSaveMsg(text) {
+            const el = document.getElementById('saveMsg');
+            if (!el) return;
+            el.textContent = text;
+            setTimeout(() => { el.textContent = ''; }, 2000);
+        }
+        function saveWorld(silent) {
+            try {
+                const data = {
+                    v: 1,
+                    edits: worldEdits,
+                    pos: {
+                        x: +player.position.x.toFixed(2),
+                        y: +player.position.y.toFixed(2),
+                        z: +player.position.z.toFixed(2)
+                    },
+                    inv: player.inventory,
+                    time: timeOfDay
+                };
+                localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+                if (!silent) flashSaveMsg('💾 Saved!');
+                return true;
+            } catch (e) {
+                if (!silent) flashSaveMsg('⚠️ Save failed');
+                return false;
+            }
+        }
+        function loadWorld() {
+            try {
+                const raw = localStorage.getItem(SAVE_KEY);
+                if (!raw) return null;
+                const data = JSON.parse(raw);
+                if (!data || data.v !== 1 || typeof data.edits !== 'object') return null;
+                return data;
+            } catch (e) {
+                return null;
+            }
+        }
+        function applySave(data) {
+            // world edits
+            for (const [key, type] of Object.entries(data.edits || {})) {
+                if (!/^-?\d+,-?\d+,-?\d+$/.test(key)) continue;
+                const [x, y, z] = key.split(',').map(Number);
+                if (type === null) {
+                    const mesh = findBlockAt(x, y, z);
+                    if (mesh && mesh.parent) mesh.parent.remove(mesh);
+                } else if (blockData[type]) {
+                    if (findBlockAt(x, y, z)) continue; // already there
+                    const chunk = chunks.get(`${Math.floor(x / CHUNK_SIZE)},${Math.floor(z / CHUNK_SIZE)}`);
+                    if (chunk) createBlock(x, y, z, type, chunk);
+                }
+            }
+            // player position
+            if (data.pos && [data.pos.x, data.pos.y, data.pos.z].every(Number.isFinite)) {
+                player.position.set(data.pos.x, data.pos.y, data.pos.z);
+            }
+            // inventory
+            if (data.inv && Array.isArray(data.inv.hotbar) && data.inv.hotbar.length === 9 &&
+                Array.isArray(data.inv.main) && data.inv.main.length === 27) {
+                const clean = (arr) => arr.map(s =>
+                    (s && blockData[s.type] && Number.isFinite(s.count)) ?
+                    { type: s.type, count: Math.max(0, Math.min(64, Math.floor(s.count))) } : null);
+                player.inventory = {
+                    hotbar: clean(data.inv.hotbar),
+                    main: clean(data.inv.main),
+                    selectedSlot: Math.min(8, Math.max(0, data.inv.selectedSlot | 0))
+                };
+            }
+            // time of day
+            if (Number.isFinite(data.time)) timeOfDay = ((data.time % 1) + 1) % 1;
+        }
+
         // Initialize inventory
-        function initInventory() {
+        function initInventory(grantStarter = true) {
             // Initialize hotbar
             const hotbar = document.getElementById('hotbar');
             for (let i = 0; i < 9; i++) {
@@ -560,7 +671,8 @@
                 inventoryGrid.appendChild(slot);
             }
 
-            // Add initial blocks to inventory
+            // Add initial blocks to inventory (skipped when loading a saved world)
+            if (grantStarter) {
             addBlockToInventory('dirt', 64);
             addBlockToInventory('grass', 64);
             addBlockToInventory('stone', 64);
@@ -570,6 +682,7 @@
             addBlockToInventory('water', 64);
             addBlockToInventory('lava', 64);
             addBlockToInventory('bedrock', 64);
+            }
 
             updateInventoryUI();
         }
@@ -691,6 +804,21 @@
             });
         }
 
+        // Quick-bar below the world: jump straight to a block type in the hotbar
+        function quickSelect(type) {
+            const idx = player.inventory.hotbar.findIndex(s => s && s.type === type);
+            if (idx !== -1) {
+                selectInventorySlot(idx);
+            } else {
+                flashSaveMsg('Need ' + type + ' — press E');
+            }
+        }
+        function initQuickBar() {
+            document.querySelectorAll('.block-option').forEach(opt => {
+                opt.addEventListener('click', () => quickSelect(opt.dataset.block));
+            });
+        }
+
         // Handle keyboard input (smooth movement)
         function onKeyDown(event) {
             // Always allow closing inventory with E
@@ -789,6 +917,7 @@
                             selectedBlock.type,
                             chunk
                         );
+                        trackEdit(placePos.x, placePos.y, placePos.z, selectedBlock.type);
                         selectedBlock.count--;
                         if (selectedBlock.count <= 0) {
                             player.inventory.hotbar[player.inventory.selectedSlot] = null;
@@ -837,6 +966,7 @@
         function removeBlockAtMesh(mesh) {
             if (mesh && mesh.parent) {
                 const blockType = mesh.userData.type;
+                trackEdit(mesh.position.x, mesh.position.y, mesh.position.z, null);
                 mesh.parent.remove(mesh);
                 addBlockToInventory(blockType, 1);
             }
@@ -870,6 +1000,7 @@
                 const block = intersect.object;
                 if (block.parent) {
                     const blockType = block.userData.type;
+                    trackEdit(block.position.x, block.position.y, block.position.z, null);
                     block.parent.remove(block);
                     addBlockToInventory(blockType, 1);
                 }
@@ -1288,6 +1419,10 @@
             // Find safe spawn position (always on ground)
             findSafeSpawnPosition();
 
+            // Load saved world (player edits + inventory + position), if any
+            const saveData = loadWorld();
+            if (saveData) applySave(saveData);
+
             // Check if any blocks exist in the scene
             let blockCount = 0;
             scene.traverse(obj => { if (obj.isMesh) blockCount++; });
@@ -1310,8 +1445,26 @@
                 renderer.domElement.requestPointerLock();
             });
 
-            // Initialize inventory
-            initInventory();
+            // No browser menu on right-click (right-click places blocks)
+            document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            // World saving: button + auto-save every 20s + save on exit
+            initQuickBar();
+            document.getElementById('saveBtn').addEventListener('click', () => saveWorld(false));
+            document.getElementById('newWorldBtn').addEventListener('click', () => {
+                if (confirm('Start a brand-new world? Your builds will be erased.')) {
+                    try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+                    location.reload();
+                }
+            });
+            setInterval(() => saveWorld(true), 20000);
+            window.addEventListener('pagehide', () => saveWorld(true));
+            if (saveData) flashSaveMsg('📂 World loaded!');
+
+            // Initialize inventory (starter kit only for brand-new worlds)
+            initInventory(!saveData);
+            const selItem = player.inventory.hotbar[player.inventory.selectedSlot];
+            updateBlockSelector(selItem ? selItem.type : selectedBlock);
 
             // Hide loading overlay
             overlay.style.display = 'none';
