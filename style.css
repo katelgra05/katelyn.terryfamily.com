@@ -178,7 +178,7 @@ a:not(.button):not(.game-card):not(.featured-card) {
   color: #fff !important;
   box-shadow: 0 10px 30px rgba(255, 94, 156, 0.4);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  margin-top: 12px;
+  margin: 20px 0 10px;
 }
 .featured-card:hover {
   transform: translateY(-3px) scale(1.01);
