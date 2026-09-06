@@ -266,6 +266,27 @@
             margin-bottom: 20px;
             align-items: center;
         }
+        .mode-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .back-link {
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #667eea !important;
+            font-size: 1em !important;
+            padding: 6px 12px !important;
+            margin: 0 !important;
+        }
+        .peek-hint {
+            font-weight: bold;
+            color: #667eea;
+            animation: pulse 1s infinite;
+        }
 
         .difficulty-button {
             padding: 15px 30px;
@@ -323,14 +344,20 @@
     <div class="game-container">
         <div class="game-info">
             <h1>🃏 Memory Match Game</h1>
-            <p style="color:#555;font-size:15px;margin:0 0 14px;">Flip cards, find pairs, beat your friend! Pick a difficulty to begin ✨</p>
-            <div class="difficulty-buttons" id="difficultyButtons">
-                <button class="difficulty-button" onclick="startGame('easy')">🌱 Easy (9 cards)</button>
+            <p style="color:#555;font-size:15px;margin:0 0 14px;">Flip cards, find pairs, beat your friend — or beat your best! Pick a mode to begin ✨</p>
+            <div class="mode-buttons" id="modeButtons">
+                <button class="difficulty-button" onclick="selectMode('solo')">👤 Solo Play</button>
+                <button class="difficulty-button" onclick="selectMode('duo')">👥 2 Players</button>
+            </div>
+            <div class="difficulty-buttons" id="difficultyButtons" style="display:none;">
+                <p id="difficultyLabel" style="color:#555;margin:0;">Pick difficulty:</p>
+                <button class="difficulty-button" onclick="startGame('easy')">🌱 Easy (12 cards)</button>
                 <button class="difficulty-button" onclick="startGame('medium')">🌟 Medium (16 cards)</button>
-                <button class="difficulty-button" onclick="startGame('hard')">🔥 Hard (25 cards)</button>
+                <button class="difficulty-button" onclick="startGame('hard')">🔥 Hard (30 cards)</button>
+                <button class="back-link" onclick="backToModes()">← back to modes</button>
             </div>
             <div id="gameContent" style="display: none;">
-                <div class="player-info">
+                <div class="player-info" id="duoInfo">
                     <div class="player" id="player1">
                         Player 1
                         <div class="player-score">0</div>
@@ -340,8 +367,19 @@
                         <div class="player-score">0</div>
                     </div>
                 </div>
-                <p>Moves: <span id="moves">0</span></p>
+                <div class="player-info" id="soloInfo" style="display:none;">
+                    <div class="player">
+                        ⏱ Time
+                        <div class="player-score" id="soloTime">0:00</div>
+                    </div>
+                    <div class="player">
+                        🏆 Best
+                        <div class="player-score" id="soloBest">—</div>
+                    </div>
+                </div>
+                <p>Moves: <span id="moves">0</span> <span id="peekHint" class="peek-hint" style="display:none;">👀 Memorize!</span></p>
                 <button onclick="resetGame()">New Game</button>
+                <button id="muteBtn" onclick="toggleMute()" title="Sound on/off">🔊</button>
             </div>
         </div>
         <div class="game-board" id="gameBoard"></div>
@@ -354,11 +392,45 @@
     </div>
 
     <script>
+        // 16 unique emoji — every difficulty uses a clean set of pairs (no dangling cards)
         const allEmojis = [
-            '🎮', '🎲', '🎯', '🎨', '🎭', '🎪', '🎫', '🎬',  // 8 pairs for medium
-            '🎨', '🎭', '🎪', '🎫', '🎬', '🎮', '🎲', '🎯',  // duplicates for pairs
-            '🎲', '🎯', '🎨', '🎭', '🎪'  // 5 more for hard mode
+            '🍎', '🍌', '🍇', '🍓', '🍑', '🍍', '🥝', '🍉',
+            '🐶', '🐱', '🦊', '🐼', '🐸', '🐵', '🦁', '🐯'
         ];
+        // ---- tiny synth sounds (no audio files needed) ----
+        let mmAudio = null;
+        let mmMuted = false;
+        try { mmMuted = localStorage.getItem('mm_muted') === '1'; } catch (e) {}
+        function mmTone(freq, dur, type, vol, delay) {
+            if (mmMuted) return;
+            try {
+                if (!mmAudio) mmAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = mmAudio.currentTime + (delay || 0);
+                const osc = mmAudio.createOscillator();
+                const gain = mmAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(mmAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function flipSound() { mmTone(440, 0.07, 'triangle', 0.08); }
+        function matchSound() { mmTone(523, 0.1, 'triangle', 0.12); mmTone(784, 0.16, 'triangle', 0.12, 0.08); }
+        function winSound() {
+            mmTone(523, 0.12, 'triangle', 0.12);
+            mmTone(659, 0.12, 'triangle', 0.12, 0.1);
+            mmTone(784, 0.12, 'triangle', 0.12, 0.2);
+            mmTone(1047, 0.25, 'triangle', 0.12, 0.3);
+        }
+        function toggleMute() {
+            mmMuted = !mmMuted;
+            try { localStorage.setItem('mm_muted', mmMuted ? '1' : '0'); } catch (e) {}
+            document.getElementById('muteBtn').textContent = mmMuted ? '🔇' : '🔊';
+        }
         let cards = [];
         let flippedCards = [];
         let moves = 0;
@@ -366,8 +438,42 @@
         let currentPlayer = 1;
         let playerScores = [0, 0];
         let currentDifficulty = '';
+        let mode = 'solo'; // 'solo' or 'duo'
+        let lockBoard = false; // true during the memorize preview
+        let timerInterval = null;
+        let previewTimeout = null;
+        let startTime = 0;
+        let elapsed = 0;
+
+        function mmLoad(key, fallback) {
+            try { const v = localStorage.getItem(key); return v === null ? fallback : parseInt(v); }
+            catch (e) { return fallback; }
+        }
+        function mmSave(key, value) {
+            try { localStorage.setItem(key, String(value)); } catch (e) {}
+        }
+        function bestKey() { return 'mm_best_' + currentDifficulty; }
+        function fmtTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return m + ':' + String(s).padStart(2, '0');
+        }
+
+        function selectMode(m) {
+            mode = m;
+            document.getElementById('modeButtons').style.display = 'none';
+            document.getElementById('difficultyButtons').style.display = 'flex';
+            document.getElementById('difficultyLabel').textContent =
+                (m === 'solo' ? '👤 Solo — pick difficulty:' : '👥 2 Players — pick difficulty:');
+        }
+
+        function backToModes() {
+            document.getElementById('difficultyButtons').style.display = 'none';
+            document.getElementById('modeButtons').style.display = 'flex';
+        }
 
         function updatePlayerTurn() {
+            if (mode !== 'duo') return;
             document.getElementById('player1').classList.toggle('active', currentPlayer === 1);
             document.getElementById('player2').classList.toggle('active', currentPlayer === 2);
         }
@@ -410,9 +516,10 @@
         }
 
         function flipCard(card) {
-            if (flippedCards.length === 2 || card.classList.contains('flipped')) return;
-            
+            if (lockBoard || flippedCards.length === 2 || card.classList.contains('flipped')) return;
+
             card.classList.add('flipped');
+            flipSound();
             flippedCards.push(card);
 
             if (flippedCards.length === 2) {
@@ -422,16 +529,33 @@
             }
         }
 
+        function starRating() {
+            const pairs = Math.floor(cards.length / 2);
+            if (moves <= Math.ceil(pairs * 1.6)) return '⭐⭐⭐';
+            if (moves <= Math.ceil(pairs * 2.4)) return '⭐⭐';
+            return '⭐';
+        }
+
         function showGameOver(winner, score) {
             const gameOver = document.getElementById('gameOver');
             const winnerMessage = document.getElementById('winnerMessage');
-            
-            if (winner === 'tie') {
+            winSound();
+
+            if (mode === 'solo') {
+                const prevBest = mmLoad(bestKey(), 0);
+                let bestLine = '';
+                if (prevBest === 0 || moves < prevBest) {
+                    mmSave(bestKey(), moves);
+                    bestLine = '<br>🏆 <strong>New best!</strong>';
+                }
+                winnerMessage.innerHTML =
+                    `You cleared it in <strong>${moves} moves</strong> and <strong>${fmtTime(elapsed)}</strong>!<br>${starRating()}${bestLine}`;
+            } else if (winner === 'tie') {
                 winnerMessage.textContent = `It's a tie! Both players scored ${score} points!`;
             } else {
                 winnerMessage.textContent = `Player ${winner} wins with ${score} points!`;
             }
-            
+
             gameOver.style.display = 'block';
         }
 
@@ -444,12 +568,14 @@
                 matchedPairs++;
                 playerScores[currentPlayer - 1]++;
                 updateScores();
+                matchSound();
                 flippedCards = [];
                 
                 const totalPossiblePairs = Math.floor(cards.length / 2);
                 
                 if (matchedPairs === totalPossiblePairs) {
-                    const winner = playerScores[0] > playerScores[1] ? 1 : 
+                    stopTimer();
+                    const winner = playerScores[0] > playerScores[1] ? 1 :
                                  playerScores[1] > playerScores[0] ? 2 : 'tie';
                     setTimeout(() => {
                         showGameOver(winner, playerScores[winner === 'tie' ? 0 : winner - 1]);
@@ -465,34 +591,69 @@
             }
         }
 
+        function stopTimer() {
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        }
+
         function startGame(difficulty) {
             currentDifficulty = difficulty;
+            stopTimer();
+            if (previewTimeout) { clearTimeout(previewTimeout); previewTimeout = null; }
             document.getElementById('difficultyButtons').style.display = 'none';
+            document.getElementById('modeButtons').style.display = 'none';
             document.getElementById('gameContent').style.display = 'block';
-            
+
+            const isSolo = mode === 'solo';
+            document.getElementById('duoInfo').style.display = isSolo ? 'none' : 'flex';
+            document.getElementById('soloInfo').style.display = isSolo ? 'flex' : 'none';
+            if (isSolo) {
+                const best = mmLoad(bestKey(), 0);
+                document.getElementById('soloBest').textContent = best === 0 ? '—' : best + ' moves';
+                document.getElementById('soloTime').textContent = '0:00';
+            }
+
             const gameBoard = document.getElementById('gameBoard');
             gameBoard.className = 'game-board ' + difficulty;
-            
+
+            // even card counts only — every card always has a match
             let numCards;
             switch(difficulty) {
                 case 'easy':
-                    numCards = 9;
+                    numCards = 12;
                     break;
                 case 'medium':
                     numCards = 16;
                     break;
                 case 'hard':
-                    numCards = 25;
+                    numCards = 30;
                     break;
             }
-            
+
             // Get the required number of emoji pairs
-            const pairsNeeded = Math.ceil(numCards / 2);
+            const pairsNeeded = numCards / 2;
             const emojiPairs = allEmojis.slice(0, pairsNeeded);
-            cards = shuffle([...emojiPairs, ...emojiPairs].slice(0, numCards));
-            
+            cards = shuffle([...emojiPairs, ...emojiPairs]);
+
             resetGameState();
             createBoard();
+
+            // 👀 memorize preview, then play
+            lockBoard = true;
+            document.getElementById('peekHint').style.display = 'inline';
+            gameBoard.querySelectorAll('.card').forEach(c => c.classList.add('flipped'));
+            previewTimeout = setTimeout(() => {
+                gameBoard.querySelectorAll('.card').forEach(c => c.classList.remove('flipped'));
+                document.getElementById('peekHint').style.display = 'none';
+                lockBoard = false;
+                if (mode === 'solo') {
+                    startTime = Date.now();
+                    elapsed = 0;
+                    timerInterval = setInterval(() => {
+                        elapsed = (Date.now() - startTime) / 1000;
+                        document.getElementById('soloTime').textContent = fmtTime(elapsed);
+                    }, 500);
+                }
+            }, 1400);
         }
 
         function resetGameState() {
@@ -516,7 +677,12 @@
         }
 
         function resetGame() {
-            document.getElementById('difficultyButtons').style.display = 'flex';
+            stopTimer();
+            if (previewTimeout) { clearTimeout(previewTimeout); previewTimeout = null; }
+            lockBoard = false;
+            document.getElementById('peekHint').style.display = 'none';
+            document.getElementById('modeButtons').style.display = 'flex';
+            document.getElementById('difficultyButtons').style.display = 'none';
             document.getElementById('gameContent').style.display = 'none';
             document.getElementById('gameOver').style.display = 'none';
             const gameBoard = document.getElementById('gameBoard');
@@ -530,6 +696,7 @@
         }, { passive: false });
 
         // Initialize the game
+        document.getElementById('muteBtn').textContent = mmMuted ? '🔇' : '🔊';
         resetGame();
     </script>
 </body>
