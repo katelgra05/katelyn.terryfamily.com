@@ -329,6 +329,77 @@
       margin-top: 10px;
     }
     .game-button:hover { transform: scale(1.06); }
+    /* leaderboard overlay (same cozy panel style as Scoop Stack) */
+    #boardScreen {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: white;
+      background: linear-gradient(160deg, rgba(20,12,50,0.96), rgba(48,43,99,0.96));
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 28px 26px;
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      width: min(92vw, 400px);
+      max-height: 84vh;
+      overflow-y: auto;
+      z-index: 200;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    }
+    #boardScreen h2 {
+      font-size: 28px;
+      margin: 0 0 6px;
+      background: linear-gradient(90deg, #ffb3e2, #8ee7fa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    #boardYou { font-weight: 800; color: #ffd94d; margin: 6px 0; }
+    #boardList {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 12px 0;
+      max-height: 30vh;
+      overflow-y: auto;
+    }
+    #boardList .brow {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-size: 15px;
+      color: #fff;
+    }
+    #boardList .brow.me { background: linear-gradient(90deg, #ff8ab5, #c084fc); }
+    #boardList .brow .bscore { color: #ffd94d; }
+    #boardList .brow.me .bscore { color: #fff; }
+    #nameInput {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      text-align: center;
+      outline: none;
+      font-family: inherit;
+      margin-top: 4px;
+    }
+    #nameInput::placeholder { color: rgba(255, 255, 255, 0.55); }
+    .game-button.small { padding: 10px 26px; font-size: 16px; }
+    #boardMsg { min-height: 1.4em; font-weight: 800; color: #7cf29b; }
+    /* locked shop items (hatch with later generations) */
+    .shop-item.locked { opacity: 0.55; }
+    .shop-item .lock-note { font-size: 0.85em; color: #e0559a; font-weight: 800; }
   </style>
 </head>
 <body>
@@ -345,6 +416,7 @@
       <div class="hud-right">
         <div class="best-card" id="best">🏆 0</div>
         <div class="icon-row">
+          <button id="boardBtn" class="icon-btn" title="Leaderboard">🏆</button>
           <button id="musicBtn" class="icon-btn" onclick="toggleMusic()" title="Music on/off">🎵</button>
           <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Sounds on/off">🔊</button>
         </div>
@@ -356,9 +428,22 @@
       <p>Click your bird to shake out feathers! 🪶<br>
       ✨ Catch the golden bird! • 🌟 Earn evolutions!<br>
       🛒 Open the shop for upgrades!<br>
-      🔁 Max out your bird to rebirth it from an egg — 3x stronger!</p>
+      🔁 Max out your bird to rebirth it from an egg — 3x stronger!<br>
+      🎁 Every rebirth hatches harder shop goodies!</p>
       <p id="bestStart" style="font-weight:bold;color:#ffd94d;">🏆 Best: 0</p>
       <button class="game-button" onclick="startGame()">▶ Start Clicking!</button>
+    </div>
+    <div id="boardScreen" style="display:none;">
+      <div style="font-size:44px;margin-bottom:4px;">🏆</div>
+      <h2>Leaderboard</h2>
+      <p id="boardYou"></p>
+      <div id="boardList"></div>
+      <div id="boardForm">
+        <input id="nameInput" maxlength="12" placeholder="Your name..." autocomplete="off">
+        <button class="game-button small" id="saveScoreBtn" style="margin-top:10px;">Save my score</button>
+      </div>
+      <p id="boardMsg"></p>
+      <button class="game-button small" id="boardBackBtn">← Back</button>
     </div>
     <div id="shop-bar" title="Open Shop 🛒">🛒 Shop 💕</div>
   </div>
@@ -370,44 +455,56 @@
         <button id="shop-drawer-close" title="Close Shop">&times;</button>
       </div>
       <div id="shop-drawer-content">
-        <div class="shop-item">
+        <div class="shop-item" data-gen="0">
           <span>+1 Click Power<br><span class="cost-note">(50 🪶)</span></span>
           <button class="shop-btn" id="buy-click-1">Buy</button>
         </div>
-        <div class="shop-item">
+        <div class="shop-item" data-gen="0">
           <span>+1 Per Second<br><span class="cost-note">(250 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-1">Buy</button>
         </div>
-        <div class="shop-item">
+        <div class="shop-item" data-gen="0">
           <span>+10 Per Second<br><span class="cost-note">(1,200 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-10">Buy</button>
         </div>
-        <div class="shop-item">
+        <div class="shop-item" data-gen="0">
           <span>+100 Per Second<br><span class="cost-note">(12,000 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-100">Buy</button>
         </div>
-        <div class="shop-item">
-          <span>+2,000 Click Power<br><span class="cost-note">(90,000 🪶)</span></span>
+        <div class="shop-item" data-gen="1">
+          <span>🔥 Ember Peck: +150 Click<br><span class="cost-note">(20,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 1 rebirth</span></span>
+          <button class="shop-btn" id="buy-ember-peck">Buy</button>
+        </div>
+        <div class="shop-item" data-gen="1">
+          <span>+2,000 Click Power<br><span class="cost-note">(45,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 1 rebirth</span></span>
           <button class="shop-btn" id="buy-click-2000">Buy</button>
         </div>
-        <div class="shop-item">
-          <span>+250,000 Per Second<br><span class="cost-note">(600,000 🪶)</span></span>
+        <div class="shop-item" data-gen="2">
+          <span>🌊 Tide Song: +2,000 Per Second<br><span class="cost-note">(90,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 2 rebirths</span></span>
+          <button class="shop-btn" id="buy-tide-song">Buy</button>
+        </div>
+        <div class="shop-item" data-gen="2">
+          <span>+250,000 Per Second<br><span class="cost-note">(180,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 2 rebirths</span></span>
           <button class="shop-btn" id="buy-sec-250k">Buy</button>
         </div>
-        <div class="shop-item">
-          <span>+5,000,000 Per Second<br><span class="cost-note">(4,000,000 🪶)</span></span>
+        <div class="shop-item" data-gen="3">
+          <span>☄️ Comet Dash: +30,000 Click<br><span class="cost-note">(500,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 3 rebirths</span></span>
+          <button class="shop-btn" id="buy-comet-dash">Buy</button>
+        </div>
+        <div class="shop-item" data-gen="3">
+          <span>+5,000,000 Per Second<br><span class="cost-note">(700,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 3 rebirths</span></span>
           <button class="shop-btn" id="buy-sec-5m">Buy</button>
         </div>
-        <div class="shop-item">
-          <span>+2,000,000 Click Power<br><span class="cost-note">(30,000,000 🪶)</span></span>
+        <div class="shop-item" data-gen="4">
+          <span>+2,000,000 Click Power<br><span class="cost-note">(3,000,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 4 rebirths</span></span>
           <button class="shop-btn" id="buy-click-2m">Buy</button>
         </div>
-        <div class="shop-item">
-          <span>+100,000,000 Per Second<br><span class="cost-note">(250,000,000 🪶)</span></span>
+        <div class="shop-item" data-gen="5">
+          <span>+100,000,000 Per Second<br><span class="cost-note">(12,000,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 5 rebirths</span></span>
           <button class="shop-btn" id="buy-sec-100m">Buy</button>
         </div>
-        <div class="shop-item">
-          <span>+5,000,000,000 Per Second<br><span class="cost-note">(900,000,000 🪶)</span></span>
+        <div class="shop-item" data-gen="6">
+          <span>+5,000,000,000 Per Second<br><span class="cost-note">(50,000,000 🪶)</span><br><span class="lock-note">🔒 Hatches after 6 rebirths</span></span>
           <button class="shop-btn" id="buy-sec-5b">Buy</button>
         </div>
       </div>
@@ -461,25 +558,38 @@
       sec1: document.getElementById('buy-sec-1'),
       sec10: document.getElementById('buy-sec-10'),
       sec100: document.getElementById('buy-sec-100'),
+      emberPeck: document.getElementById('buy-ember-peck'),
       click2000: document.getElementById('buy-click-2000'),
+      tideSong: document.getElementById('buy-tide-song'),
       sec250k: document.getElementById('buy-sec-250k'),
+      cometDash: document.getElementById('buy-comet-dash'),
       sec5m: document.getElementById('buy-sec-5m'),
       click2m: document.getElementById('buy-click-2m'),
       sec100m: document.getElementById('buy-sec-100m'),
       sec5b: document.getElementById('buy-sec-5b')
     };
+    // Higher, harder goodies hatch with each rebirth (gen = rebirths required)
     const SHOP = [
-      { btn: 'click1', cost: 50, run: () => { perClick += 1; } },
-      { btn: 'sec1', cost: 250, run: () => { perSec += 1; } },
-      { btn: 'sec10', cost: 1200, run: () => { perSec += 10; } },
-      { btn: 'sec100', cost: 12000, run: () => { perSec += 100; } },
-      { btn: 'click2000', cost: 90000, run: () => { perClick += 2000; } },
-      { btn: 'sec250k', cost: 600000, run: () => { perSec += 250000; } },
-      { btn: 'sec5m', cost: 4000000, run: () => { perSec += 5000000; } },
-      { btn: 'click2m', cost: 30000000, run: () => { perClick += 2000000; } },
-      { btn: 'sec100m', cost: 250000000, run: () => { perSec += 100000000; } },
-      { btn: 'sec5b', cost: 900000000, run: () => { perSec += 5000000000; } }
+      { btn: 'click1', cost: 50, gen: 0, run: () => { perClick += 1; } },
+      { btn: 'sec1', cost: 250, gen: 0, run: () => { perSec += 1; } },
+      { btn: 'sec10', cost: 1200, gen: 0, run: () => { perSec += 10; } },
+      { btn: 'sec100', cost: 12000, gen: 0, run: () => { perSec += 100; } },
+      { btn: 'emberPeck', cost: 20000, gen: 1, run: () => { perClick += 150; } },
+      { btn: 'click2000', cost: 45000, gen: 1, run: () => { perClick += 2000; } },
+      { btn: 'tideSong', cost: 90000, gen: 2, run: () => { perSec += 2000; } },
+      { btn: 'sec250k', cost: 180000, gen: 2, run: () => { perSec += 250000; } },
+      { btn: 'cometDash', cost: 500000, gen: 3, run: () => { perClick += 30000; } },
+      { btn: 'sec5m', cost: 700000, gen: 3, run: () => { perSec += 5000000; } },
+      { btn: 'click2m', cost: 3000000, gen: 4, run: () => { perClick += 2000000; } },
+      { btn: 'sec100m', cost: 12000000, gen: 5, run: () => { perSec += 100000000; } },
+      { btn: 'sec5b', cost: 50000000, gen: 6, run: () => { perSec += 5000000000; } }
     ];
+    const shopContent = document.getElementById('shop-drawer-content');
+    function refreshShopLocks() {
+      shopContent.querySelectorAll('.shop-item').forEach(el => {
+        el.classList.toggle('locked', generation < parseInt(el.dataset.gen || '0', 10));
+      });
+    }
 
     // Every generation has its own 5 tiers — new looks, new names, same journey.
     // Thresholds scale up each rebirth so every life stays a fun climb.
@@ -854,6 +964,7 @@
       banner = { text: `🐣 Hatched! Meet the ${curStages()[0].name} — ${genMult().toLocaleString()}x feathers!`, life: 3 };
       fanfare();
       chirp();
+      refreshShopLocks();
       updateHUD(true);
     }
     function burst(x, y, n, sparkle) {
@@ -1505,15 +1616,19 @@
       }
       const rates = `${Math.floor(effClick()).toLocaleString()} /click • ${Math.floor(effSec()).toLocaleString()} /sec`;
       if (force || rates !== lastShown.rates) { ratesEl.textContent = rates; lastShown.rates = rates; }
-      // Andrew-style: disable Buy buttons you can't afford
+      // Andrew-style: disable Buy buttons you can't afford (locked until their rebirth)
       SHOP.forEach(item => {
         const el = buyBtns[item.btn];
-        if (el) el.disabled = score < item.cost;
+        if (!el) return;
+        const locked = generation < item.gen;
+        el.disabled = locked || score < item.cost;
+        const label = locked ? '🔒' : 'Buy';
+        if (el.textContent !== label) el.textContent = label;
       });
     }
 
     function buyShop(item) {
-      if (score < item.cost) return;
+      if (generation < item.gen || score < item.cost) return;
       score -= item.cost;
       item.run();
       ensureAudio();
@@ -1535,6 +1650,86 @@
     });
     shopDrawerBg.addEventListener('click', (e) => {
       if (e.target === shopDrawerBg) shopDrawerBg.classList.remove('active');
+    });
+
+    // ============ leaderboard (per-device top 10, feathers — like Scoop Stack) ============
+    const boardBtn = document.getElementById('boardBtn');
+    const boardScreen = document.getElementById('boardScreen');
+    const boardYou = document.getElementById('boardYou');
+    const boardList = document.getElementById('boardList');
+    const nameInput = document.getElementById('nameInput');
+    const saveScoreBtn = document.getElementById('saveScoreBtn');
+    const boardMsg = document.getElementById('boardMsg');
+    const boardBackBtn = document.getElementById('boardBackBtn');
+    let boardScore = 0;
+    function loadBoard() {
+      try {
+        const a = JSON.parse(localStorage.getItem('bird_board'));
+        if (!Array.isArray(a)) return [];
+        return a
+          .filter(e => e && typeof e.name === 'string' && typeof e.score === 'number')
+          .map(e => ({ name: e.name.slice(0, 12), score: Math.max(0, Math.floor(e.score)) }))
+          .slice(0, 10);
+      } catch (e) { return []; }
+    }
+    function saveBoard(b) {
+      try { localStorage.setItem('bird_board', JSON.stringify(b.slice(0, 10))); } catch (e) {}
+    }
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function renderBoard(highlight) {
+      const board = loadBoard();
+      if (!board.length) {
+        boardList.innerHTML = '<div class="brow"><span>No scores yet…</span><span class="bscore">be the first! 🎉</span></div>';
+        return;
+      }
+      const medals = ['🥇', '🥈', '🥉'];
+      boardList.innerHTML = board.map((e, i) => {
+        const rank = medals[i] || ('#' + (i + 1));
+        const me = highlight && e.name.toLowerCase() === highlight.toLowerCase() && e.score === boardScore ? ' me' : '';
+        return '<div class="brow' + me + '"><span>' + rank + ' ' + escapeHtml(e.name) + '</span><span class="bscore">' + e.score.toLocaleString() + ' 🪶</span></div>';
+      }).join('');
+    }
+    function openBoard() {
+      ensureAudio();
+      boardScore = Math.floor(best);
+      boardYou.textContent = 'Your best: ' + boardScore.toLocaleString() + ' 🪶';
+      boardMsg.textContent = '';
+      nameInput.value = '';
+      renderBoard(null);
+      boardScreen.style.display = '';
+    }
+    function saveScore() {
+      const name = nameInput.value.trim().slice(0, 12);
+      if (!name) {
+        boardMsg.textContent = 'Type your name first! ☝️';
+        return;
+      }
+      nameInput.value = '';
+      const board = loadBoard();
+      const idx = board.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
+      if (idx >= 0) {
+        if (boardScore > board[idx].score) {
+          board[idx] = { name: board[idx].name, score: boardScore };
+          boardMsg.textContent = '🎉 New best for ' + board[idx].name + '!';
+        } else {
+          boardMsg.textContent = board[idx].name + ' already has ' + board[idx].score.toLocaleString() + ' — beat it!';
+          renderBoard(board[idx].name);
+          return;
+        }
+      } else {
+        board.push({ name, score: boardScore });
+        boardMsg.textContent = 'Saved! 🎉';
+      }
+      board.sort((a, b) => b.score - a.score);
+      saveBoard(board);
+      renderBoard(name);
+    }
+    boardBtn.addEventListener('click', openBoard);
+    saveScoreBtn.addEventListener('click', saveScore);
+    boardBackBtn.addEventListener('click', () => {
+      boardScreen.style.display = 'none';
     });
 
     // ============ main loop ============
@@ -1566,6 +1761,8 @@
       banner = null;
       running = true;
       startScreen.style.display = 'none';
+      boardScreen.style.display = 'none';
+      refreshShopLocks();
       updateHUD(true);
       musicStep = 0;
       if (musicOn) startMusic();
@@ -1616,6 +1813,7 @@
     muteBtn.classList.toggle('off', muted);
     musicBtn.textContent = musicOn ? '🎵' : '🔇';
     musicBtn.classList.toggle('off', !musicOn);
+    refreshShopLocks();
     updateHUD(true);
     draw(performance.now());
     window.addEventListener('pagehide', () => {
