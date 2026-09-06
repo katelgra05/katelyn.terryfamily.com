@@ -180,8 +180,8 @@
     <div class="overlay" id="startScreen">
       <div style="font-size:52px;margin-bottom:8px;">🍨</div>
       <h2>Scoop Stack!</h2>
-      <p>Move the CONE! Drag 👈👉 or use ◀ ▶ keys to catch falling scoops!<br>
-      Whole scoops stay — nothing gets sliced!<br>
+      <p>Slide the cone 👈👉 to catch falling scoops!<br>
+      Caught scoops fly up onto your sundae tower!<br>
       Keep the tower balanced or it topples! ⚖️</p>
       <button class="game-button" onclick="startGame()">▶ Start Stacking!</button>
     </div>
@@ -219,7 +219,7 @@
 
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
-    let blocks = [], cur = null, debris = [], popups = [], splats = [];
+    let blocks = [], cur = null, placing = null, debris = [], popups = [], splats = [];
     let level = 0, best = 0, lean = 0, coneX = 0, camY = 0;
     let dragging = false, lastPX = 0;
     const keys = { left: false, right: false };
@@ -232,7 +232,7 @@
     const BLOCK_H = 46;
     const PERFECT_TOL = 9;
     const KEY_SPEED = 460;
-    const maxLean = () => baseWidth() * 0.5;
+    const maxLean = () => baseWidth() * 0.6;
     const FLAVORS = [
       { c: '#ff8ab5', d: '#e0559a' },
       { c: '#9ff0c8', d: '#3fbf7f' },
@@ -244,7 +244,11 @@
     const SPRINKLE_COLORS = ['#ff5d5d', '#4aa8ff', '#ffd94d', '#7cf29b', '#ffffff', '#c084fc'];
     const flavorFor = i => FLAVORS[i % FLAVORS.length];
     const baseWidth = () => Math.min(W * 0.3, 110);
-    const fallSpeed = lvl => Math.min(150 + lvl * 11, 400);
+    const fallSpeed = lvl => Math.min(280 + lvl * 15, 620);
+    const coneMouthW = () => baseWidth();
+    // cone is glued to the bottom of the SCREEN — x only, never up/down
+    const coneSY = () => H - 130;
+    const coneWY = () => camY + coneSY();
     const groundY = () => H * 0.86;
     const clampCone = () => {
       const half = baseWidth() / 2 + 8;
@@ -304,10 +308,11 @@
       cancelAnimationFrame(rafId);
       resizeCanvas();
       const w = baseWidth();
-      blocks = [{ dx: 0, w, lvl: 0 }];
+      blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       level = 0;
       lean = 0;
       coneX = W / 2;
+      placing = null;
       debris = [];
       popups = [];
       splats = [];
@@ -323,48 +328,51 @@
     }
 
     function spawnCurrent() {
-      // tiny scoop falls from above at a random spot — move the cone under it!
+      // scoop drops from the top of the screen at a random, always-reachable spot
       const w = baseWidth();
-      cur = { x: w / 2 + Math.random() * Math.max(1, W - w), w, lvl: level + 1, wy: topWorldY() - 280 };
+      const reach = KEY_SPEED * ((coneWY() - (camY - 80)) / fallSpeed(level)) * 0.8;
+      const lo = Math.max(w / 2, coneX - reach);
+      const hi = Math.min(W - w / 2, coneX + reach);
+      const cx = lo + Math.random() * Math.max(1, hi - lo);
+      cur = { x: cx - w / 2, w, lvl: level + 1, wy: camY - 80 };
     }
-
-    const blockCX = b => coneX + b.dx;
 
     function topWorldY() {
       return groundY() - blocks.length * BLOCK_H;
     }
 
-    function drop() {
-      if (!running || over || !cur) return;
-      const prev = blocks[blocks.length - 1];
-      const prevCX = blockCX(prev);
+    // caught in the cone? the scoop flies up onto the freestanding tower
+    function tryTouch() {
+      if (!running || over || !cur || placing) return;
       const scoopCX = cur.x + cur.w / 2;
-      const a0 = cur.x, a1 = cur.x + cur.w;
-      const b0 = prevCX - prev.w / 2, b1 = prevCX + prev.w / 2;
-      const overlap = Math.min(a1, b1) - Math.max(a0, b0);
-      if (overlap <= 0) {
-        // missed the stack — the scoop keeps falling to the counter. SPLAT!
-        const side = scoopCX >= prevCX ? 1 : -1;
-        debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: side * 90, vy: 260, rot: 0, vr: side * 5, life: 3 });
+      const scoopCY = cur.wy + BLOCK_H / 2;
+      const cwy = coneWY();
+      if (Math.abs(scoopCY - cwy) < 52 && Math.abs(scoopCX - coneX) < (coneMouthW() + cur.w) / 2 - 6) {
+        placing = { sx: cur.x, sy: cur.wy, w: cur.w, lvl: cur.lvl, t: 0, touchDX: scoopCX - coneX };
         cur = null;
-        sndFall();
-        gameOver('miss');
-        return;
+        tone(880, 0.09, 'square', 0.06);
+        if (audioCtx) tone(1318, 0.12, 'square', 0.06, audioCtx.currentTime + 0.06);
       }
-      // whole scoop stays — no slicing! Off-center catches lean the tower.
-      const offset = scoopCX - prevCX;
-      lean = lean * 0.85 + offset;
-      if (Math.abs(offset) <= PERFECT_TOL) {
-        // centered catch steadies the tower
-        blocks.push({ dx: prev.dx, w: cur.w, lvl: cur.lvl });
+    }
+
+    // the caught scoop lands on top of the tower (which never moves itself)
+    function finishPlacing() {
+      const p = placing;
+      placing = null;
+      const prev = blocks[blocks.length - 1];
+      const prevCX = prev.x + prev.w / 2;
+      const off = Math.max(-p.w * 0.7, Math.min(p.w * 0.7, p.touchDX * 0.45));
+      lean = lean * 0.85 + off;
+      if (Math.abs(off) <= PERFECT_TOL) {
+        blocks.push({ x: prevCX - p.w / 2, w: p.w, lvl: p.lvl });
         lean *= 0.4;
         popups.push({ x: prevCX, wy: topWorldY(), text: '✨ Perfect!', life: 1 });
         sndPerfect();
       } else {
-        blocks.push({ dx: scoopCX - coneX, w: cur.w, lvl: cur.lvl });
+        blocks.push({ x: prevCX + off - p.w / 2, w: p.w, lvl: p.lvl });
         sndPlace();
         if (Math.abs(lean) > maxLean() * 0.65) {
-          popups.push({ x: scoopCX, wy: topWorldY(), text: '😬 Wobbly!', life: 1 });
+          popups.push({ x: prevCX + off, wy: topWorldY(), text: '😬 Wobbly!', life: 1 });
         }
       }
       level++;
@@ -387,7 +395,7 @@
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         debris.push({
-          x: coneX + b.dx - b.w / 2, w: b.w, lvl: b.lvl, noSplat: true,
+          x: b.x, w: b.w, lvl: b.lvl, noSplat: true,
           wy: groundY() - (i + 1) * BLOCK_H,
           vx: dir * (120 + Math.random() * 140), vy: -60 - i * 34,
           rot: 0, vr: dir * (2 + Math.random() * 3), life: 1.8
@@ -395,6 +403,7 @@
       }
       blocks = [];
       cur = null;
+      placing = null;
       tone(300, 0.5, 'sawtooth', 0.07, 0, 70);
     }
 
@@ -431,13 +440,23 @@
         clampCone();
       }
       if (cur && !over) {
-        // scoop falls straight down onto wherever the cone is
+        // scoop falls straight down from the top of the screen
         cur.wy += fallSpeed(level) * dt;
-        const landWy = topWorldY() - BLOCK_H;
-        if (cur.wy >= landWy) {
-          cur.wy = landWy;
-          drop();
+        tryTouch();
+        if (cur && cur.wy > coneWY() + 70) {
+          // slipped right past the cone — SPLAT!
+          splats.push({ x: cur.x + cur.w / 2, wy: coneWY() + 34, w: cur.w, lvl: cur.lvl, life: 2 });
+          popups.push({ x: cur.x + cur.w / 2, wy: coneWY() - 40, text: '💦 Splat!', life: 1 });
+          if (splats.length > 12) splats.splice(0, splats.length - 12);
+          cur = null;
+          sndFall();
+          gameOver('miss');
         }
+      }
+      if (placing && !over) {
+        // caught scoop flies up onto the tower
+        placing.t += dt / 0.24;
+        if (placing.t >= 1) finishPlacing();
       }
       // camera scrolls up with the tower like someone scrolling
       const target = topWorldY() - H * 0.42;
@@ -732,11 +751,11 @@
       }
       ctx.fillStyle = '#e0559a';
       ctx.fillRect(0, gyS, W, 8);
-      // cone (this is what you move — it can leave the screen as you climb!)
+      // cone: glued to the bottom of the SCREEN (x only, never up/down)
       {
         const cw = baseWidth();
         const cxp = coneX;
-        const topY = gyS;
+        const topY = coneSY() + Math.sin(t * 3) * 3;
         ctx.fillStyle = '#d9a066';
         ctx.beginPath();
         ctx.moveTo(cxp - cw * 0.32, topY);
@@ -759,24 +778,37 @@
           ctx.stroke();
         }
       }
-      // placed scoops (bottom-up), swaying with the tower's lean
+      // placed scoops (bottom-up) — the tower NEVER moves itself, only sways
       const leanRatio = Math.max(-1, Math.min(1, lean / maxLean()));
       const sway = leanRatio * 0.09 + Math.sin(t * 4) * 0.012 * Math.abs(leanRatio);
+      const pivotX = blocks.length ? blocks[0].x + blocks[0].w / 2 : W / 2;
+      const pivotY = toSY(groundY());
       ctx.save();
-      ctx.translate(coneX, gyS);
+      ctx.translate(pivotX, pivotY);
       ctx.rotate(sway);
-      ctx.translate(-coneX, -gyS);
+      ctx.translate(-pivotX, -pivotY);
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         const wy = groundY() - (i + 1) * BLOCK_H;
         const sy = toSY(wy);
         if (sy > H + 80 || sy + BLOCK_H < -160) continue;
-        drawScoop(coneX + b.dx - b.w / 2, sy, b.w, b.lvl, i === blocks.length - 1 && !cur);
+        drawScoop(b.x, sy, b.w, b.lvl, i === blocks.length - 1 && !cur && !placing);
       }
       ctx.restore();
-      // falling scoop
+      // falling scoop (foreground)
       if (cur && !over) {
-        drawScoop(cur.x, toSY(cur.wy), cur.w, cur.lvl, true);
+        drawScoop(cur.x, toSY(cur.wy), cur.w, cur.lvl, false);
+      }
+      // caught scoop flying up to the tower
+      if (placing && !over) {
+        const prev = blocks[blocks.length - 1];
+        const prevCX = prev.x + prev.w / 2;
+        const off = Math.max(-placing.w * 0.7, Math.min(placing.w * 0.7, placing.touchDX * 0.45));
+        const tx = prevCX + off - placing.w / 2;
+        const ty = topWorldY() - BLOCK_H;
+        const k = Math.min(1, placing.t);
+        const e = 1 - Math.pow(1 - k, 2);
+        drawScoop(placing.sx + (tx - placing.sx) * e, toSY(placing.sy + (ty - placing.sy) * e), placing.w, placing.lvl, true);
       }
       // falling debris
       debris.forEach(d => {
@@ -788,21 +820,22 @@
         ctx.restore();
       });
       ctx.globalAlpha = 1;
-      // splat marks on the counter
+      // splat marks where missed scoops landed
       splats.forEach(s => {
         const f = flavorFor(s.lvl);
+        const ssy = toSY(s.wy);
         ctx.globalAlpha = Math.max(0, Math.min(1, s.life / 2));
         ctx.fillStyle = f.c;
         ctx.beginPath();
-        ctx.ellipse(s.x, gyS + 8, s.w * 0.45, 10, 0, 0, Math.PI * 2);
+        ctx.ellipse(s.x, ssy, s.w * 0.45, 10, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.lineWidth = 2;
         ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.stroke();
         ctx.fillStyle = f.d;
         ctx.beginPath();
-        ctx.arc(s.x - s.w * 0.2, gyS + 6, 4, 0, Math.PI * 2);
-        ctx.arc(s.x + s.w * 0.15, gyS + 10, 3, 0, Math.PI * 2);
+        ctx.arc(s.x - s.w * 0.2, ssy - 2, 4, 0, Math.PI * 2);
+        ctx.arc(s.x + s.w * 0.15, ssy + 2, 3, 0, Math.PI * 2);
         ctx.fill();
       });
       ctx.globalAlpha = 1;
@@ -903,7 +936,7 @@
     function startGameBackdrop() {
       resizeCanvas();
       const w = baseWidth();
-      blocks = [{ dx: 0, w, lvl: 0 }];
+      blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       coneX = W / 2;
       camY = topWorldY() - H * 0.42;
       draw(performance.now());
