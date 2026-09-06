@@ -135,44 +135,6 @@
     }
     .icon-btn:hover { transform: scale(1.1); }
     .icon-btn.off { opacity: 0.55; }
-    .shop {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      align-items: stretch;
-      padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
-      background: linear-gradient(transparent, rgba(5, 5, 20, 0.72));
-      z-index: 5;
-      flex-wrap: wrap;
-    }
-    .shop-btn {
-      flex: 1 1 0;
-      max-width: 230px;
-      min-width: 150px;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      background: rgba(20, 16, 50, 0.78);
-      color: #fff;
-      padding: 8px 10px;
-      cursor: pointer;
-      font-family: inherit;
-      backdrop-filter: blur(8px);
-      transition: transform 0.15s ease;
-    }
-    .shop-btn:hover:not(:disabled) { transform: translateY(-2px); }
-    .shop-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .shop-btn .name { font-weight: 900; font-size: 15px; }
-    .shop-btn .desc { font-size: 12px; opacity: 0.85; }
-    .shop-btn .cost { font-size: 14px; font-weight: 800; color: #8ee7fa; }
-    .shop-btn.reset {
-      flex: 0 0 auto;
-      min-width: 0;
-      max-width: none;
-    }
     #startScreen {
       position: absolute;
       top: 50%;
@@ -220,7 +182,7 @@
     <div class="hud">
       <div class="score-card">
         <div class="feathers">🪶 <span id="score">0</span></div>
-        <div class="rates"><span id="rates">1 /click • 0 /sec</span></div>
+        <div class="rates"><span id="rates">1 /click</span></div>
         <div class="rates" id="stageName">🐣 Hatchling</div>
       </div>
       <div class="hud-right">
@@ -231,30 +193,11 @@
         </div>
       </div>
     </div>
-    <div class="shop">
-      <button class="shop-btn" id="buyBeak" onclick="buy('beak')">
-        <div class="name">🐛 Beak</div>
-        <div class="desc">+1 feather per click</div>
-        <div class="cost">🪶 <span id="beakCost">15</span></div>
-      </button>
-      <button class="shop-btn" id="buyNest" onclick="buy('nest')">
-        <div class="name">🪹 Nest</div>
-        <div class="desc">+1 feather /sec</div>
-        <div class="cost">🪶 <span id="nestCost">25</span></div>
-      </button>
-      <button class="shop-btn" id="buyFlock" onclick="buy('flock')">
-        <div class="name">🐦 Flock</div>
-        <div class="desc">+5 feathers /sec</div>
-        <div class="cost">🪶 <span id="flockCost">120</span></div>
-      </button>
-      <button class="shop-btn reset" onclick="resetSave()" title="Erase progress">↺</button>
-    </div>
     <div id="startScreen">
       <div style="font-size:52px;margin-bottom:8px;">🐦</div>
       <h2>Bird Clicker!</h2>
       <p>Click your bird to shake out feathers! 🪶<br>
-      ✨ Catch the golden bird!<br>
-      🛒 Spend feathers on upgrades • 🌟 Earn evolutions!</p>
+      ✨ Catch the golden bird! • 🌟 Earn evolutions!</p>
       <p id="bestStart" style="font-weight:bold;color:#ffd94d;">🏆 Best: 0</p>
       <button class="game-button" onclick="startGame()">▶ Start Clicking!</button>
     </div>
@@ -272,13 +215,6 @@
     const startScreen = document.getElementById('startScreen');
     const musicBtn = document.getElementById('musicBtn');
     const muteBtn = document.getElementById('muteBtn');
-    // cached shop elements (updated every frame — no lookups in the hot loop)
-    const beakCostEl = document.getElementById('beakCost');
-    const nestCostEl = document.getElementById('nestCost');
-    const flockCostEl = document.getElementById('flockCost');
-    const buyBeakEl = document.getElementById('buyBeak');
-    const buyNestEl = document.getElementById('buyNest');
-    const buyFlockEl = document.getElementById('buyFlock');
 
     let W = 0, H = 0;
     function resizeCanvas() {
@@ -291,22 +227,14 @@
     // ============ state ============
     let running = false, rafId = null, lastT = 0;
     let score = 0, totalEarned = 0, best = 0;
-    let upg = { beak: 0, nest: 0, flock: 0 };
     let stageIdx = 0;
     let muted = false, musicOn = true;
     try {
-      best = parseInt(localStorage.getItem('bird_best')) || 0;
       muted = localStorage.getItem('bird_muted') === '1';
       musicOn = localStorage.getItem('bird_music') !== '0';
     } catch (e) {}
 
-    const perClick = () => 1 + upg.beak;
-    const perSec = () => upg.nest * 1 + upg.flock * 5;
-    const COST = {
-      beak: l => Math.ceil(15 * Math.pow(1.9, l)),
-      nest: l => Math.ceil(25 * Math.pow(2.1, l)),
-      flock: l => Math.ceil(120 * Math.pow(2.3, l))
-    };
+    const perClick = () => 1;
 
     const STAGES = [
       { at: 0,    name: '🐣 Hatchling',     body: '#7cc4ff', wing: '#4a90d9', belly: '#eaf7ff' },
@@ -316,15 +244,15 @@
       { at: 6000, name: '👑 Royal Golden',  body: '#ffcf3f', wing: '#d99a12', belly: '#fff3c4', crown: true }
     ];
 
-    // bird animation state
-    const bird = { x: 0, y: 0, r: 60, tx: 0, hopT: 1, squash: 0, flap: 0, beak: 0, blink: 0, blinkAt: 2000, lookX: 0, lookY: 0 };
+    // bird animation state (stays centered — no hopping)
+    const bird = { x: 0, y: 0, r: 60, squash: 0, flap: 0, beak: 0, blink: 0, blinkAt: 2000, lookX: 0, lookY: 0 };
     let clouds = [], ambientFeathers = [];
     let particles = [], popups = [];
     const gold = { active: false, x: 0, y: 0, vx: 0, t: 25 };
     let banner = null; // {text, life}
 
     function placeBird() {
-      bird.x = bird.tx = W / 2;
+      bird.x = W / 2;
       bird.y = H * 0.44;
       bird.r = Math.max(46, Math.min(120, Math.min(W, H) * 0.11));
     }
@@ -430,11 +358,6 @@
       tone(base, 0.07, 'sine', 0.11);
       tone(base * 0.7, 0.09, 'sine', 0.09, audioCtx.currentTime + 0.06);
     }
-    function chaChing() {
-      if (!audioCtx) return;
-      tone(880, 0.09, 'square', 0.05);
-      tone(1318, 0.14, 'square', 0.05, audioCtx.currentTime + 0.07);
-    }
     function fanfare() {
       if (!audioCtx) return;
       const t = audioCtx.currentTime;
@@ -448,33 +371,9 @@
       } catch (e) {}
     });
 
-    // ============ persistence ============
-    function save(silent) {
-      try {
-        localStorage.setItem('bird_save', JSON.stringify({ score, totalEarned, best, upg }));
-        localStorage.setItem('bird_best', String(best));
-      } catch (e) {}
-    }
-    function load() {
-      try {
-        const raw = localStorage.getItem('bird_save');
-        if (!raw) return;
-        const d = JSON.parse(raw);
-        if (typeof d.score === 'number') score = Math.max(0, Math.floor(d.score));
-        if (typeof d.totalEarned === 'number') totalEarned = Math.max(0, Math.floor(d.totalEarned));
-        if (d.upg && [d.upg.beak, d.upg.nest, d.upg.flock].every(v => Number.isInteger(v) && v >= 0 && v <= 500)) {
-          upg = { beak: d.upg.beak, nest: d.upg.nest, flock: d.upg.flock };
-        }
-        stageIdx = stageFor(totalEarned);
-      } catch (e) {}
-    }
-    function resetSave() {
-      if (!confirm('Erase your bird progress and start over?')) return;
-      score = 0; totalEarned = 0;
-      upg = { beak: 0, nest: 0, flock: 0 };
-      stageIdx = 0;
-      try { localStorage.removeItem('bird_save'); } catch (e) {}
-      updateHUD(true);
+    // ============ no saving: fresh game every visit, cleared on leave ============
+    function clearProgress() {
+      try { localStorage.removeItem('bird_save'); localStorage.removeItem('bird_best'); } catch (e) {}
     }
 
     // ============ gameplay ============
@@ -488,7 +387,6 @@
       totalEarned += amount;
       if (score > best) {
         best = score;
-        try { localStorage.setItem('bird_best', String(best)); } catch (e) {}
       }
       const ni = stageFor(totalEarned);
       if (ni > stageIdx) {
@@ -541,17 +439,6 @@
       updateHUD(true);
     }
 
-    function buy(kind) {
-      const cost = COST[kind](upg[kind]);
-      if (score < cost) return;
-      score -= cost;
-      upg[kind]++;
-      chaChing();
-      burst(bird.x, bird.y - bird.r * 1.4, 10, true);
-      save(true);
-      updateHUD(true);
-    }
-
     // ============ update + draw ============
     function update(dt, now) {
       // idle timers
@@ -564,34 +451,9 @@
         bird.blinkAt = now + 2200 + Math.random() * 3200;
       }
       bird.blink = Math.max(0, bird.blink - dt);
-      // hop to a new spot every few seconds
-      bird.hopT += dt;
-      if (bird.hopT > 1 && now > (bird.nextHop || 0)) {
-        bird.tx = W / 2 + (Math.random() - 0.5) * Math.min(W * 0.5, 420);
-        bird.hopT = 0;
-        bird.nextHop = now + 2600 + Math.random() * 3200;
-      }
-      if (bird.hopT < 1) {
-        const t = bird.hopT;
-        const jump = Math.sin(t * Math.PI) * 26;
-        bird.x += (bird.tx - bird.x) * Math.min(1, dt * 6);
-        bird.hopY = -jump;
-      } else {
-        bird.hopY = 0;
-      }
-      // passive income
-      const inc = perSec() * dt;
-      if (inc > 0) {
-        score += inc;
-        totalEarned += inc;
-        if (score > best) best = Math.floor(score);
-        const ni = stageFor(Math.floor(totalEarned));
-        if (ni > stageIdx) {
-          stageIdx = ni;
-          banner = { text: `🌟 Your bird evolved: ${STAGES[ni].name}!`, life: 2.4 };
-          fanfare();
-        }
-      }
+      // bird stays centered — no hopping
+      bird.x = W / 2;
+      bird.y = H * 0.44;
       // clouds + ambient feathers
       clouds.forEach(c => {
         c.x += c.v * dt;
@@ -710,33 +572,6 @@
       ctx.lineTo(W, H);
       ctx.closePath();
       ctx.fill();
-      // flock wire ( drawn wire + mini birds )
-      const shown = Math.min(upg.flock, 6);
-      if (shown > 0) {
-        const wy = H * 0.075;
-        ctx.strokeStyle = 'rgba(40,30,60,0.6)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(0, wy);
-        ctx.quadraticCurveTo(W / 2, wy + 14, W, wy);
-        ctx.stroke();
-        for (let i = 0; i < shown; i++) {
-          const fx = W * (0.12 + 0.76 * (i / Math.max(1, shown - 1 || 1)));
-          const fy = wy + 8 + Math.sin(t * 3 + i * 1.7) * 2;
-          ctx.fillStyle = STAGES[stageIdx].wing;
-          ctx.beginPath();
-          ctx.arc(fx, fy, 9, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#fff';
-          ctx.beginPath();
-          ctx.arc(fx + 3, fy - 2, 2.4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = '#222';
-          ctx.beginPath();
-          ctx.arc(fx + 3.6, fy - 2, 1.2, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
       drawPerchAndBird(t);
       drawGold(t);
       // ambient feathers
@@ -799,8 +634,7 @@
       const st = STAGES[stageIdx];
       const R = bird.r;
       const bob = Math.sin(t * 2) * R * 0.03;
-      const hopY = bird.hopY || 0;
-      const bx = bird.x, by = bird.y + bob + hopY;
+      const bx = bird.x, by = bird.y + bob;
       const branchY = bird.y + R * 1.55;
       // branch
       ctx.fillStyle = '#7a4a21';
@@ -1000,7 +834,7 @@
     }
 
     // ============ HUD ============
-    let lastShown = { score: -1, best: -1, stage: -1, rates: '' };
+    let lastShown = { score: -1, best: -1, stage: -1 };
     function updateHUD(force) {
       const s = Math.floor(score), b = Math.floor(best);
       if (force || s !== lastShown.score) { scoreEl.textContent = s.toLocaleString(); lastShown.score = s; }
@@ -1013,16 +847,7 @@
         stageEl.textContent = STAGES[stageIdx].name;
         lastShown.stage = stageIdx;
       }
-      const rates = `${perClick()} /click • ${perSec()} /sec`;
-      if (force || rates !== lastShown.rates) { ratesEl.textContent = rates; lastShown.rates = rates; }
-      // shop
-      const costs = { beak: COST.beak(upg.beak), nest: COST.nest(upg.nest), flock: COST.flock(upg.flock) };
-      beakCostEl.textContent = costs.beak;
-      nestCostEl.textContent = costs.nest;
-      flockCostEl.textContent = costs.flock;
-      buyBeakEl.disabled = score < costs.beak;
-      buyNestEl.disabled = score < costs.nest;
-      buyFlockEl.disabled = score < costs.flock;
+      ratesEl.textContent = '1 /click';
     }
 
     // ============ main loop ============
@@ -1044,6 +869,8 @@
       initSky();
       particles = [];
       popups = [];
+      score = 0; totalEarned = 0; best = 0; stageIdx = 0;
+      clearProgress();
       gold.active = false;
       gold.t = 22 + Math.random() * 10;
       banner = null;
@@ -1075,8 +902,9 @@
       }
     });
 
-    // ============ boot ============
-    load();
+    // ============ boot (no saving — always fresh, reset on leave) ============
+    clearProgress();
+    score = 0; totalEarned = 0; best = 0; stageIdx = 0;
     bestEl.textContent = '🏆 ' + Math.floor(best).toLocaleString();
     bestStartEl.textContent = '🏆 Best: ' + Math.floor(best).toLocaleString();
     muteBtn.textContent = muted ? '🔇' : '🔊';
@@ -1085,8 +913,10 @@
     musicBtn.classList.toggle('off', !musicOn);
     updateHUD(true);
     draw(performance.now());
-    setInterval(() => { if (running) save(true); }, 10000);
-    window.addEventListener('pagehide', () => { if (running) save(true); });
+    window.addEventListener('pagehide', () => {
+      score = 0; totalEarned = 0; best = 0; stageIdx = 0;
+      clearProgress();
+    });
   </script>
 </body>
 </html>
