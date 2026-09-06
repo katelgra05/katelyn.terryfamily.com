@@ -171,6 +171,43 @@
       text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
       z-index: 1;
     }
+    #timeDisplay {
+      position: absolute;
+      top: 56px;
+      right: 20px;
+      color: white;
+      font-size: 18px;
+      font-family: Arial, sans-serif;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      z-index: 1;
+    }
+    #tdMute {
+      position: absolute;
+      top: 92px;
+      right: 20px;
+      z-index: 1;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.4);
+      background: rgba(0,0,0,0.45);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .mode-btn {
+      font-size: 18px !important;
+      padding: 12px 20px !important;
+      margin: 6px !important;
+      border-radius: 12px !important;
+      border: 2px solid transparent !important;
+      text-transform: none !important;
+    }
+    .mode-btn.sel {
+      border-color: #ffd94d !important;
+      box-shadow: 0 0 0 3px rgba(255,217,77,0.4) !important;
+    }
 
     #startGame, #tryAgain, #goHome {
       font-size: 32px;
@@ -195,6 +232,8 @@
   <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🐢 Turtle Dash</span></nav>
   <h1>🐢 Turtle Dash</h1>
   <div id="scoreDisplay">Shells: 0/10</div>
+  <div id="timeDisplay" style="display:none;"></div>
+  <button id="tdMute" onclick="toggleTdMute()" title="Sound on/off">🔊</button>
   <div id="instructions">
     <button class="close-button" onclick="closeInstructions()">×</button>
     <div style="font-size:48px;">🐢💨</div>
@@ -211,6 +250,12 @@
 
     <p><strong>Shark's Objective:</strong><br>
       Catch the turtle before they get all the shells!</p>
+
+    <p>👤 <strong>Solo:</strong> you're the turtle — arrows/WASD or touch to swim, Shark-Bot hunts you!</p>
+    <div id="modeRow">
+      <button id="modeSolo" class="mode-btn" onclick="setMode(true)">👤 Solo vs Shark-Bot</button>
+      <button id="modeDuo" class="mode-btn" onclick="setMode(false)">👥 2 Players</button>
+    </div>
   </div>
   <button id="startGame" onclick="startGame()">▶ Start Game 🐢</button>
   <canvas id="myCanvas" style="display: none;"></canvas>
@@ -225,6 +270,56 @@
     let coins = [];
     let score = 0;
     let sharkFacingLeft = false;
+    let soloMode = true; // default: you vs Shark-Bot
+    let touchTarget = null; // {x, y} swim target on touch screens (solo only)
+    let runStart = 0; // timestamp for solo timer
+    let lastShownSec = -1;
+
+    // ---- tiny synth sounds ----
+    let tdAudio = null;
+    let tdMuted = false;
+    try { tdMuted = localStorage.getItem('td_muted') === '1'; } catch (e) {}
+    function tdTone(freq, dur, type, vol, delay) {
+      if (tdMuted) return;
+      try {
+        if (!tdAudio) tdAudio = new (window.AudioContext || window.webkitAudioContext)();
+        const t = tdAudio.currentTime + (delay || 0);
+        const osc = tdAudio.createOscillator();
+        const gain = tdAudio.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(vol || 0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(gain);
+        gain.connect(tdAudio.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+      } catch (e) {}
+    }
+    function collectSound() { tdTone(660, 0.08, 'triangle', 0.1); tdTone(990, 0.1, 'triangle', 0.09, 0.05); }
+    function chompSound() { tdTone(180, 0.2, 'sawtooth', 0.1); tdTone(120, 0.3, 'sawtooth', 0.1, 0.12); }
+    function fanfareSound() {
+      tdTone(523, 0.12, 'triangle', 0.11); tdTone(659, 0.12, 'triangle', 0.11, 0.1);
+      tdTone(784, 0.12, 'triangle', 0.11, 0.2); tdTone(1047, 0.25, 'triangle', 0.11, 0.3);
+    }
+    function toggleTdMute() {
+      tdMuted = !tdMuted;
+      try { localStorage.setItem('td_muted', tdMuted ? '1' : '0'); } catch (e) {}
+      document.getElementById('tdMute').textContent = tdMuted ? '🔇' : '🔊';
+    }
+    function setMode(solo) {
+      soloMode = solo;
+      document.getElementById('modeSolo').classList.toggle('sel', solo);
+      document.getElementById('modeDuo').classList.toggle('sel', !solo);
+    }
+    function fmtClock(ms) {
+      const s = Math.floor(ms / 1000);
+      return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    function tdBest() {
+      try { const v = localStorage.getItem('td_best_time'); return v === null ? 0 : parseInt(v); }
+      catch (e) { return 0; }
+    }
 
     function resizeCanvas() {
       const canvas = document.getElementById('myCanvas');
@@ -390,10 +485,25 @@
 
     function moveTurtle() {
       const step = 4.5;
-      
+
       // If in water (top third of screen), push down
       if (turtleY < window.innerHeight / 3) {
         turtleY += 3; // Constant downward push in water
+      }
+
+      // touch steering (solo only): swim toward the touch point
+      if (soloMode && touchTarget && !gameOver) {
+        const dx = touchTarget.x - turtleX;
+        const dy = touchTarget.y - turtleY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 12) {
+          const nx = dx / dist, ny = dy / dist;
+          const npx = Math.max(75, Math.min(window.innerWidth - 75, turtleX + nx * step));
+          const npy = Math.max(75, Math.min(window.innerHeight - 75, turtleY + ny * step));
+          turtleX = npx; turtleY = npy;
+          direction = dirFromDxDy(nx, ny);
+        }
+        return;
       }
       
       if (keysPressed['ArrowUp'] && keysPressed['ArrowRight']) {
@@ -443,12 +553,42 @@
       }
     }
 
+    // map a movement vector to the closest of the 8 turtle facings
+    function dirFromDxDy(nx, ny) {
+      const ang = Math.atan2(ny, nx); // -PI..PI, 0 = right
+      const deg = ang * 180 / Math.PI;
+      if (deg >= -22.5 && deg < 22.5) return 'right';
+      if (deg >= 22.5 && deg < 67.5) return 'down-right';
+      if (deg >= 67.5 && deg < 112.5) return 'down';
+      if (deg >= 112.5 && deg < 157.5) return 'down-left';
+      if (deg >= 157.5 || deg < -157.5) return 'left';
+      if (deg >= -157.5 && deg < -112.5) return 'up-left';
+      if (deg >= -112.5 && deg < -67.5) return 'up';
+      return 'up-right';
+    }
+
     function moveShark() {
       const step = 3;
-      
+
       // If in water (top third of screen), push down
       if (sharkY < window.innerHeight / 3) {
         sharkY += 2; // Keeping the same current effect
+      }
+
+      // solo: Shark-Bot hunts the turtle (a touch slower, with wobble so it is beatable)
+      if (soloMode && !gameOver) {
+        const dx = turtleX - sharkX;
+        const dy = turtleY - sharkY;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        const wob = Math.sin(Date.now() / 600) * 0.45;
+        const nx = dx / dist, ny = dy / dist;
+        const wx = nx * Math.cos(wob) - ny * Math.sin(wob);
+        const wy = nx * Math.sin(wob) + ny * Math.cos(wob);
+        const sp = 3.4;
+        sharkX = Math.max(75, Math.min(window.innerWidth - 75, sharkX + wx * sp));
+        sharkY = Math.max(75, Math.min(window.innerHeight - 75, sharkY + wy * sp));
+        sharkFacingLeft = turtleX < sharkX;
+        return;
       }
       
       if (keysPressed['w']) {
@@ -572,6 +712,7 @@
         document.getElementById('gameOver').style.display = 'block';
         document.getElementById('tryAgain').style.display = 'block';
         document.getElementById('goHome').style.display = 'block';
+        chompSound();
       }
     }
 
@@ -582,11 +723,24 @@
         checkCoinCollection();
         drawTurtle();
         checkCollision();
+        // solo timer readout
+        if (soloMode && runStart) {
+          const sec = Math.floor((Date.now() - runStart) / 1000);
+          if (sec !== lastShownSec) {
+            lastShownSec = sec;
+            const best = tdBest();
+            document.getElementById('timeDisplay').textContent =
+              '⏱ ' + fmtClock(Date.now() - runStart) + (best ? '  🏆 ' + fmtClock(best) : '');
+          }
+        }
         requestAnimationFrame(gameLoop);
       }
     }
 
     function keyDownHandler(event) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
+        event.preventDefault(); // don't scroll the page mid-game
+      }
       keysPressed[event.key] = true;
     }
 
@@ -603,7 +757,11 @@
       document.getElementById('goHome').style.display = 'none';
       document.getElementById('myCanvas').style.display = 'block';
       score = 0;
+      touchTarget = null;
       document.getElementById('scoreDisplay').textContent = 'Shells: 0/10';
+      runStart = soloMode ? Date.now() : 0;
+      lastShownSec = -1;
+      document.getElementById('timeDisplay').style.display = soloMode ? 'block' : 'none';
       resizeCanvas();
       coins = [];
       createCoins();
@@ -615,7 +773,12 @@
       document.getElementById('startGame').style.display = 'none';
       document.getElementById('myCanvas').style.display = 'block';
       score = 0;
+      touchTarget = null;
       document.getElementById('scoreDisplay').textContent = 'Shells: 0/10';
+      runStart = soloMode ? Date.now() : 0;
+      lastShownSec = -1;
+      document.getElementById('timeDisplay').style.display = soloMode ? 'block' : 'none';
+      if (soloMode) document.getElementById('timeDisplay').textContent = '⏱ 0:00';
       resizeCanvas();
       coins = [];
       createCoins();
@@ -646,14 +809,16 @@
       const canvas = document.getElementById('myCanvas');
       const minDistance = 100; // Minimum distance from turtle and shark
       const coinSpacing = 30; // Minimum distance between coins
-      const margin = 100; // Margin from edges of screen
-      
+      const margin = Math.min(100, canvas.width / 4, canvas.height / 4); // shrink on tiny screens
+
       for (let i = 0; i < numCoins; i++) {
         let validPosition = false;
         let newCoin;
-        
-        // Keep trying until we find a valid position
-        while (!validPosition) {
+        let tries = 0;
+
+        // Keep trying until we find a valid position (with a cap so tiny screens can't hang)
+        while (!validPosition && tries < 200) {
+          tries++;
           newCoin = {
             x: Math.random() * (canvas.width - 2 * margin) + margin,
             y: Math.random() * (canvas.height - 2 * margin) + margin,
@@ -782,11 +947,24 @@
         // Check if turtle collects the coin
         if (turtleDistance < turtleCollectionDistance) {
           score += 10;
+          collectSound();
           document.getElementById('scoreDisplay').textContent = `Shells: ${score/10}/10`;
-          
+
           if (score/10 >= 10) {
             gameOver = true;
-            document.getElementById('gameOver').textContent = 'TURTLE WINS!';
+            let msg = 'TURTLE WINS!';
+            if (soloMode && runStart) {
+              const ms = Date.now() - runStart;
+              const prev = tdBest();
+              if (!prev || ms < prev) {
+                try { localStorage.setItem('td_best_time', String(ms)); } catch (e) {}
+                msg += ` 🏆 New best ${fmtClock(ms)}!`;
+              } else {
+                msg += ` ⏱ ${fmtClock(ms)} (best ${fmtClock(prev)})`;
+              }
+            }
+            fanfareSound();
+            document.getElementById('gameOver').textContent = msg;
             document.getElementById('gameOver').style.color = 'green';
             document.getElementById('gameOver').style.display = 'block';
             document.getElementById('tryAgain').style.display = 'block';
@@ -805,11 +983,13 @@
     // Helper function to find safe position for coins
     function findSafePosition() {
       const canvas = document.getElementById('myCanvas');
-      const margin = 100;
-      let position;
+      const margin = Math.min(100, canvas.width / 4, canvas.height / 4);
+      let position = { x: canvas.width / 2, y: canvas.height / 2 };
       let isValid = false;
-      
-      while (!isValid) {
+      let tries = 0;
+
+      while (!isValid && tries < 200) {
+        tries++;
         position = {
           x: Math.random() * (canvas.width - 2 * margin) + margin,
           y: Math.random() * (canvas.height - 2 * margin) + margin
@@ -841,9 +1021,9 @@
       for (let y = 20; y < waterHeight; y += 30) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        
+
         // Draw each wave line
-        for (let x = 0; x < canvas.width; x += 1) {
+        for (let x = 0; x < canvas.width; x += 4) {
           const waveHeight = Math.sin((Date.now() / 500) + x / 50) * 8;
           ctx.lineTo(x, y + waveHeight);
         }
@@ -881,6 +1061,24 @@
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('load', () => {
       document.getElementById('startGame').style.display = 'block';
+      document.getElementById('tdMute').textContent = tdMuted ? '🔇' : '🔊';
+      setMode(true);
+    });
+    // touch steering in solo mode: turtle swims toward your finger
+    window.addEventListener('load', () => {
+      const canvas = document.getElementById('myCanvas');
+      const setTarget = (clientX, clientY) => {
+        if (!soloMode || gameOver) return;
+        const rect = canvas.getBoundingClientRect();
+        touchTarget = {
+          x: (clientX - rect.left) * canvas.width / rect.width,
+          y: (clientY - rect.top) * canvas.height / rect.height
+        };
+      };
+      canvas.addEventListener('pointerdown', (e) => setTarget(e.clientX, e.clientY));
+      canvas.addEventListener('pointermove', (e) => { if (e.buttons) setTarget(e.clientX, e.clientY); });
+      canvas.addEventListener('pointerup', () => { touchTarget = null; });
+      canvas.addEventListener('pointercancel', () => { touchTarget = null; });
     });
     window.addEventListener('keydown', keyDownHandler);
     window.addEventListener('keyup', keyUpHandler);
