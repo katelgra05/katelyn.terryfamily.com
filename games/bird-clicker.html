@@ -508,12 +508,49 @@
     initSky();
 
     // ============ audio: sfx + generated music ============
+    // Lively 4-bar loop (C - G - Am - F) with drums + echo + AABA variation
     let audioCtx = null, musicTimer = null, musicStep = 0, nextNoteTime = 0;
-    // bouncy 16-step loop (midi notes), C major
-    const LEAD = [72, 76, 79, 76, 81, 79, 76, 74, 72, 76, 79, 84, 79, 76, 74, 72];
-    const BASS = [48, 0, 55, 0, 53, 0, 55, 0, 48, 0, 55, 0, 53, 0, 55, 0];
+    let musicBus = null, echoNode = null, noiseBuf = null;
     const STEP = 60 / 140 / 2; // 8th notes @140bpm
     const midi = m => 440 * Math.pow(2, (m - 69) / 12);
+
+    // 64 steps = 4 bars x 16 eighths. 0 = rest.
+    const LEAD_A = [
+      // Bar 0 (C): cheerful climb
+      72,0,76,79, 0,79,76,79, 81,0,79,76, 74,0,72,0,
+      // Bar 1 (G): jumpy tease
+      67,0,71,74, 79,0,74,71, 74,0,79,81, 83,0,79,0,
+      // Bar 2 (Am): soft steps down
+      81,0,76,79, 76,0,72,74, 76,0,74,72, 74,0,69,0,
+      // Bar 3 (F): lift + turnaround back to C
+      77,0,81,84, 81,0,79,77, 76,0,74,76, 74,0,67,0
+    ];
+    const LEAD_B = [
+      // Bars 0-2 same as A
+      72,0,76,79, 0,79,76,79, 81,0,79,76, 74,0,72,74,
+      67,0,71,74, 79,0,74,71, 74,0,79,81, 83,81,79,74,
+      81,0,76,79, 76,0,72,74, 76,74,76,79, 81,0,79,76,
+      // Bar 3 variation: sparkling finale run (higher + busier)
+      77,81,84,81, 84,88,86,84, 79,81,83,79, 81,83,84,0
+    ];
+    // Groovy dominant-7th bass: root pumps + fifth + octave + 7th
+    const BASS_ROOTS = [48, 43, 45, 41]; // C G A F
+    const BASS_A = (() => {
+      const out = new Array(64).fill(0);
+      for (let bar = 0; bar < 4; bar++) {
+        const R = BASS_ROOTS[bar], b = bar * 16;
+        out[b+0] = R; out[b+2] = R; out[b+4] = R+7; out[b+6] = R;
+        out[b+8] = R; out[b+10] = R+12; out[b+12] = R+7; out[b+14] = R+10;
+      }
+      return out;
+    })();
+    // Soft chord stabs on bar starts (root+third+fifth, up an octave)
+    const CHORD_STABS = [
+      [60, 64, 67], // C
+      [59, 62, 67], // G (B D G)
+      [57, 60, 64], // Am
+      [53, 57, 65]  // F
+    ];
 
     function ensureAudio() {
       if (!audioCtx) {
@@ -537,34 +574,127 @@
         osc.stop(t + dur + 0.02);
       } catch (e) {}
     }
+    function ensureMusicBus() {
+      if (!audioCtx || musicBus) return;
+      try {
+        musicBus = audioCtx.createGain();
+        musicBus.gain.value = 0.9;
+        musicBus.connect(audioCtx.destination);
+        // tiny echo so the melody feels spacious, not loopy
+        echoNode = audioCtx.createDelay(1);
+        echoNode.delayTime.value = STEP * 1.5;
+        const fb = audioCtx.createGain();
+        fb.gain.value = 0.32;
+        const wet = audioCtx.createGain();
+        wet.gain.value = 0.22;
+        musicBus.connect(echoNode);
+        echoNode.connect(fb);
+        fb.connect(echoNode);
+        echoNode.connect(wet);
+        wet.connect(audioCtx.destination);
+        // shared white-noise buffer for hats/snare
+        noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      } catch (e) {}
+    }
+    function playPluck(m, t, dur, vol, type) {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type || 'triangle';
+        osc.frequency.setValueAtTime(midi(m), t);
+        const v = vol * (0.9 + Math.random() * 0.2);
+        gain.gain.setValueAtTime(v, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(gain);
+        gain.connect(musicBus || audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+      } catch (e) {}
+    }
+    function kick(t) {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(160, t);
+        osc.frequency.exponentialRampToValueAtTime(45, t + 0.11);
+        gain.gain.setValueAtTime(0.32, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.15);
+      } catch (e) {}
+    }
+    function hat(t, open) {
+      if (!noiseBuf) return;
+      try {
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuf;
+        const f = audioCtx.createBiquadFilter();
+        f.type = 'highpass';
+        f.frequency.value = 7000;
+        const gain = audioCtx.createGain();
+        const dur = open ? 0.12 : 0.035;
+        gain.gain.setValueAtTime(open ? 0.05 : 0.032, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        src.connect(f);
+        f.connect(gain);
+        gain.connect(audioCtx.destination);
+        src.start(t);
+        src.stop(t + dur + 0.02);
+      } catch (e) {}
+    }
+    function snare(t) {
+      if (!noiseBuf) return;
+      try {
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuf;
+        const f = audioCtx.createBiquadFilter();
+        f.type = 'bandpass';
+        f.frequency.value = 1800;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+        src.connect(f);
+        f.connect(gain);
+        gain.connect(audioCtx.destination);
+        src.start(t);
+        src.stop(t + 0.13);
+        playPluck(64, t, 0.08, 0.03, 'square');
+      } catch (e) {}
+    }
     function stepMusic() {
       if (!musicOn || muted || !audioCtx || !running) return;
       try {
         const ahead = audioCtx.currentTime + 0.3;
         while (nextNoteTime < ahead) {
-          const i = musicStep % 16;
-          if (LEAD[i]) {
-            const t = nextNoteTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(midi(LEAD[i]), t);
-            gain.gain.setValueAtTime(0.055, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + STEP * 0.95);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(t); osc.stop(t + STEP);
+          const pos = musicStep % 64;
+          const bar = (pos / 16) | 0;
+          const s16 = pos % 16;
+          const pass = ((musicStep / 64) | 0) % 4;
+          const LEAD = pass === 3 ? LEAD_B : LEAD_A; // AABA: sparkle finale every 4th loop
+          const t = nextNoteTime;
+          // lead (echoed pluck, slightly longer when the next step rests)
+          const L = LEAD[pos];
+          if (L) {
+            const hold = (LEAD[(pos + 1) % 64] === 0) ? STEP * 1.6 : STEP * 0.95;
+            playPluck(L, t, hold, 0.055, pass === 3 && bar === 3 ? 'square' : 'triangle');
           }
-          if (BASS[i]) {
-            const t = nextNoteTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(midi(BASS[i]), t);
-            gain.gain.setValueAtTime(0.07, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + STEP * 1.8);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(t); osc.stop(t + STEP * 2);
+          // bass groove
+          const B = BASS_A[pos];
+          if (B) playPluck(B, t, STEP * 1.7, 0.07, 'sine');
+          // chord stab on each bar start
+          if (s16 === 0) {
+            CHORD_STABS[bar].forEach(n => playPluck(n, t, STEP * 3, 0.018, 'triangle'));
           }
+          // drums: four-on-floor kick, snare on 2 & 4, hats offbeat (+ extra ticks on finale)
+          if (s16 % 4 === 0) kick(t);
+          if (s16 === 4 || s16 === 12) snare(t);
+          if (s16 % 4 === 2) hat(t, false);
+          else if (pass === 3 && bar === 3 && s16 % 2 === 1) hat(t, false);
           nextNoteTime += STEP;
           musicStep++;
         }
@@ -573,6 +703,7 @@
     function startMusic() {
       ensureAudio();
       if (!audioCtx) return;
+      ensureMusicBus();
       nextNoteTime = audioCtx.currentTime + 0.1;
       if (!musicTimer) musicTimer = setInterval(stepMusic, 80);
     }
@@ -1159,6 +1290,7 @@
       running = true;
       startScreen.style.display = 'none';
       updateHUD(true);
+      musicStep = 0;
       if (musicOn) startMusic();
       lastT = performance.now();
       rafId = requestAnimationFrame(loop);
