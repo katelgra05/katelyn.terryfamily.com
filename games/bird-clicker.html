@@ -135,6 +135,135 @@
     }
     .icon-btn:hover { transform: scale(1.1); }
     .icon-btn.off { opacity: 0.55; }
+    /* Shop bar + side drawer (like Andrew's Square Clicker) */
+    #shop-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 56px;
+      background: linear-gradient(90deg, #222 60%, #4caf50 100%);
+      color: #fff;
+      font-size: 1.3rem;
+      font-weight: 500;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 6;
+      box-shadow: 0 -2px 16px rgba(0,0,0,0.45);
+      transition: background 0.2s;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #shop-bar:hover {
+      background: linear-gradient(90deg, #333 60%, #66bb6a 100%);
+    }
+    #shop-drawer-bg {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      left: 0; top: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.25);
+    }
+    #shop-drawer-bg.active { display: block; }
+    #shop-drawer {
+      position: fixed;
+      top: 0;
+      right: -400px;
+      width: 360px;
+      max-width: 90vw;
+      height: 100vh;
+      background: #232526;
+      border-left: 2px solid #4caf50;
+      box-shadow: -8px 0 32px rgba(0,0,0,0.7);
+      z-index: 101;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0;
+      transition: right 0.32s cubic-bezier(.5,1.7,.7,1.01);
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    }
+    #shop-drawer-bg.active #shop-drawer { right: 0; }
+    #shop-drawer-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 24px 12px 24px;
+      box-sizing: border-box;
+      border-bottom: 1px solid #333;
+      background: #232526;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    #shop-drawer-header h2 {
+      margin: 0;
+      font-size: 1.6rem;
+      color: #aaffaa;
+      letter-spacing: 1px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    #shop-drawer-close {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 2rem;
+      cursor: pointer;
+      opacity: 0.7;
+      margin-left: 16px;
+    }
+    #shop-drawer-close:hover { opacity: 1; }
+    #shop-drawer-content {
+      flex: 1 1 auto;
+      width: 100%;
+      overflow-y: auto;
+      padding: 18px 24px 24px 24px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      max-height: calc(100vh - 70px);
+    }
+    .shop-item {
+      background: linear-gradient(90deg, #333 60%, #4caf50 100%);
+      border-radius: 12px;
+      padding: 18px 24px;
+      margin: 0;
+      color: #fff;
+      font-size: 1.15rem;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      min-width: 220px;
+      justify-content: space-between;
+    }
+    .shop-item .cost-note { font-size: 0.95em; color: #e8ffe8; }
+    .shop-item .per-note { font-size: 0.95em; color: #aaffaa; }
+    .shop-btn {
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      font-family: inherit;
+    }
+    .shop-btn:disabled {
+      background: #888;
+      cursor: not-allowed;
+      color: #eee;
+    }
     #startScreen {
       position: absolute;
       top: 50%;
@@ -182,7 +311,7 @@
     <div class="hud">
       <div class="score-card">
         <div class="feathers">🪶 <span id="score">0</span></div>
-        <div class="rates"><span id="rates">1 /click</span></div>
+        <div class="rates"><span id="rates">1 /click • 0 /sec</span></div>
         <div class="rates" id="stageName">🐣 Hatchling</div>
       </div>
       <div class="hud-right">
@@ -197,9 +326,62 @@
       <div style="font-size:52px;margin-bottom:8px;">🐦</div>
       <h2>Bird Clicker!</h2>
       <p>Click your bird to shake out feathers! 🪶<br>
-      ✨ Catch the golden bird! • 🌟 Earn evolutions!</p>
+      ✨ Catch the golden bird! • 🌟 Earn evolutions!<br>
+      🛒 Open the shop for upgrades!</p>
       <p id="bestStart" style="font-weight:bold;color:#ffd94d;">🏆 Best: 0</p>
       <button class="game-button" onclick="startGame()">▶ Start Clicking!</button>
+    </div>
+    <div id="shop-bar" title="Open Shop 🛒">🛒 Shop</div>
+  </div>
+  <!-- Side Shop Drawer (Andrew's Square Clicker style) -->
+  <div id="shop-drawer-bg">
+    <div id="shop-drawer">
+      <div id="shop-drawer-header">
+        <h2>🛒 Shop</h2>
+        <button id="shop-drawer-close" title="Close Shop">&times;</button>
+      </div>
+      <div id="shop-drawer-content">
+        <div class="shop-item">
+          <span>+1 Click Power<br><span class="cost-note">(25 🪶)</span></span>
+          <button class="shop-btn" id="buy-click-1">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+1 Per Second<br><span class="cost-note">(100 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-1">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+10 Per Second<br><span class="cost-note">(500 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-10">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+100 Per Second<br><span class="cost-note">(6,500 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-100">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+2,000 Click Power<br><span class="cost-note">(150,000 🪶)</span></span>
+          <button class="shop-btn" id="buy-click-2000">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+250,000 Per Second<br><span class="cost-note">(20,000,000 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-250k">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+5,000,000 Per Second<br><span class="cost-note">(125,000,000 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-5m">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+2,000,000 Click Power<br><span class="cost-note">(400,000,000 🪶)</span></span>
+          <button class="shop-btn" id="buy-click-2m">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+100,000,000 Per Second<br><span class="cost-note">(5,000,000,000 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-100m">Buy</button>
+        </div>
+        <div class="shop-item">
+          <span>+5,000,000,000 Per Second<br><span class="cost-note">(100,000,000 🪶)</span></span>
+          <button class="shop-btn" id="buy-sec-5b">Buy</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -224,9 +406,10 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // ============ state ============
+    // ============ state (fresh every visit — no saving) ============
     let running = false, rafId = null, lastT = 0;
     let score = 0, totalEarned = 0, best = 0;
+    let perClick = 1, perSec = 0;
     let stageIdx = 0;
     let muted = false, musicOn = true;
     try {
@@ -234,7 +417,34 @@
       musicOn = localStorage.getItem('bird_music') !== '0';
     } catch (e) {}
 
-    const perClick = () => 1;
+    // shop elements (Andrew's Square Clicker style drawer)
+    const shopBar = document.getElementById('shop-bar');
+    const shopDrawerBg = document.getElementById('shop-drawer-bg');
+    const shopDrawerClose = document.getElementById('shop-drawer-close');
+    const buyBtns = {
+      click1: document.getElementById('buy-click-1'),
+      sec1: document.getElementById('buy-sec-1'),
+      sec10: document.getElementById('buy-sec-10'),
+      sec100: document.getElementById('buy-sec-100'),
+      click2000: document.getElementById('buy-click-2000'),
+      sec250k: document.getElementById('buy-sec-250k'),
+      sec5m: document.getElementById('buy-sec-5m'),
+      click2m: document.getElementById('buy-click-2m'),
+      sec100m: document.getElementById('buy-sec-100m'),
+      sec5b: document.getElementById('buy-sec-5b')
+    };
+    const SHOP = [
+      { btn: 'click1', cost: 25, run: () => { perClick += 1; } },
+      { btn: 'sec1', cost: 100, run: () => { perSec += 1; } },
+      { btn: 'sec10', cost: 500, run: () => { perSec += 10; } },
+      { btn: 'sec100', cost: 6500, run: () => { perSec += 100; } },
+      { btn: 'click2000', cost: 150000, run: () => { perClick += 2000; } },
+      { btn: 'sec250k', cost: 20000000, run: () => { perSec += 250000; } },
+      { btn: 'sec5m', cost: 125000000, run: () => { perSec += 5000000; } },
+      { btn: 'click2m', cost: 400000000, run: () => { perClick += 2000000; } },
+      { btn: 'sec100m', cost: 5000000000, run: () => { perSec += 100000000; } },
+      { btn: 'sec5b', cost: 100000000, run: () => { perSec += 5000000000; } }
+    ];
 
     const STAGES = [
       { at: 0,    name: '🐣 Hatchling',     body: '#7cc4ff', wing: '#4a90d9', belly: '#eaf7ff' },
@@ -417,7 +627,7 @@
     }
 
     function birdClick(x, y) {
-      const pts = perClick();
+      const pts = perClick;
       gain(pts);
       bird.squash = 1;
       bird.flap = 1;
@@ -429,7 +639,7 @@
       updateHUD(true);
     }
     function goldenClick(g) {
-      const bonus = Math.max(25, perClick() * 25);
+      const bonus = Math.max(25, perClick * 25);
       gain(bonus);
       popup(g.x, g.y - 20, '+' + bonus + ' ✨', '#ffd94d', 30);
       burst(g.x, g.y, 24, true);
@@ -454,6 +664,19 @@
       // bird stays centered — no hopping
       bird.x = W / 2;
       bird.y = H * 0.44;
+      // passive income from shop upgrades
+      if (perSec > 0) {
+        const inc = perSec * dt;
+        score += inc;
+        totalEarned += inc;
+        if (score > best) best = Math.floor(score);
+        const ni = stageFor(Math.floor(totalEarned));
+        if (ni > stageIdx) {
+          stageIdx = ni;
+          banner = { text: `🌟 Your bird evolved: ${STAGES[ni].name}!`, life: 2.4 };
+          fanfare();
+        }
+      }
       // clouds + ambient feathers
       clouds.forEach(c => {
         c.x += c.v * dt;
@@ -834,7 +1057,7 @@
     }
 
     // ============ HUD ============
-    let lastShown = { score: -1, best: -1, stage: -1 };
+    let lastShown = { score: -1, best: -1, stage: -1, rates: '' };
     function updateHUD(force) {
       const s = Math.floor(score), b = Math.floor(best);
       if (force || s !== lastShown.score) { scoreEl.textContent = s.toLocaleString(); lastShown.score = s; }
@@ -847,8 +1070,39 @@
         stageEl.textContent = STAGES[stageIdx].name;
         lastShown.stage = stageIdx;
       }
-      ratesEl.textContent = '1 /click';
+      const rates = `${perClick.toLocaleString()} /click • ${perSec.toLocaleString()} /sec`;
+      if (force || rates !== lastShown.rates) { ratesEl.textContent = rates; lastShown.rates = rates; }
+      // Andrew-style: disable Buy buttons you can't afford
+      SHOP.forEach(item => {
+        const el = buyBtns[item.btn];
+        if (el) el.disabled = score < item.cost;
+      });
     }
+
+    function buyShop(item) {
+      if (score < item.cost) return;
+      score -= item.cost;
+      item.run();
+      ensureAudio();
+      tone(880, 0.09, 'square', 0.05);
+      if (audioCtx) tone(1318, 0.14, 'square', 0.05, audioCtx.currentTime + 0.07);
+      burst(bird.x, bird.y - bird.r * 1.4, 10, true);
+      updateHUD(true);
+    }
+    SHOP.forEach(item => {
+      const el = buyBtns[item.btn];
+      if (el) el.addEventListener('click', () => buyShop(item));
+    });
+    // drawer open/close (same as Andrew's Square Clicker)
+    shopBar.addEventListener('click', () => {
+      shopDrawerBg.classList.add('active');
+    });
+    shopDrawerClose.addEventListener('click', () => {
+      shopDrawerBg.classList.remove('active');
+    });
+    shopDrawerBg.addEventListener('click', (e) => {
+      if (e.target === shopDrawerBg) shopDrawerBg.classList.remove('active');
+    });
 
     // ============ main loop ============
     function loop(now) {
@@ -870,6 +1124,7 @@
       particles = [];
       popups = [];
       score = 0; totalEarned = 0; best = 0; stageIdx = 0;
+      perClick = 1; perSec = 0;
       clearProgress();
       gold.active = false;
       gold.t = 22 + Math.random() * 10;
@@ -905,6 +1160,7 @@
     // ============ boot (no saving — always fresh, reset on leave) ============
     clearProgress();
     score = 0; totalEarned = 0; best = 0; stageIdx = 0;
+    perClick = 1; perSec = 0;
     bestEl.textContent = '🏆 ' + Math.floor(best).toLocaleString();
     bestStartEl.textContent = '🏆 Best: ' + Math.floor(best).toLocaleString();
     muteBtn.textContent = muted ? '🔇' : '🔊';
@@ -915,6 +1171,7 @@
     draw(performance.now());
     window.addEventListener('pagehide', () => {
       score = 0; totalEarned = 0; best = 0; stageIdx = 0;
+      perClick = 1; perSec = 0;
       clearProgress();
     });
   </script>
