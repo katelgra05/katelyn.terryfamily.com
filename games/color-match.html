@@ -183,12 +183,15 @@
             </div>
         </div>
 
+        <div id="guess-progress" style="text-align:center;color:white;margin-bottom:6px;">Guess 1 / 6</div>
         <div id="guesses-container"></div>
 
         <div class="color-grid" id="color-options"></div>
 
         <div style="text-align: center;">
             <button class="game-button" id="check-button" disabled>Check Colors</button>
+            <button class="game-button" id="undo-button" disabled>↩ Undo</button>
+            <button class="game-button" id="mute-button" title="Sound on/off">🔊</button>
             <button class="game-button share-button" id="share-button" style="display: none;">Share Result</button>
         </div>
     </div>
@@ -216,12 +219,42 @@
         let guesses = [];
         let gameOver = false;
         let streak = 0;
+        let bestStreak = 0;
+        try { bestStreak = parseInt(localStorage.getItem('cm_best')) || 0; }
+        catch (e) { bestStreak = 0; }
+
+        // ---- tiny synth sounds ----
+        let cmAudio = null;
+        let cmMuted = false;
+        try { cmMuted = localStorage.getItem('cm_muted') === '1'; } catch (e) {}
+        function cmTone(freq, dur, type, vol, delay) {
+            if (cmMuted) return;
+            try {
+                if (!cmAudio) cmAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = cmAudio.currentTime + (delay || 0);
+                const osc = cmAudio.createOscillator();
+                const gain = cmAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(cmAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function blipSound() { cmTone(600, 0.06, 'triangle', 0.08); }
+        function checkSound() { cmTone(440, 0.1, 'triangle', 0.1); }
+        function winSound() { cmTone(523, 0.12, 'triangle', 0.11); cmTone(784, 0.2, 'triangle', 0.11, 0.1); }
+        function loseSound() { cmTone(280, 0.2, 'sawtooth', 0.08); }
 
         function initializeGame() {
-            // Generate secret colors
+            // Generate 4 UNIQUE secret colors (fair feedback, always solvable by logic)
+            const pool = [...COLORS];
             secretColors = [];
             for (let i = 0; i < 4; i++) {
-                secretColors.push(COLORS[Math.floor(Math.random() * COLORS.length)]);
+                secretColors.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
             }
 
             // Create color options
@@ -272,12 +305,28 @@
             if (emptySlot) {
                 emptySlot.style.backgroundColor = color;
                 currentGuess.push(color);
+                blipSound();
                 updateUI();
             }
         }
 
+        function undoPick() {
+            if (gameOver || currentGuess.length === 0) return;
+            currentGuess.pop();
+            const slots = document.querySelectorAll('.guess-row:last-child .guess-slot');
+            for (let i = slots.length - 1; i >= 0; i--) {
+                if (slots[i].style.backgroundColor) {
+                    slots[i].style.backgroundColor = '';
+                    break;
+                }
+            }
+            blipSound();
+            updateUI();
+        }
+
         function checkGuess() {
             if (currentGuess.length !== 4) return;
+            checkSound();
 
             const feedback = document.querySelector('.feedback-row:last-child');
             const dots = feedback.children;
@@ -324,15 +373,21 @@
         function updateUI() {
             const checkButton = document.getElementById('check-button');
             checkButton.disabled = currentGuess.length !== 4 || gameOver;
+            document.getElementById('undo-button').disabled = currentGuess.length === 0 || gameOver;
+            document.getElementById('guess-progress').textContent =
+                `Guess ${Math.min(guesses.length + 1, 6)} / 6`;
         }
 
         function gameWon() {
             gameOver = true;
             streak++;
             document.getElementById('streak').textContent = streak;
-            const best = Math.max(streak, parseInt(document.getElementById('best').textContent));
-            document.getElementById('best').textContent = best;
-            
+            if (streak > bestStreak) {
+                bestStreak = streak;
+                try { localStorage.setItem('cm_best', String(bestStreak)); } catch (e) {}
+            }
+            document.getElementById('best').textContent = bestStreak;
+            winSound();
             showResult('You Won! 🎉', `You found the colors in ${guesses.length} tries!`);
             document.getElementById('share-button').style.display = 'inline-block';
         }
@@ -341,6 +396,7 @@
             gameOver = true;
             streak = 0;
             document.getElementById('streak').textContent = streak;
+            loseSound();
             showResult('Game Over! 😢', `The colors were: ${secretColors.map(color => 
                 `<span style="color: ${color}">■</span>`).join(' ')}`);
         }
@@ -407,6 +463,14 @@
 
         document.getElementById('check-button').onclick = checkGuess;
         document.getElementById('share-button').onclick = shareResult;
+        document.getElementById('undo-button').onclick = undoPick;
+        document.getElementById('mute-button').onclick = () => {
+            cmMuted = !cmMuted;
+            try { localStorage.setItem('cm_muted', cmMuted ? '1' : '0'); } catch (e) {}
+            document.getElementById('mute-button').textContent = cmMuted ? '🔇' : '🔊';
+        };
+        document.getElementById('mute-button').textContent = cmMuted ? '🔇' : '🔊';
+        document.getElementById('best').textContent = bestStreak;
 
         // Start the game
         initializeGame();
