@@ -218,7 +218,7 @@
 
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
-    let blocks = [], cur = null, debris = [], popups = [], clouds = [];
+    let blocks = [], cur = null, debris = [], popups = [];
     let level = 0, best = 0, camY = 0;
     let muted = false;
     try {
@@ -248,13 +248,6 @@
         s = (s * 1664525 + 1013904223) >>> 0;
         return s / 4294967296;
       };
-    }
-
-    function initClouds() {
-      clouds = [];
-      for (let i = 0; i < 5; i++) {
-        clouds.push({ x: Math.random() * W, y: H * (0.08 + Math.random() * 0.32), s: 0.6 + Math.random() * 0.9, v: 6 + Math.random() * 12 });
-      }
     }
 
     // ============ audio ============
@@ -301,7 +294,6 @@
       ensureAudio();
       cancelAnimationFrame(rafId);
       resizeCanvas();
-      initClouds();
       const w = baseWidth();
       blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       level = 0;
@@ -402,11 +394,6 @@
       // camera follows the top of the tower
       const target = topWorldY() - H * 0.42;
       camY += (target - camY) * Math.min(1, dt * 4);
-      // drifting clouds
-      clouds.forEach(c => {
-        c.x += c.v * dt;
-        if (c.x - 130 * c.s > W) { c.x = -130 * c.s; c.y = H * (0.08 + Math.random() * 0.32); }
-      });
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
@@ -435,29 +422,35 @@
       ctx.closePath();
     }
 
+    // scoop drawn like the thumbnail: smooth ellipse, white outline, shine, sprinkles
+    const SCOOP_OVER = 6;
     function drawScoop(x, sy, w, lvl, isTop) {
       const f = flavorFor(lvl);
       const rnd = srand(lvl * 997 + 13);
+      const cx = x + w / 2, cy = sy + BLOCK_H / 2;
+      const rx = w / 2, ry = BLOCK_H / 2 + SCOOP_OVER;
       // scoop body
-      const g = ctx.createLinearGradient(0, sy, 0, sy + BLOCK_H);
+      const g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
       g.addColorStop(0, f.c);
       g.addColorStop(1, f.d);
       ctx.fillStyle = g;
-      roundRect(x, sy, w, BLOCK_H, 13);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
-      // bumpy scoop top
-      ctx.fillStyle = f.c;
-      const bumps = Math.max(2, Math.floor(w / 52));
-      for (let i = 0; i < bumps; i++) {
-        const bx = x + (w * (i + 0.5)) / bumps;
-        ctx.beginPath();
-        ctx.arc(bx, sy + 3, 16, Math.PI, 0);
-        ctx.fill();
-      }
-      // sprinkles
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.stroke();
+      // shine streak
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath();
+      ctx.ellipse(x + w * 0.28, sy + BLOCK_H * 0.28, Math.max(3, w * 0.07), BLOCK_H * 0.14, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // sprinkles (kept inside the scoop)
       for (let i = 0; i < 11; i++) {
-        const px = x + 9 + rnd() * Math.max(1, w - 18);
-        const py = sy + 10 + rnd() * (BLOCK_H - 20);
+        const px = x + 10 + rnd() * Math.max(1, w - 20);
+        const py = sy + 11 + rnd() * (BLOCK_H - 22);
+        const nx = (px - cx) / rx, ny = (py - cy) / ry;
+        if (nx * nx + ny * ny > 0.72) continue;
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(rnd() * Math.PI);
@@ -487,63 +480,93 @@
 
     function draw(now) {
       const t = now / 1000;
-      // sunset-parlor sky
-      const sky = ctx.createLinearGradient(0, 0, 0, H);
-      sky.addColorStop(0, '#2b1b4e');
-      sky.addColorStop(0.45, '#7b3f8c');
-      sky.addColorStop(0.75, '#e06ba8');
-      sky.addColorStop(1, '#ffb98a');
-      ctx.fillStyle = sky;
+      // ice cream shop walls
+      const wall = ctx.createLinearGradient(0, 0, 0, H);
+      wall.addColorStop(0, '#fff7fb');
+      wall.addColorStop(0.7, '#ffe4f1');
+      wall.addColorStop(1, '#f3d9ff');
+      ctx.fillStyle = wall;
       ctx.fillRect(0, 0, W, H);
-      // glowing sun
-      const sunX = W * 0.82, sunY = H * 0.2, sunR = Math.min(W, H) * 0.07;
-      const glow = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 3);
-      glow.addColorStop(0, 'rgba(255, 227, 163, 0.9)');
-      glow.addColorStop(1, 'rgba(255, 227, 163, 0)');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(sunX, sunY, sunR * 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffe9b8';
-      ctx.beginPath();
-      ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
-      ctx.fill();
-      // sparkles
-      ctx.fillStyle = '#ffd6ec';
+      // polka dots on the wall
       const rnd = srand(42);
-      for (let i = 0; i < 34; i++) {
-        const sx = rnd() * W, sy2 = rnd() * H * 0.6;
-        const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
-        ctx.globalAlpha = tw * 0.8;
-        const r = 1 + (i % 3);
-        ctx.fillRect(sx, sy2, r, r);
-      }
-      ctx.globalAlpha = 1;
-      // fluffy clouds
-      ctx.fillStyle = 'rgba(255, 235, 245, 0.9)';
-      clouds.forEach(c => {
+      ctx.fillStyle = 'rgba(192, 132, 252, 0.16)';
+      for (let i = 0; i < 30; i++) {
+        const dx = rnd() * W, dy = rnd() * H * 0.7;
         ctx.beginPath();
-        ctx.arc(c.x, c.y, 24 * c.s, 0, Math.PI * 2);
-        ctx.arc(c.x + 24 * c.s, c.y + 4 * c.s, 18 * c.s, 0, Math.PI * 2);
-        ctx.arc(c.x - 24 * c.s, c.y + 5 * c.s, 16 * c.s, 0, Math.PI * 2);
+        ctx.arc(dx, dy, 5 + rnd() * 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // striped awning across the top
+      const awH = Math.max(46, H * 0.07);
+      const stripes = Math.ceil(W / 44);
+      for (let i = 0; i < stripes; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#ff8ab5' : '#ffffff';
+        ctx.fillRect(i * 44, 0, 44, awH);
+        ctx.beginPath();
+        ctx.arc(i * 44 + 22, awH, 22, 0, Math.PI);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(224, 85, 154, 0.9)';
+      ctx.fillRect(0, awH - 4, W, 5);
+      // bunting flags
+      const flagColors = ['#ff8ab5', '#ffd94d', '#9ff0c8', '#7cc4ff', '#c084fc'];
+      const sagY = bx => awH + 26 + Math.sin((bx / W) * Math.PI) * 14;
+      ctx.strokeStyle = 'rgba(150, 90, 140, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, awH + 26);
+      ctx.quadraticCurveTo(W / 2, awH + 62, W, awH + 26);
+      ctx.stroke();
+      for (let i = 0; i < 9; i++) {
+        const fx = W * (0.06 + 0.88 * (i / 8));
+        ctx.fillStyle = flagColors[i % flagColors.length];
+        ctx.beginPath();
+        ctx.moveTo(fx - 9, sagY(fx));
+        ctx.lineTo(fx + 9, sagY(fx));
+        ctx.lineTo(fx, sagY(fx) + 16);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // hanging pendant lamps with warm glow
+      [0.22, 0.78].forEach((fx, i) => {
+        const lx = W * fx, ly = awH + 34 + Math.sin(t * 1.2 + i * 2) * 2;
+        ctx.strokeStyle = 'rgba(120, 80, 110, 0.8)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(lx, awH);
+        ctx.lineTo(lx, ly);
+        ctx.stroke();
+        const lg = ctx.createRadialGradient(lx, ly + 12, 2, lx, ly + 12, 44);
+        lg.addColorStop(0, 'rgba(255, 220, 150, 0.85)');
+        lg.addColorStop(1, 'rgba(255, 220, 150, 0)');
+        ctx.fillStyle = lg;
+        ctx.beginPath();
+        ctx.arc(lx, ly + 12, 44, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ff9eb5';
+        ctx.beginPath();
+        ctx.moveTo(lx - 16, ly);
+        ctx.lineTo(lx + 16, ly);
+        ctx.lineTo(lx + 9, ly + 18);
+        ctx.lineTo(lx - 9, ly + 18);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#ffe9b8';
+        ctx.beginPath();
+        ctx.arc(lx, ly + 20, 6, 0, Math.PI * 2);
         ctx.fill();
       });
       const toSY = wy => wy - camY;
-      // soft hills behind the table
+      // shop counter (scrolls with the tower base)
       const gy = toSY(groundY());
-      ctx.fillStyle = 'rgba(90, 45, 110, 0.55)';
-      ctx.beginPath();
-      ctx.moveTo(0, gy + 40);
-      for (let x = 0; x <= W; x += 8) {
-        ctx.lineTo(x, gy - 34 + Math.sin(x * 0.008 + 1) * H * 0.02);
-      }
-      ctx.lineTo(W, gy + 40);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#3a2b1f';
+      ctx.fillStyle = '#f9b8d4';
       ctx.fillRect(0, gy, W, H - gy + 60);
-      ctx.fillStyle = '#54402c';
-      ctx.fillRect(0, gy, W, 10);
+      ctx.fillStyle = '#ffffff';
+      for (let x = 0; x < W; x += 48) {
+        ctx.fillRect(x, gy, 24, Math.max(0, H - gy + 60));
+      }
+      ctx.fillStyle = '#e0559a';
+      ctx.fillRect(0, gy, W, 8);
       // cone under the tower
       const b0 = blocks[0];
       if (b0) {
@@ -652,7 +675,6 @@
     startGameBackdrop();
     function startGameBackdrop() {
       resizeCanvas();
-      initClouds();
       const w = baseWidth();
       blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       camY = topWorldY() - H * 0.42;
