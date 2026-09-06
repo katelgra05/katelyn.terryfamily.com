@@ -1189,6 +1189,8 @@
     canvas.addEventListener('pointerup', stopDrag);
     canvas.addEventListener('pointercancel', stopDrag);
     document.addEventListener('keydown', (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // let players type names freely
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') { keys.left = true; e.preventDefault(); }
       if (e.code === 'ArrowRight' || e.code === 'KeyD') { keys.right = true; e.preventDefault(); }
       if (e.code === 'Space') {
