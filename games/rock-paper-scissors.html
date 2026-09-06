@@ -46,6 +46,21 @@
         #paper { background: none; }
         #scissors { background: none; }
         #retry { background: none; }
+        #battle {
+            font-size: 52px;
+            margin: 10px;
+            min-height: 64px;
+        }
+        #streakLine {
+            font-size: 20px;
+            font-weight: bold;
+            color: #7c3aed;
+        }
+        #muteBtn {
+            font-size: 20px !important;
+            min-width: 0 !important;
+            padding: 12px 18px !important;
+        }
         #result {
             font-size: 24px;
             margin: 20px;
@@ -66,20 +81,71 @@
     </header>
     <div class="game-container">
         <h1>🪨📄✂️ Rock Paper Scissors 🪨📄✂️</h1>
-        
+        <p id="streakLine">🔥 Streak: 0 &nbsp;•&nbsp; 🏆 Best: 0</p>
+
         <div>
             <button id="rock" onclick="play('rock')">🪨 Rock</button>
             <button id="paper" onclick="play('paper')">📄 Paper</button>
             <button id="scissors" onclick="play('scissors')">✂️ Scissors</button>
         </div>
 
+        <div id="battle"></div>
         <div id="result">Choose your move!</div>
         <div id="score">Wins: 0 | Losses: 0 | Ties: 0</div>
         <button id="retry" style="display: none;" onclick="retryGame()">Retry</button> <!-- Retry button -->
+        <button id="muteBtn" onclick="toggleMute()" title="Sound on/off">🔊</button>
     </div>
 
     <script>
-        let wins = 0, losses = 0, ties = 0;
+        let wins = 0, losses = 0, ties = 0, streak = 0, best = 0;
+        let rpsMuted = false;
+        try {
+            wins = parseInt(localStorage.getItem('rps_w')) || 0;
+            losses = parseInt(localStorage.getItem('rps_l')) || 0;
+            ties = parseInt(localStorage.getItem('rps_t')) || 0;
+            best = parseInt(localStorage.getItem('rps_best')) || 0;
+            rpsMuted = localStorage.getItem('rps_muted') === '1';
+        } catch (e) {}
+        const MOVE_EMOJI = { rock: '🪨', paper: '📄', scissors: '✂️' };
+
+        // ---- tiny synth sounds ----
+        let rpsAudio = null;
+        function rpsTone(freq, dur, type, vol, delay) {
+            if (rpsMuted) return;
+            try {
+                if (!rpsAudio) rpsAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = rpsAudio.currentTime + (delay || 0);
+                const osc = rpsAudio.createOscillator();
+                const gain = rpsAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(rpsAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function toggleMute() {
+            rpsMuted = !rpsMuted;
+            try { localStorage.setItem('rps_muted', rpsMuted ? '1' : '0'); } catch (e) {}
+            document.getElementById('muteBtn').textContent = rpsMuted ? '🔇' : '🔊';
+        }
+        function saveAll() {
+            try {
+                localStorage.setItem('rps_w', String(wins));
+                localStorage.setItem('rps_l', String(losses));
+                localStorage.setItem('rps_t', String(ties));
+                localStorage.setItem('rps_best', String(best));
+            } catch (e) {}
+        }
+        function renderAll() {
+            document.getElementById('score').innerHTML =
+                `Wins: ${wins} | Losses: ${losses} | Ties: ${ties}`;
+            document.getElementById('streakLine').innerHTML =
+                `🔥 Streak: ${streak} &nbsp;•&nbsp; 🏆 Best: ${best}`;
+        }
 
         function play(playerChoice) {
             // Computer makes random choice
@@ -91,32 +157,44 @@
             if (playerChoice === computerChoice) {
                 result = "It's a tie! 🤝";
                 ties++;
+                rpsTone(400, 0.12, 'triangle', 0.09);
             } else if (
                 (playerChoice === 'rock' && computerChoice === 'scissors') ||
                 (playerChoice === 'paper' && computerChoice === 'rock') ||
                 (playerChoice === 'scissors' && computerChoice === 'paper')
             ) {
-                result = "You win! 🎉";
+                result = streak >= 2 ? `You win! 🎉🔥 x${streak + 1} streak!` : 'You win! 🎉';
                 wins++;
+                streak++;
+                if (streak > best) best = streak;
+                rpsTone(523, 0.1, 'triangle', 0.11);
+                rpsTone(784, 0.16, 'triangle', 0.11, 0.08);
             } else {
-                result = "Computer wins! 💻";
+                result = 'Computer wins! 💻';
                 losses++;
+                streak = 0;
+                rpsTone(220, 0.18, 'sawtooth', 0.07);
             }
 
             // Show results
-            document.getElementById('result').innerHTML = 
-                `You picked ${playerChoice} vs Computer's ${computerChoice}<br>${result}`;
-            document.getElementById('score').innerHTML = 
-                `Wins: ${wins} | Losses: ${losses} | Ties: ${ties}`;
-            
+            document.getElementById('battle').textContent =
+                `${MOVE_EMOJI[playerChoice]}  ⚔️  ${MOVE_EMOJI[computerChoice]}`;
+            document.getElementById('result').innerHTML = result;
+            renderAll();
+            saveAll();
+
             // Show Retry button
             document.getElementById('retry').style.display = 'inline';
         }
 
         function retryGame() {
-            document.getElementById('result').innerHTML = "Choose your move!";
+            document.getElementById('result').innerHTML = 'Choose your move!';
+            document.getElementById('battle').textContent = '';
             document.getElementById('retry').style.display = 'none';
         }
+
+        document.getElementById('muteBtn').textContent = rpsMuted ? '🔇' : '🔊';
+        renderAll();
     </script>
 </body>
 </html>
