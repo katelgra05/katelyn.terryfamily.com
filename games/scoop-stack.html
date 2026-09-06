@@ -555,6 +555,7 @@
         boardMsg.textContent = 'Type your name first! ☝️';
         return;
       }
+      nameInput.value = '';
       const board = loadBoard();
       const idx = board.findIndex(e => e.name.toLowerCase() === name.toLowerCase());
       if (idx >= 0) {
