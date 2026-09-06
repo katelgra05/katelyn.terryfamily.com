@@ -218,7 +218,7 @@
 
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
-    let blocks = [], cur = null, debris = [], popups = [];
+    let blocks = [], cur = null, debris = [], popups = [], clouds = [];
     let level = 0, best = 0, camY = 0;
     let muted = false;
     try {
@@ -226,7 +226,7 @@
       muted = localStorage.getItem('scoop_muted') === '1';
     } catch (e) {}
 
-    const BLOCK_H = 34;
+    const BLOCK_H = 46;
     const PERFECT_TOL = 9;
     const FLAVORS = [
       { c: '#ff8ab5', d: '#e0559a' },
@@ -248,6 +248,13 @@
         s = (s * 1664525 + 1013904223) >>> 0;
         return s / 4294967296;
       };
+    }
+
+    function initClouds() {
+      clouds = [];
+      for (let i = 0; i < 5; i++) {
+        clouds.push({ x: Math.random() * W, y: H * (0.08 + Math.random() * 0.32), s: 0.6 + Math.random() * 0.9, v: 6 + Math.random() * 12 });
+      }
     }
 
     // ============ audio ============
@@ -294,6 +301,7 @@
       ensureAudio();
       cancelAnimationFrame(rafId);
       resizeCanvas();
+      initClouds();
       const w = baseWidth();
       blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       level = 0;
@@ -394,6 +402,11 @@
       // camera follows the top of the tower
       const target = topWorldY() - H * 0.42;
       camY += (target - camY) * Math.min(1, dt * 4);
+      // drifting clouds
+      clouds.forEach(c => {
+        c.x += c.v * dt;
+        if (c.x - 130 * c.s > W) { c.x = -130 * c.s; c.y = H * (0.08 + Math.random() * 0.32); }
+      });
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
@@ -434,17 +447,17 @@
       ctx.fill();
       // bumpy scoop top
       ctx.fillStyle = f.c;
-      const bumps = Math.max(2, Math.floor(w / 46));
+      const bumps = Math.max(2, Math.floor(w / 52));
       for (let i = 0; i < bumps; i++) {
         const bx = x + (w * (i + 0.5)) / bumps;
         ctx.beginPath();
-        ctx.arc(bx, sy + 3, 13, Math.PI, 0);
+        ctx.arc(bx, sy + 3, 16, Math.PI, 0);
         ctx.fill();
       }
       // sprinkles
-      for (let i = 0; i < 9; i++) {
-        const px = x + 8 + rnd() * Math.max(1, w - 16);
-        const py = sy + 8 + rnd() * (BLOCK_H - 16);
+      for (let i = 0; i < 11; i++) {
+        const px = x + 9 + rnd() * Math.max(1, w - 18);
+        const py = sy + 10 + rnd() * (BLOCK_H - 20);
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(rnd() * Math.PI);
@@ -474,26 +487,59 @@
 
     function draw(now) {
       const t = now / 1000;
-      // sky
+      // sunset-parlor sky
       const sky = ctx.createLinearGradient(0, 0, 0, H);
       sky.addColorStop(0, '#2b1b4e');
-      sky.addColorStop(0.6, '#4a2b6b');
-      sky.addColorStop(1, '#6b3a5d');
+      sky.addColorStop(0.45, '#7b3f8c');
+      sky.addColorStop(0.75, '#e06ba8');
+      sky.addColorStop(1, '#ffb98a');
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
-      // stars
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      // glowing sun
+      const sunX = W * 0.82, sunY = H * 0.2, sunR = Math.min(W, H) * 0.07;
+      const glow = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 3);
+      glow.addColorStop(0, 'rgba(255, 227, 163, 0.9)');
+      glow.addColorStop(1, 'rgba(255, 227, 163, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, sunR * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffe9b8';
+      ctx.beginPath();
+      ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+      ctx.fill();
+      // sparkles
+      ctx.fillStyle = '#ffd6ec';
       const rnd = srand(42);
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < 34; i++) {
         const sx = rnd() * W, sy2 = rnd() * H * 0.6;
         const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
-        ctx.globalAlpha = tw * 0.7;
-        ctx.fillRect(sx, sy2, 2, 2);
+        ctx.globalAlpha = tw * 0.8;
+        const r = 1 + (i % 3);
+        ctx.fillRect(sx, sy2, r, r);
       }
       ctx.globalAlpha = 1;
+      // fluffy clouds
+      ctx.fillStyle = 'rgba(255, 235, 245, 0.9)';
+      clouds.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 24 * c.s, 0, Math.PI * 2);
+        ctx.arc(c.x + 24 * c.s, c.y + 4 * c.s, 18 * c.s, 0, Math.PI * 2);
+        ctx.arc(c.x - 24 * c.s, c.y + 5 * c.s, 16 * c.s, 0, Math.PI * 2);
+        ctx.fill();
+      });
       const toSY = wy => wy - camY;
-      // table
+      // soft hills behind the table
       const gy = toSY(groundY());
+      ctx.fillStyle = 'rgba(90, 45, 110, 0.55)';
+      ctx.beginPath();
+      ctx.moveTo(0, gy + 40);
+      for (let x = 0; x <= W; x += 8) {
+        ctx.lineTo(x, gy - 34 + Math.sin(x * 0.008 + 1) * H * 0.02);
+      }
+      ctx.lineTo(W, gy + 40);
+      ctx.closePath();
+      ctx.fill();
       ctx.fillStyle = '#3a2b1f';
       ctx.fillRect(0, gy, W, H - gy + 60);
       ctx.fillStyle = '#54402c';
@@ -606,6 +652,7 @@
     startGameBackdrop();
     function startGameBackdrop() {
       resizeCanvas();
+      initClouds();
       const w = baseWidth();
       blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
       camY = topWorldY() - H * 0.42;
