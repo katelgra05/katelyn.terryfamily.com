@@ -430,7 +430,7 @@
       if (overlap <= 4) {
         // clean miss — it tumbles past (cherry or scoop, same rules)
         const side = scoopCX >= prevCX ? 1 : -1;
-        debris.push({ x: cur.x, w: cur.w, fl: cur.fl, cherry: cur.cherry, wy: topWorldY() - BLOCK_H, vx: side * 200, vy: 40, rot: 0, vr: side * 5, life: 1.6 });
+        debris.push({ x: cur.x, w: cur.w, fl: cur.fl, cherry: cur.cherry, wy: topWorldY() - BLOCK_H, vx: side * 200, vy: 40, rot: 0, vr: side * 5, life: 3.2 });
         cur = null;
         sndFall();
         gameOver('miss');
@@ -453,7 +453,7 @@
       } else {
         // WAY off-center — the whole stack falls!
         const side = offset >= 0 ? 1 : -1;
-        debris.push({ x: cur.x, w: cur.w, fl: cur.fl, cherry: cur.cherry, wy: topWorldY() - BLOCK_H, vx: side * 200, vy: 40, rot: 0, vr: side * 5, life: 1.6 });
+        debris.push({ x: cur.x, w: cur.w, fl: cur.fl, cherry: cur.cherry, wy: topWorldY() - BLOCK_H, vx: side * 200, vy: 40, rot: 0, vr: side * 5, life: 3.2 });
         cur = null;
         topple(side);
         gameOver('topple');
@@ -476,7 +476,7 @@
           x: coneX + b.dx - b.w / 2, w: b.w, fl: b.fl,
           wy: groundY() - (i + 1) * BLOCK_H,
           vx: dir * (120 + Math.random() * 140), vy: -60 - i * 34,
-          rot: 0, vr: dir * (2 + Math.random() * 3), life: 1.8
+          rot: 0, vr: dir * (2 + Math.random() * 3), life: 3.2
         });
       }
       blocks = [];
@@ -602,15 +602,32 @@
       // camera: follow the tower while playing, glide back to the cone after losing
       const target = over ? groundY() - (H - 170) : camTarget();
       camY += (target - camY) * Math.min(1, dt * (over ? 1.5 : 8));
-      // debris physics
+      // debris physics — tumbling scoops rain onto the counter, bounce, and rest
+      const floorY = groundY() - BLOCK_H;
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
-        d.wy += d.vy * dt;
-        d.x += d.vx * dt;
-        d.vy += 1800 * dt;
-        d.rot += d.vr * dt;
-        d.life -= dt;
-        if (d.life <= 0 || d.wy - camY > H + 120) debris.splice(i, 1);
+        if (d.resting) {
+          d.life -= dt * 0.7;
+        } else {
+          d.wy += d.vy * dt;
+          d.x += d.vx * dt;
+          d.vy += 1800 * dt;
+          d.rot += d.vr * dt;
+          d.life -= dt;
+          if (d.wy >= floorY && d.vy > 0) {
+            d.wy = floorY;
+            if (Math.abs(d.vy) > 220) {
+              d.vy *= -0.35;
+              d.vx *= 0.6;
+              d.vr *= 0.5;
+              tone(150, 0.06, 'sine', 0.05);
+            } else {
+              d.vy = 0; d.vx = 0; d.vr = 0;
+              d.resting = true;
+            }
+          }
+        }
+        if (d.life <= 0 || d.wy - camY > H + 160) debris.splice(i, 1);
       }
       for (let i = popups.length - 1; i >= 0; i--) {
         popups[i].wy -= 60 * dt;
