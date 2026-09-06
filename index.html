@@ -1,32 +1,142 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixll — Play Fun Free Games!</title>
+  <meta name="description" content="Pixll arcade by Katelyn: 15 free mini-games — merge fruits, platform rush, voxel builder and more. No downloads, just play!">
+  <link rel="icon" type="image/png" href="pixll-logo.png">
+  <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <div class="pixll-logo-flex">
-    <img src="pixll-logo.png" alt="Pixll Logo" class="pixll-logo-img">
-    <div class="pixll-logo-text">Pixll</div>
+<body class="home">
+  <div class="bg-decor" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+    <span class="pixels"></span>
   </div>
-  <div class="button-container">
-    <a href="birthday-card.html" class="button">Avery's Birthday Card</a>
-    <a href="games/io-game-singleplayer.html" class="button">Doto.io</a>
-    <a href="games/merge-fruits.html" class="button">Merge Fruits</a>
-    <a href="games/platform-rush.html" class="button">Platform Rush</a>
-    <a href="games/turtle-dash.html" class="button">Turtle Dash</a>
-    <a href="games/guess-the-number.html" class="button">Guess the Number</a>
-    <a href="games/rock-paper-scissors.html" class="button">Rock Paper Scissors</a>
-    <a href="games/whack-a-mole.html" class="button">Whack a Mole</a>
-    <a href="games/memory-match.html" class="button">Memory Match</a>
-    <a href="games/tic-tac-toe.html" class="button">Tic Tac Toe</a>
-    <a href="games/color-match.html" class="button">Color Match</a>
-    <a href="games/bubble-pop.html" class="button">Bubble Pop</a>
-    <a href="games/reaction-time.html" class="button">Reaction Time Test</a>
-    <a href="games/word-scramble.html" class="button">Word Scramble</a>
-    <a href="games/maze-escape.html" class="button">Maze Escape</a>
-    <a href="games/voxel-builder.html" class="button">Voxel Builder</a>
-  </div>
-  <h1>Katelyn's Homepage</h1>
+
+  <header class="hero">
+    <div class="pixll-logo-flex">
+      <img src="pixll-logo.png" alt="Pixll Logo" class="pixll-logo-img">
+      <div class="pixll-logo-text">Pixll</div>
+    </div>
+    <p class="tagline">A tiny arcade packed with big fun — pick a game and jump in!</p>
+    <div class="hero-pills">
+      <span class="pill">🎮 15 Games</span>
+      <span class="pill">✨ Free Forever</span>
+      <span class="pill">📱 No Download</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <a href="birthday-card.html" class="featured-card">
+      <span class="featured-emoji">🎂</span>
+      <span class="featured-text">
+        <strong>Avery's Birthday Card</strong>
+        <small>A special surprise — click to open! 💌</small>
+      </span>
+      <span class="featured-arrow" aria-hidden="true">→</span>
+    </a>
+
+    <h2 class="section-title">Choose your game</h2>
+
+    <div class="games-grid">
+      <a href="games/io-game-singleplayer.html" class="game-card">
+        <span class="game-emoji">🟢</span>
+        <span class="game-title">Doto.io</span>
+        <span class="game-desc">Eat dots, dodge bigger blobs, survive!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/merge-fruits.html" class="game-card">
+        <span class="game-emoji">🍉</span>
+        <span class="game-title">Merge Fruits</span>
+        <span class="game-desc">Combine fruits to grow a watermelon!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/platform-rush.html" class="game-card">
+        <span class="game-emoji">🏃</span>
+        <span class="game-title">Platform Rush</span>
+        <span class="game-desc">Run, jump and race to the finish!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/turtle-dash.html" class="game-card">
+        <span class="game-emoji">🐢</span>
+        <span class="game-title">Turtle Dash</span>
+        <span class="game-desc">Slow and steady wins the race!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/voxel-builder.html" class="game-card">
+        <span class="game-emoji">🧱</span>
+        <span class="game-title">Voxel Builder</span>
+        <span class="game-desc">Build anything block by block!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/maze-escape.html" class="game-card">
+        <span class="game-emoji">🌀</span>
+        <span class="game-title">Maze Escape</span>
+        <span class="game-desc">Find your way out of the twisty maze!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/memory-match.html" class="game-card">
+        <span class="game-emoji">🃏</span>
+        <span class="game-title">Memory Match</span>
+        <span class="game-desc">Flip cards and match the pairs!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/whack-a-mole.html" class="game-card">
+        <span class="game-emoji">🔨</span>
+        <span class="game-title">Whack a Mole</span>
+        <span class="game-desc">How fast can you bonk 'em?</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/bubble-pop.html" class="game-card">
+        <span class="game-emoji">🫧</span>
+        <span class="game-title">Bubble Pop</span>
+        <span class="game-desc">Satisfying popping frenzy!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/color-match.html" class="game-card">
+        <span class="game-emoji">🎨</span>
+        <span class="game-title">Color Match</span>
+        <span class="game-desc">Test your eyes and speed!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/tic-tac-toe.html" class="game-card">
+        <span class="game-emoji">⭕</span>
+        <span class="game-title">Tic Tac Toe</span>
+        <span class="game-desc">Classic X's and O's showdown!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/rock-paper-scissors.html" class="game-card">
+        <span class="game-emoji">✂️</span>
+        <span class="game-title">Rock Paper Scissors</span>
+        <span class="game-desc">Best of luck — choose wisely!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/guess-the-number.html" class="game-card">
+        <span class="game-emoji">🔢</span>
+        <span class="game-title">Guess the Number</span>
+        <span class="game-desc">Can you read the computer's mind?</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/reaction-time.html" class="game-card">
+        <span class="game-emoji">⚡</span>
+        <span class="game-title">Reaction Time Test</span>
+        <span class="game-desc">How lightning-fast are you?</span>
+        <span class="play-hint">Play →</span>
+      </a>
+      <a href="games/word-scramble.html" class="game-card">
+        <span class="game-emoji">🔤</span>
+        <span class="game-title">Word Scramble</span>
+        <span class="game-desc">Unscramble the letters to win!</span>
+        <span class="play-hint">Play →</span>
+      </a>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>💜 Katelyn's Homepage • Made for fun on <strong>Pixll</strong></p>
+  </footer>
 </body>
 </html>
