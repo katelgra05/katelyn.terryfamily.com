@@ -371,14 +371,14 @@
       const offset = scoopCX - prevCX;
       const gain = cur.cherry ? 2 : 1;
       if (Math.abs(offset) <= PERFECT_TOL) {
-        // stacked! cherry catch lands a golden scoop and counts double
-        blocks.push({ dx: scoopCX - coneX, w: cur.w, fl: cur.fl });
+        // stacked! a caught cherry stays a cherry, worth double
+        blocks.push({ dx: scoopCX - coneX, w: cur.w, fl: cur.fl, cherry: cur.cherry });
         cur = null;
         popups.push({ x: scoopCX, wy: topWorldY(), text: gain === 2 ? '+2 🍒' : '✨ Perfect!', life: 1 });
         sndPerfect();
       } else if (overlap > MIN_OVERLAP) {
         // on there, slightly crooked — stays up!
-        blocks.push({ dx: scoopCX - coneX, w: cur.w, fl: cur.fl });
+        blocks.push({ dx: scoopCX - coneX, w: cur.w, fl: cur.fl, cherry: cur.cherry });
         cur = null;
         popups.push({ x: scoopCX, wy: topWorldY(), text: gain === 2 ? '+2 🍒' : '+1 🍨', life: 1 });
         sndPlace();
@@ -903,13 +903,18 @@
           ctx.stroke();
         }
       }
-      // stacked scoops ride on the cone (bottom-up)
+      // stacked scoops ride on the cone (bottom-up); caught cherries stay cherries!
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         const wy = groundY() - (i + 1) * BLOCK_H;
         const sy = toSY(wy);
         if (sy > H + 80 || sy + BLOCK_H < -160) continue;
-        drawScoop(coneX + b.dx - b.w / 2, sy, b.w, b.fl, i === blocks.length - 1 && !cur);
+        const bx = coneX + b.dx - b.w / 2;
+        if (b.cherry) {
+          drawCherry(bx + b.w / 2, sy + BLOCK_H / 2, b.w * 0.3);
+        } else {
+          drawScoop(bx, sy, b.w, b.fl, i === blocks.length - 1 && !cur);
+        }
       }
       // falling cherry or scoop, heading for the top scoop
       if (cur && !over) {
