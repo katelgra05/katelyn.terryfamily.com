@@ -28,6 +28,56 @@
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0,0,0,0.2); /* Increased shadow */
         }
+        .diff-row {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .diff-btn {
+            padding: 10px 16px !important;
+            font-size: 16px !important;
+            margin: 4px !important;
+            border: 3px solid transparent !important;
+        }
+        .diff-btn.sel {
+            border-color: #11998e !important;
+        }
+        #rangeBar {
+            position: relative;
+            height: 16px;
+            background: #e5e7eb;
+            border-radius: 999px;
+            margin: 4px 10px 10px;
+            overflow: hidden;
+        }
+        #rangeFill {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, #43e97b, #38f9d7);
+            border-radius: 999px;
+        }
+        #guessMarker {
+            position: absolute;
+            top: -2px;
+            width: 4px;
+            height: 20px;
+            background: #ef4444;
+            border-radius: 2px;
+        }
+        #history {
+            max-height: 130px;
+            overflow-y: auto;
+            margin: 6px auto;
+            max-width: 320px;
+            font-size: 17px;
+        }
+        #bestLine {
+            font-weight: bold;
+            color: #7c3aed;
+        }
         input {
             padding: 15px; /* Increased padding */
             font-size: 20px; /* Increased font size */
@@ -63,46 +113,150 @@
     </header>
     <div class="game-container" style="width:100%;">
         <h1>🌌 Guess the Number! 🌌</h1>
-        <p>I'm thinking of a number between 1 and 100...</p>
+        <div class="diff-row">
+            <button class="diff-btn sel" id="diffEasy" onclick="setDiff('easy')">😌 1–50</button>
+            <button class="diff-btn" id="diffClassic" onclick="setDiff('classic')">🌟 1–100</button>
+            <button class="diff-btn" id="diffHard" onclick="setDiff('hard')">🔥 1–500</button>
+            <button class="diff-btn" id="muteBtn" onclick="toggleMute()" title="Sound on/off">🔊</button>
+        </div>
+        <p id="bestLine">🏆 Best: —</p>
+        <p>I'm thinking of a number between 1 and <span id="maxNum">50</span>...</p>
         <p>You have <span id="attempts">10</span> attempts left!</p>
-        
+        <p id="rangeLine">🔍 Between 1 and 50</p>
+        <div id="rangeBar"><div id="rangeFill"></div><div id="guessMarker" style="display:none;"></div></div>
+
         <input type="number" id="guessInput" min="1" max="100">
         <button onclick="checkGuess()">Submit Guess</button>
-        
+
         <p id="message"></p>
+        <div id="history"></div>
         <button onclick="resetGame()" id="resetButton" style="display: none;">Play Again</button>
     </div>
     </div>
 
     <script>
-        let secretNumber = Math.floor(Math.random() * 100) + 1;
+        const DIFFS = {
+            easy: { max: 50, tries: 10 },
+            classic: { max: 100, tries: 10 },
+            hard: { max: 500, tries: 12 }
+        };
+        let diff = 'easy';
+        let secretNumber = 1;
         let attempts = 10;
+        let guessesMade = 0;
+        let low = 1, high = 50;
         let gameOver = false;
+        let gnMuted = false;
+        try { gnMuted = localStorage.getItem('gn_muted') === '1'; } catch (e) {}
+
+        // ---- tiny synth sounds ----
+        let gnAudio = null;
+        function gnTone(freq, dur, type, vol, delay) {
+            if (gnMuted) return;
+            try {
+                if (!gnAudio) gnAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = gnAudio.currentTime + (delay || 0);
+                const osc = gnAudio.createOscillator();
+                const gain = gnAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(gnAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function toggleMute() {
+            gnMuted = !gnMuted;
+            try { localStorage.setItem('gn_muted', gnMuted ? '1' : '0'); } catch (e) {}
+            document.getElementById('muteBtn').textContent = gnMuted ? '🔇' : '🔊';
+        }
+        function bestKey() { return 'gn_best_' + diff; }
+        function renderBest() {
+            let best = 0;
+            try { best = parseInt(localStorage.getItem(bestKey())) || 0; } catch (e) {}
+            document.getElementById('bestLine').textContent =
+                best ? `🏆 Best: ${best} guess${best === 1 ? '' : 'es'}` : '🏆 Best: —';
+        }
+        function renderRange() {
+            const max = DIFFS[diff].max;
+            document.getElementById('rangeLine').textContent = `🔍 Between ${low} and ${high}`;
+            const fill = document.getElementById('rangeFill');
+            fill.style.left = ((low - 1) / max * 100) + '%';
+            fill.style.width = ((high - low + 1) / max * 100) + '%';
+        }
+        function markGuess(guess) {
+            const max = DIFFS[diff].max;
+            const marker = document.getElementById('guessMarker');
+            marker.style.display = 'block';
+            marker.style.left = `calc(${(guess - 1) / max * 100}% - 2px)`;
+        }
+        function addHistory(guess, hint) {
+            const div = document.createElement('div');
+            div.textContent = `${guess} ${hint}`;
+            const hist = document.getElementById('history');
+            hist.prepend(div);
+        }
+
+        function setDiff(d) {
+            diff = d;
+            ['easy', 'classic', 'hard'].forEach(l => {
+                document.getElementById('diff' + l[0].toUpperCase() + l.slice(1))
+                    .classList.toggle('sel', l === d);
+            });
+            document.getElementById('maxNum').textContent = DIFFS[d].max;
+            document.getElementById('guessInput').max = DIFFS[d].max;
+            resetGame();
+        }
 
         function checkGuess() {
             if (gameOver) return;
-            
+            const max = DIFFS[diff].max;
             let guess = parseInt(document.getElementById('guessInput').value);
             let messageElement = document.getElementById('message');
-            
-            if (isNaN(guess) || guess < 1 || guess > 100) {
-                messageElement.innerHTML = "Please enter a valid number between 1 and 100!";
+
+            if (isNaN(guess) || guess < 1 || guess > max) {
+                messageElement.innerHTML = `Please enter a valid number between 1 and ${max}!`;
                 return;
             }
 
             attempts--;
+            guessesMade++;
             document.getElementById('attempts').textContent = attempts;
+            markGuess(guess);
 
             if (guess === secretNumber) {
-                messageElement.innerHTML = `🎉 Congratulations! You got it! The number was ${secretNumber}!`;
+                let best = 0;
+                try { best = parseInt(localStorage.getItem(bestKey())) || 0; } catch (e) {}
+                let extra = '';
+                if (!best || guessesMade < best) {
+                    try { localStorage.setItem(bestKey(), String(guessesMade)); } catch (e) {}
+                    extra = ' 🏆 New best!';
+                }
+                renderBest();
+                addHistory(guess, '🎯 Got it!');
+                messageElement.innerHTML = `🎉 Congratulations! You got it in ${guessesMade} guess${guessesMade === 1 ? '' : 'es'}!${extra}`;
+                gnTone(523, 0.12, 'triangle', 0.11);
+                gnTone(784, 0.2, 'triangle', 0.11, 0.1);
                 endGame();
             } else if (attempts === 0) {
                 messageElement.innerHTML = `😢 Game Over! The number was ${secretNumber}`;
+                gnTone(280, 0.25, 'sawtooth', 0.08);
                 endGame();
             } else if (guess < secretNumber) {
-                messageElement.innerHTML = "📈 Too low!";
+                low = Math.max(low, guess + 1);
+                messageElement.innerHTML = '📈 Too low! Go higher!';
+                gnTone(330, 0.1, 'triangle', 0.09);
+                addHistory(guess, '📈 low');
+                renderRange();
             } else {
-                messageElement.innerHTML = "📉 Too high!";
+                high = Math.min(high, guess - 1);
+                messageElement.innerHTML = '📉 Too high! Go lower!';
+                gnTone(440, 0.1, 'triangle', 0.09);
+                addHistory(guess, '📉 high');
+                renderRange();
             }
         }
 
@@ -112,14 +266,27 @@
         }
 
         function resetGame() {
-            secretNumber = Math.floor(Math.random() * 100) + 1;
-            attempts = 10;
+            secretNumber = Math.floor(Math.random() * DIFFS[diff].max) + 1;
+            attempts = DIFFS[diff].tries;
+            guessesMade = 0;
+            low = 1;
+            high = DIFFS[diff].max;
             gameOver = false;
             document.getElementById('attempts').textContent = attempts;
-            document.getElementById('message').innerHTML = "";
-            document.getElementById('guessInput').value = "";
+            document.getElementById('message').innerHTML = '';
+            document.getElementById('guessInput').value = '';
+            document.getElementById('history').innerHTML = '';
+            document.getElementById('guessMarker').style.display = 'none';
             document.getElementById('resetButton').style.display = 'none';
+            renderBest();
+            renderRange();
         }
+
+        document.getElementById('guessInput').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') checkGuess();
+        });
+        document.getElementById('muteBtn').textContent = gnMuted ? '🔇' : '🔊';
+        resetGame();
     </script>
 </body>
 </html>
