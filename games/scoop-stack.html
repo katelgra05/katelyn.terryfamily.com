@@ -219,8 +219,8 @@
 
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
-    let blocks = [], cur = null, debris = [], popups = [];
-    let level = 0, best = 0, lean = 0, coneX = 0, viewS = 1;
+    let blocks = [], cur = null, debris = [], popups = [], splats = [];
+    let level = 0, best = 0, lean = 0, coneX = 0, camY = 0;
     let dragging = false, lastPX = 0;
     const keys = { left: false, right: false };
     let muted = false;
@@ -310,6 +310,8 @@
       coneX = W / 2;
       debris = [];
       popups = [];
+      splats = [];
+      camY = topWorldY() - H * 0.42;
       over = false;
       running = true;
       startScreen.style.display = 'none';
@@ -341,9 +343,9 @@
       const b0 = prevCX - prev.w / 2, b1 = prevCX + prev.w / 2;
       const overlap = Math.min(a1, b1) - Math.max(a0, b0);
       if (overlap <= 0) {
-        // missed the stack — the scoop splats on the counter
+        // missed the stack — the scoop keeps falling to the counter. SPLAT!
         const side = scoopCX >= prevCX ? 1 : -1;
-        debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: side * 220, vy: -160, rot: 0, vr: side * 4, life: 1.4 });
+        debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: side * 90, vy: 260, rot: 0, vr: side * 5, life: 3 });
         cur = null;
         sndFall();
         gameOver('miss');
@@ -385,7 +387,7 @@
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         debris.push({
-          x: coneX + b.dx - b.w / 2, w: b.w, lvl: b.lvl,
+          x: coneX + b.dx - b.w / 2, w: b.w, lvl: b.lvl, noSplat: true,
           wy: groundY() - (i + 1) * BLOCK_H,
           vx: dir * (120 + Math.random() * 140), vy: -60 - i * 34,
           rot: 0, vr: dir * (2 + Math.random() * 3), life: 1.8
@@ -423,9 +425,9 @@
     // ============ update ============
     function update(dt) {
       if (!over) {
-        // the cone (and its whole stack) slides with drag / arrow keys
-        if (keys.left) coneX -= KEY_SPEED * dt / viewS;
-        if (keys.right) coneX += KEY_SPEED * dt / viewS;
+        // slide the cone (it may leave the screen as the tower climbs!)
+        if (keys.left) coneX -= KEY_SPEED * dt;
+        if (keys.right) coneX += KEY_SPEED * dt;
         clampCone();
       }
       if (cur && !over) {
@@ -437,6 +439,9 @@
           drop();
         }
       }
+      // camera scrolls up with the tower like someone scrolling
+      const target = topWorldY() - H * 0.42;
+      camY += (target - camY) * Math.min(1, dt * 4);
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
@@ -445,7 +450,19 @@
         d.vy += 1800 * dt;
         d.rot += d.vr * dt;
         d.life -= dt;
-        if (d.life <= 0 || d.wy > groundY() + H) debris.splice(i, 1);
+        if (!d.noSplat && d.vy > 0 && d.wy + BLOCK_H >= groundY()) {
+          // missed scoop hits the counter — SPLAT!
+          splats.push({ x: d.x + d.w / 2, w: d.w, lvl: d.lvl, life: 2 });
+          popups.push({ x: d.x + d.w / 2, wy: groundY() - 30, text: '💦 Splat!', life: 1 });
+          if (splats.length > 12) splats.splice(0, splats.length - 12);
+          debris.splice(i, 1);
+          continue;
+        }
+        if (d.life <= 0 || d.wy - camY > H + 120) debris.splice(i, 1);
+      }
+      for (let i = splats.length - 1; i >= 0; i--) {
+        splats[i].life -= dt;
+        if (splats[i].life <= 0) splats.splice(i, 1);
       }
       for (let i = popups.length - 1; i >= 0; i--) {
         popups[i].wy -= 60 * dt;
@@ -532,60 +549,158 @@
 
     function draw(now) {
       const t = now / 1000;
-      // ice cream shop walls
-      const wall = ctx.createLinearGradient(0, 0, 0, H);
-      wall.addColorStop(0, '#fff7fb');
-      wall.addColorStop(0.7, '#ffe4f1');
-      wall.addColorStop(1, '#f3d9ff');
-      ctx.fillStyle = wall;
+      const toSY = wy => wy - camY;
+      const gy = groundY(), gyS = toSY(gy);
+      // sky base layer (revealed as the tower climbs out of the shop)
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#5db9f5');
+      sky.addColorStop(0.65, '#a8dcff');
+      sky.addColorStop(1, '#fff3d6');
+      ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
-      // polka dots on the wall
-      const rnd = srand(42);
-      ctx.fillStyle = 'rgba(192, 132, 252, 0.16)';
-      for (let i = 0; i < 30; i++) {
-        const dx = rnd() * W, dy = rnd() * H * 0.7;
-        ctx.beginPath();
-        ctx.arc(dx, dy, 5 + rnd() * 7, 0, Math.PI * 2);
-        ctx.fill();
+      // sun, high in the sky (world position — scrolls by gradually)
+      {
+        const sunS = toSY(gy - 2650);
+        if (sunS > -120 && sunS < H + 120) {
+          const sunX = W * 0.8, sunR = 30;
+          const gl = ctx.createRadialGradient(sunX, sunS, 4, sunX, sunS, 90);
+          gl.addColorStop(0, 'rgba(255, 230, 160, 0.9)');
+          gl.addColorStop(1, 'rgba(255, 230, 160, 0)');
+          ctx.fillStyle = gl;
+          ctx.beginPath(); ctx.arc(sunX, sunS, 90, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffedb8';
+          ctx.beginPath(); ctx.arc(sunX, sunS, sunR, 0, Math.PI * 2); ctx.fill();
+        }
       }
-      // striped awning across the top
-      const awH = Math.max(46, H * 0.07);
-      const stripes = Math.ceil(W / 44);
-      for (let i = 0; i < stripes; i++) {
-        ctx.fillStyle = i % 2 === 0 ? '#ff8ab5' : '#ffffff';
-        ctx.fillRect(i * 44, 0, 44, awH);
-        ctx.beginPath();
-        ctx.arc(i * 44 + 22, awH, 22, 0, Math.PI);
-        ctx.fill();
+      // drifting clouds up in the sky (world positions)
+      {
+        const rndc = srand(7);
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        for (let i = 0; i < 6; i++) {
+          const wy = gy - 1500 - rndc() * 1900;
+          const sy = toSY(wy);
+          if (sy < -60 || sy > H + 60) continue;
+          const span = W + 260;
+          const cxp = ((rndc() * span + t * (8 + i * 2)) % span) - 130;
+          const s = 0.7 + (i % 3) * 0.3;
+          ctx.beginPath();
+          ctx.arc(cxp, sy, 24 * s, 0, Math.PI * 2);
+          ctx.arc(cxp + 24 * s, sy + 4 * s, 18 * s, 0, Math.PI * 2);
+          ctx.arc(cxp - 24 * s, sy + 5 * s, 16 * s, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-      ctx.fillStyle = 'rgba(224, 85, 154, 0.9)';
-      ctx.fillRect(0, awH - 4, W, 5);
-      // bunting flags
-      const flagColors = ['#ff8ab5', '#ffd94d', '#9ff0c8', '#7cc4ff', '#c084fc'];
-      const sagY = bx => awH + 26 + Math.sin((bx / W) * Math.PI) * 14;
-      ctx.strokeStyle = 'rgba(150, 90, 140, 0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, awH + 26);
-      ctx.quadraticCurveTo(W / 2, awH + 62, W, awH + 26);
-      ctx.stroke();
-      for (let i = 0; i < 9; i++) {
-        const fx = W * (0.06 + 0.88 * (i / 8));
-        ctx.fillStyle = flagColors[i % flagColors.length];
-        ctx.beginPath();
-        ctx.moveTo(fx - 9, sagY(fx));
-        ctx.lineTo(fx + 9, sagY(fx));
-        ctx.lineTo(fx, sagY(fx) + 16);
-        ctx.closePath();
-        ctx.fill();
+      // brown board wall climbing into the sky (world band)
+      {
+        const yTop = gy - 2300, yBot = gy - 1000;
+        const sTop = toSY(yTop), sBot = toSY(yBot);
+        if (sBot > -60 && sTop < H + 60) {
+          ctx.fillStyle = '#8B5E34';
+          ctx.fillRect(0, sTop, W, sBot - sTop);
+          for (let x = 0; x < W; x += 46) {
+            ctx.fillStyle = (x / 46) % 2 === 0 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.07)';
+            ctx.fillRect(x, sTop, 46, sBot - sTop);
+            ctx.fillStyle = 'rgba(60,35,15,0.8)';
+            ctx.fillRect(x, sTop, 2, sBot - sTop);
+          }
+          ctx.fillStyle = '#6f4423';
+          ctx.fillRect(0, sTop, W, 14);
+          ctx.fillRect(0, sBot - 14, W, 14);
+          ctx.fillStyle = 'rgba(255,255,255,0.25)';
+          for (let x = 23; x < W; x += 92) {
+            ctx.beginPath(); ctx.arc(x, sTop + 40, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x, sBot - 40, 3, 0, Math.PI * 2); ctx.fill();
+          }
+        }
       }
-      // hanging pendant lamps with warm glow
+      // ceiling with beams (world band between shop and boards)
+      {
+        const yTop = gy - 1000, yBot = gy - 880;
+        const sTop = toSY(yTop), sBot = toSY(yBot);
+        if (sBot > -40 && sTop < H + 40) {
+          ctx.fillStyle = '#fff7fb';
+          ctx.fillRect(0, sTop, W, sBot - sTop);
+          ctx.fillStyle = '#a06a3b';
+          for (let x = 10; x < W; x += 90) {
+            ctx.fillRect(x, sTop, 26, sBot - sTop);
+          }
+          ctx.fillStyle = '#e0559a';
+          ctx.fillRect(0, sBot - 6, W, 6);
+        }
+      }
+      // shop walls (world band around the counter)
+      {
+        const yTop = gy - 880, yBot = gy + 400;
+        const sTop = toSY(yTop), sBot = toSY(yBot);
+        if (sBot > -40 && sTop < H + 40) {
+          const wall = ctx.createLinearGradient(0, sTop, 0, sBot);
+          wall.addColorStop(0, '#fff7fb');
+          wall.addColorStop(1, '#ffd9e8');
+          ctx.fillStyle = wall;
+          ctx.fillRect(0, sTop, W, sBot - sTop);
+          const rnd = srand(42);
+          ctx.fillStyle = 'rgba(192, 132, 252, 0.16)';
+          for (let i = 0; i < 30; i++) {
+            const dx = rnd() * W, dy = rnd() * 880;
+            const sy = toSY(gy - dy);
+            if (sy < sTop - 20 || sy > sBot + 20) continue;
+            ctx.beginPath();
+            ctx.arc(dx, sy, 5 + rnd() * 7, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      // striped awning at the top of the shop wall (world position)
+      {
+        const y0 = toSY(gy - 880);
+        const awH = 52;
+        if (y0 + awH > -40 && y0 < H + 40) {
+          const stripes = Math.ceil(W / 44);
+          for (let i = 0; i < stripes; i++) {
+            ctx.fillStyle = i % 2 === 0 ? '#ff8ab5' : '#ffffff';
+            ctx.fillRect(i * 44, y0, 44, awH);
+            ctx.beginPath();
+            ctx.arc(i * 44 + 22, y0 + awH, 22, 0, Math.PI);
+            ctx.fill();
+          }
+          ctx.fillStyle = 'rgba(224, 85, 154, 0.9)';
+          ctx.fillRect(0, y0 + awH - 4, W, 5);
+        }
+      }
+      // bunting flags below the awning (world position)
+      {
+        const yBase = toSY(gy - 800);
+        if (yBase > -60 && yBase < H + 60) {
+          const flagColors = ['#ff8ab5', '#ffd94d', '#9ff0c8', '#7cc4ff', '#c084fc'];
+          const sagY = bx => yBase + 26 + Math.sin((bx / W) * Math.PI) * 14;
+          ctx.strokeStyle = 'rgba(150, 90, 140, 0.7)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, yBase + 26);
+          ctx.quadraticCurveTo(W / 2, yBase + 62, W, yBase + 26);
+          ctx.stroke();
+          for (let i = 0; i < 9; i++) {
+            const fx = W * (0.06 + 0.88 * (i / 8));
+            ctx.fillStyle = flagColors[i % flagColors.length];
+            ctx.beginPath();
+            ctx.moveTo(fx - 9, sagY(fx));
+            ctx.lineTo(fx + 9, sagY(fx));
+            ctx.lineTo(fx, sagY(fx) + 16);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+      }
+      // hanging pendant lamps (world position)
       [0.22, 0.78].forEach((fx, i) => {
-        const lx = W * fx, ly = awH + 34 + Math.sin(t * 1.2 + i * 2) * 2;
+        const ly = toSY(gy - 620) + Math.sin(t * 1.2 + i * 2) * 2;
+        const lx = W * fx;
+        if (ly < -80 || ly > H + 80) return;
+        const topAnchor = toSY(gy - 880);
         ctx.strokeStyle = 'rgba(120, 80, 110, 0.8)';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(lx, awH);
+        ctx.moveTo(lx, Math.max(topAnchor, ly - 260));
         ctx.lineTo(lx, ly);
         ctx.stroke();
         const lg = ctx.createRadialGradient(lx, ly + 12, 2, lx, ly + 12, 44);
@@ -608,27 +723,20 @@
         ctx.arc(lx, ly + 20, 6, 0, Math.PI * 2);
         ctx.fill();
       });
-      // zoom out as the tower grows so the cone always stays visible
-      const needH = blocks.length * BLOCK_H + 74 + 360;
-      viewS = Math.min(1, (H * 0.94) / needH);
-      ctx.save();
-      ctx.setTransform(viewS, 0, 0, viewS, W / 2 - coneX * viewS, H * 0.94 - groundY() * viewS);
       // shop counter
-      const gy = groundY();
-      const halfV = W / (2 * viewS) + 60;
       ctx.fillStyle = '#f9b8d4';
-      ctx.fillRect(coneX - halfV, gy, halfV * 2, H / viewS);
+      ctx.fillRect(0, gyS, W, H - gyS + 60);
       ctx.fillStyle = '#ffffff';
-      for (let x = coneX - halfV; x < coneX + halfV; x += 48) {
-        ctx.fillRect(x, gy, 24, H / viewS);
+      for (let x = 0; x < W; x += 48) {
+        ctx.fillRect(x, gyS, 24, Math.max(0, H - gyS + 60));
       }
       ctx.fillStyle = '#e0559a';
-      ctx.fillRect(coneX - halfV, gy, halfV * 2, 8);
-      // cone (this is what you move!)
+      ctx.fillRect(0, gyS, W, 8);
+      // cone (this is what you move — it can leave the screen as you climb!)
       {
         const cw = baseWidth();
         const cxp = coneX;
-        const topY = groundY();
+        const topY = gyS;
         ctx.fillStyle = '#d9a066';
         ctx.beginPath();
         ctx.moveTo(cxp - cw * 0.32, topY);
@@ -655,43 +763,61 @@
       const leanRatio = Math.max(-1, Math.min(1, lean / maxLean()));
       const sway = leanRatio * 0.09 + Math.sin(t * 4) * 0.012 * Math.abs(leanRatio);
       ctx.save();
-      ctx.translate(coneX, groundY());
+      ctx.translate(coneX, gyS);
       ctx.rotate(sway);
-      ctx.translate(-coneX, -groundY());
+      ctx.translate(-coneX, -gyS);
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         const wy = groundY() - (i + 1) * BLOCK_H;
-        drawScoop(coneX + b.dx - b.w / 2, wy, b.w, b.lvl, i === blocks.length - 1 && !cur);
+        const sy = toSY(wy);
+        if (sy > H + 80 || sy + BLOCK_H < -160) continue;
+        drawScoop(coneX + b.dx - b.w / 2, sy, b.w, b.lvl, i === blocks.length - 1 && !cur);
       }
       ctx.restore();
       // falling scoop
       if (cur && !over) {
-        drawScoop(cur.x, cur.wy, cur.w, cur.lvl, true);
+        drawScoop(cur.x, toSY(cur.wy), cur.w, cur.lvl, true);
       }
       // falling debris
       debris.forEach(d => {
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, d.life));
-        ctx.translate(d.x + d.w / 2, d.wy + BLOCK_H / 2);
+        ctx.translate(d.x + d.w / 2, toSY(d.wy) + BLOCK_H / 2);
         ctx.rotate(d.rot);
         drawScoop(-d.w / 2, -BLOCK_H / 2, d.w, d.lvl, false);
         ctx.restore();
+      });
+      ctx.globalAlpha = 1;
+      // splat marks on the counter
+      splats.forEach(s => {
+        const f = flavorFor(s.lvl);
+        ctx.globalAlpha = Math.max(0, Math.min(1, s.life / 2));
+        ctx.fillStyle = f.c;
+        ctx.beginPath();
+        ctx.ellipse(s.x, gyS + 8, s.w * 0.45, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.stroke();
+        ctx.fillStyle = f.d;
+        ctx.beginPath();
+        ctx.arc(s.x - s.w * 0.2, gyS + 6, 4, 0, Math.PI * 2);
+        ctx.arc(s.x + s.w * 0.15, gyS + 10, 3, 0, Math.PI * 2);
+        ctx.fill();
       });
       ctx.globalAlpha = 1;
       // popups
       ctx.textAlign = 'center';
       popups.forEach(p => {
         ctx.globalAlpha = Math.min(1, p.life * 2);
-        ctx.font = `900 ${24 / viewS}px 'Segoe UI', Arial, sans-serif`;
-        ctx.lineWidth = 4 / viewS;
+        ctx.font = `900 24px 'Segoe UI', Arial, sans-serif`;
+        ctx.lineWidth = 4;
         ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-        ctx.strokeText(p.text, p.x, p.wy);
+        ctx.strokeText(p.text, p.x, toSY(p.wy));
         ctx.fillStyle = '#ffd94d';
-        ctx.fillText(p.text, p.x, p.wy);
+        ctx.fillText(p.text, p.x, toSY(p.wy));
       });
       ctx.globalAlpha = 1;
-      ctx.restore();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
       // balance meter (only while stacking)
       if ((running || !over) && blocks.length > 0) {
         const bw = Math.min(200, W * 0.44), bx = W / 2 - bw / 2, by = 112;
@@ -735,7 +861,7 @@
         y: (e.clientY - rect.top) * canvas.height / rect.height
       };
     }
-    // screen pixels -> world pixels (the view zooms out as the tower grows)
+    // screen pixels match world pixels — drag slides the cone 1:1
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       ensureAudio();
@@ -747,7 +873,7 @@
     canvas.addEventListener('pointermove', (e) => {
       if (!running || over || !dragging) return;
       const sx = canvasPos(e).x;
-      coneX += (sx - lastPX) / viewS;
+      coneX += (sx - lastPX);
       lastPX = sx;
       clampCone();
     });
@@ -779,6 +905,7 @@
       const w = baseWidth();
       blocks = [{ dx: 0, w, lvl: 0 }];
       coneX = W / 2;
+      camY = topWorldY() - H * 0.42;
       draw(performance.now());
     }
     window.addEventListener('pagehide', () => cancelAnimationFrame(rafId));
