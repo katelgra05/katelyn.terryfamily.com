@@ -51,6 +51,33 @@ a:not(.button):not(.game-card):not(.featured-card) {
 
 .hero, .container, .site-footer { position: relative; z-index: 1; }
 
+/* ---------- Corner family links ---------- */
+.corner-links {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+.corner-links a {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  color: #fff !important;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+.corner-links a:hover {
+  transform: scale(1.06);
+  background: rgba(255, 255, 255, 0.22);
+}
+
 /* ---------- Hero ---------- */
 .hero {
   text-align: center;
@@ -278,6 +305,8 @@ a:not(.button):not(.game-card):not(.featured-card) {
 
 /* ---------- Mobile ---------- */
 @media (max-width: 600px) {
+  .corner-links { top: 10px; right: 10px; }
+  .corner-links a { padding: 6px 12px; font-size: 12px; }
   .pixll-logo-text { font-size: 60px; }
   .pixll-logo-img { height: 62px; width: 62px; }
   .tagline { font-size: 17px; }
