@@ -340,10 +340,10 @@
       return groundY() - blocks.length * BLOCK_H;
     }
 
-    // camera drifts up from the very first scoop; then pins the tower top
-    // lower on screen (cone gets left behind) so high towers stay visible
+    // camera drifts up from the very first scoop, then parks the tower top
+    // low on screen so the background travels far behind it
     function camTarget() {
-      return Math.min(groundY() - (H - 170) - blocks.length * 10, topWorldY() - H * 0.35);
+      return Math.min(groundY() - (H - 170) - blocks.length * 18, topWorldY() - H * 0.55);
     }
 
     // falling scoop reaches the top scoop — catch it or drop everything!
@@ -453,7 +453,7 @@
       }
       // camera scrolls up with the tower like someone scrolling
       const target = camTarget();
-      camY += (target - camY) * Math.min(1, dt * 6);
+      camY += (target - camY) * Math.min(1, dt * 8);
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
