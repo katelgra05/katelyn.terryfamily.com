@@ -142,6 +142,20 @@
     }
     .icon-btn:hover { transform: scale(1.1); }
     .icon-btn.off { opacity: 0.55; }
+    .end-btn {
+      padding: 10px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: transform 0.15s ease;
+      font-family: inherit;
+    }
+    .end-btn:hover { transform: scale(1.06); }
     /* Cutesy round shop bar + side drawer */
     #shop-bar {
       position: absolute;
@@ -417,10 +431,10 @@
         <div class="best-card" id="best">🏆 0</div>
         <div class="icon-row">
           <button id="boardBtn" class="icon-btn" title="Leaderboard">🏆</button>
-          <button id="endBtn" class="icon-btn" title="End run">🏁</button>
           <button id="musicBtn" class="icon-btn" onclick="toggleMusic()" title="Music on/off">🎵</button>
           <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Sounds on/off">🔊</button>
         </div>
+        <button id="endBtn" class="end-btn" title="End run">🏁 End Game</button>
       </div>
     </div>
     <div id="startScreen">
