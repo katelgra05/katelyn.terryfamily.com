@@ -160,8 +160,8 @@ a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
 }
 
 .game-thumb {
-  width: 220px;
-  height: 132px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
   border-radius: 12px;
   margin-bottom: 12px;
@@ -312,7 +312,6 @@ a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
   .section-title { font-size: 23px; }
   .games-grid { flex-direction: column; align-items: center; }
   .game-card { width: 90vw; max-width: 98vw; }
-  .game-thumb { width: 100%; height: auto; aspect-ratio: 5 / 3; }
   .game-title { font-size: 16px; }
   .game-desc { font-size: 13px; min-height: 0; }
   .featured-text strong { font-size: 18px; }

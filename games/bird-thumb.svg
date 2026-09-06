@@ -1,35 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="440" height="264" viewBox="0 0 440 264">
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5db9f5"/>
-      <stop offset="0.6" stop-color="#a8dcff"/>
-      <stop offset="1" stop-color="#d8f3dc"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe4f1"/>
+      <stop offset="1" stop-color="#e9d5ff"/>
     </linearGradient>
-    <radialGradient id="body" cx="0.4" cy="0.35" r="0.9">
-      <stop offset="0" stop-color="#eaf7ff"/>
+    <radialGradient id="fluff" cx="0.4" cy="0.3" r="1">
+      <stop offset="0" stop-color="#d6ecff"/>
       <stop offset="0.55" stop-color="#7cc4ff"/>
       <stop offset="1" stop-color="#4a90d9"/>
     </radialGradient>
   </defs>
-  <rect width="440" height="264" rx="24" fill="url(#sky)"/>
-  <circle cx="370" cy="48" r="26" fill="#ffd54f"/>
-  <circle cx="370" cy="48" r="34" fill="none" stroke="#ffd54f" stroke-width="4" opacity="0.5"/>
-  <ellipse cx="90" cy="60" rx="34" ry="16" fill="#ffffff" opacity="0.92"/>
-  <ellipse cx="120" cy="64" rx="24" ry="13" fill="#ffffff" opacity="0.92"/>
-  <path d="M0 264 L0 210 Q110 180 220 205 T440 200 L440 264 Z" fill="#95d5b2"/>
-  <rect x="110" y="208" width="220" height="14" rx="7" fill="#7a4a21"/>
-  <ellipse cx="70" cy="216" rx="26" ry="14" fill="#40916c"/>
-  <ellipse cx="370" cy="214" rx="26" ry="14" fill="#40916c"/>
-  <ellipse cx="220" cy="150" rx="62" ry="63" fill="url(#body)"/>
-  <ellipse cx="232" cy="176" rx="34" ry="30" fill="#eaf7ff" opacity="0.85"/>
-  <ellipse cx="196" cy="152" rx="30" ry="18" fill="#4a90d9" transform="rotate(-20 196 152)"/>
-  <circle cx="244" cy="128" r="14" fill="#fff"/>
-  <circle cx="247" cy="128" r="6.5" fill="#1a1a2e"/>
-  <circle cx="249" cy="126" r="2.2" fill="#fff"/>
-  <path d="M266 138 L290 146 L266 156 Z" fill="#f4842c"/>
-  <path d="M196 88 L204 72 M212 86 L218 68 M228 86 L232 68" stroke="#4a90d9" stroke-width="5" stroke-linecap="round"/>
-  <g font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="900" fill="#ffffff" text-anchor="middle">
-    <text x="70" y="235">🪶</text>
-    <text x="370" y="120">✨</text>
+  <rect width="300" height="300" rx="36" fill="url(#bg)"/>
+  <g fill="#ffffff" opacity="0.7">
+    <circle cx="40" cy="52" r="7"/>
+    <circle cx="262" cy="44" r="9"/>
+    <circle cx="52" cy="248" r="8"/>
+    <circle cx="252" cy="252" r="7"/>
   </g>
+  <g fill="#ffd94d">
+    <path d="M70 96 l4 9 9 4 -9 4 -4 9 -4 -9 -9 -4 9 -4 Z"/>
+    <path d="M232 200 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3 Z"/>
+    <path d="M248 96 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5 Z"/>
+  </g>
+  <g fill="#ffb3e2" opacity="0.9">
+    <ellipse cx="70" cy="180" rx="10" ry="16" transform="rotate(-24 70 180)"/>
+    <ellipse cx="232" cy="150" rx="9" ry="14" transform="rotate(20 232 150)"/>
+  </g>
+  <ellipse cx="88" cy="232" rx="34" ry="12" fill="#000000" opacity="0.08"/>
+  <ellipse cx="150" cy="170" rx="72" ry="70" fill="url(#fluff)"/>
+  <ellipse cx="160" cy="200" rx="42" ry="36" fill="#eaf7ff" opacity="0.9"/>
+  <ellipse cx="106" cy="168" rx="26" ry="16" fill="#4a90d9" transform="rotate(-24 106 168)"/>
+  <ellipse cx="194" cy="168" rx="26" ry="16" fill="#4a90d9" transform="rotate(24 194 168)"/>
+  <path d="M132 100 L138 80 M150 98 L152 76 M168 100 L170 80" stroke="#4a90d9" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="128" cy="152" r="17" fill="#fff"/>
+  <circle cx="172" cy="152" r="17" fill="#fff"/>
+  <circle cx="130" cy="154" r="8" fill="#1a1a2e"/>
+  <circle cx="170" cy="154" r="8" fill="#1a1a2e"/>
+  <circle cx="133" cy="151" r="2.8" fill="#fff"/>
+  <circle cx="173" cy="151" r="2.8" fill="#fff"/>
+  <ellipse cx="112" cy="176" rx="10" ry="7" fill="#ff9eb5" opacity="0.85"/>
+  <ellipse cx="188" cy="176" rx="10" ry="7" fill="#ff9eb5" opacity="0.85"/>
+  <path d="M138 170 L162 170 L150 186 Z" fill="#f4842c"/>
+  <path d="M138 170 L162 170 L150 178 Z" fill="#ffab5e"/>
 </svg>
