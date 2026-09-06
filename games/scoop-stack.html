@@ -218,6 +218,7 @@
 
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
+    let endShown = false, endTimer = 0;
     let blocks = [], cur = null, debris = [], popups = [];
     let level = 0, best = 0, coneX = 0, camY = 0;
     let dragging = false, lastPX = 0;
@@ -310,6 +311,8 @@
       popups = [];
       camY = camTarget();
       over = false;
+      endShown = false;
+      endTimer = 0;
       running = true;
       startScreen.style.display = 'none';
       overScreen.style.display = 'none';
@@ -411,22 +414,23 @@
     }
 
     function gameOver(reason) {
+      // don't stop the loop: the ice cream finishes falling and the camera
+      // scrolls back down to the cone before the panel appears
       over = true;
+      endShown = false;
+      endTimer = 0;
+      overTitleEl.textContent = reason === 'topple' ? '🍨 Timber!' : '💦 Splat!';
+      updateHUD();
+    }
+
+    function showEndPanel() {
+      endShown = true;
+      finalScoreEl.textContent = level;
+      finalBestEl.textContent = best;
+      newBestEl.style.display = (level > 0 && level >= best) ? '' : 'none';
+      overScreen.style.display = '';
       running = false;
       cancelAnimationFrame(rafId);
-      overTitleEl.textContent = reason === 'topple' ? '🍨 Timber!' : '💦 Splat!';
-      // let things fall for a beat, then show the panel
-      let shown = false;
-      const finish = () => {
-        if (shown) return;
-        shown = true;
-        finalScoreEl.textContent = level;
-        finalBestEl.textContent = best;
-        newBestEl.style.display = (level > 0 && level >= best) ? '' : 'none';
-        overScreen.style.display = '';
-      };
-      setTimeout(finish, 650);
-      updateHUD();
     }
 
     function updateHUD() {
@@ -451,9 +455,9 @@
           catchCheck();
         }
       }
-      // camera scrolls up with the tower like someone scrolling
-      const target = camTarget();
-      camY += (target - camY) * Math.min(1, dt * 8);
+      // camera: follow the tower while playing, glide back to the cone after losing
+      const target = over ? groundY() - (H - 170) : camTarget();
+      camY += (target - camY) * Math.min(1, dt * (over ? 3 : 8));
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
@@ -468,6 +472,15 @@
         popups[i].wy -= 60 * dt;
         popups[i].life -= dt;
         if (popups[i].life <= 0) popups.splice(i, 1);
+      }
+      // after losing: once the ice cream is done falling and the camera is
+      // back at the cone, end the game
+      if (over && !endShown) {
+        endTimer += dt;
+        const homeY = groundY() - (H - 170);
+        if ((debris.length === 0 && Math.abs(camY - homeY) < 8) || endTimer > 6) {
+          showEndPanel();
+        }
       }
     }
 
