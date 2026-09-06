@@ -123,6 +123,35 @@
             cursor: pointer;
             text-decoration: none;
         }
+        .mode-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+        .mode-btn {
+            padding: 10px 18px !important;
+            font-size: 17px !important;
+            margin: 4px !important;
+            border: 3px solid transparent !important;
+        }
+        .mode-btn.sel {
+            border-color: #FFD700 !important;
+        }
+        #scoreboard {
+            font-size: 18px;
+            margin: 10px 0 0;
+            color: #333;
+            padding: 10px 22px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        .cell.win-cell {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+            animation: winnerPulse 1s infinite;
+        }
     </style>
 </head>
 <body>
@@ -133,7 +162,16 @@
       <p class="pixll-hero-tag">Get 3 in a row to win! X goes first — can you outsmart your friend?</p>
     </header>
     <div class="game-container">
-        <h1>Tic Tac Toe</h1>
+        <h1>⭕ Tic Tac Toe ❌</h1>
+        <div class="mode-row" id="modeRow">
+            <button class="mode-btn sel" id="modeSolo" onclick="selectMode('solo')">👤 vs Computer</button>
+            <button class="mode-btn" id="modeDuo" onclick="selectMode('duo')">👥 2 Players</button>
+        </div>
+        <div class="mode-row" id="diffRow">
+            <button class="mode-btn" id="diffEasy" onclick="selectDiff('easy')">😌 Easy</button>
+            <button class="mode-btn sel" id="diffMedium" onclick="selectDiff('medium')">🧠 Medium</button>
+            <button class="mode-btn" id="diffHard" onclick="selectDiff('hard')">🤖 Hard</button>
+        </div>
         <div class="status" id="status">
             <span class="player-indicator player-x"></span>
             Player X's turn
@@ -150,6 +188,8 @@
             <button class="cell" data-index="8"></button>
         </div>
         <button id="resetButton">New Game</button>
+        <button id="muteBtn" onclick="toggleMute()" title="Sound on/off" style="font-size:18px;padding:14px 20px;">🔊</button>
+        <div id="scoreboard">X: 0 • O: 0 • Draws: 0</div>
     </div>
 
     <script>
@@ -160,6 +200,81 @@
         let currentPlayer = 'X';
         let gameState = ['', '', '', '', '', '', '', '', ''];
         let gameActive = true;
+        let mode = 'solo'; // 'solo' (you = X vs computer O) or 'duo'
+        let aiLevel = 'medium';
+        let thinking = false; // computer is "thinking"
+        let tally = { X: 0, O: 0, D: 0 };
+        try {
+            tally = {
+                X: parseInt(localStorage.getItem('ttt_x')) || 0,
+                O: parseInt(localStorage.getItem('ttt_o')) || 0,
+                D: parseInt(localStorage.getItem('ttt_d')) || 0
+            };
+        } catch (e) {}
+        let tttMuted = false;
+        try { tttMuted = localStorage.getItem('ttt_muted') === '1'; } catch (e) {}
+
+        // ---- tiny synth sounds ----
+        let tttAudio = null;
+        function tttTone(freq, dur, type, vol, delay) {
+            if (tttMuted) return;
+            try {
+                if (!tttAudio) tttAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = tttAudio.currentTime + (delay || 0);
+                const osc = tttAudio.createOscillator();
+                const gain = tttAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(tttAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function placeSound(p) { tttTone(p === 'X' ? 520 : 390, 0.08, 'triangle', 0.1); }
+        function winSound() { tttTone(523, 0.12, 'triangle', 0.11); tttTone(784, 0.2, 'triangle', 0.11, 0.1); }
+        function drawSound() { tttTone(330, 0.15, 'triangle', 0.1); tttTone(330, 0.15, 'triangle', 0.1, 0.18); }
+        function toggleMute() {
+            tttMuted = !tttMuted;
+            try { localStorage.setItem('ttt_muted', tttMuted ? '1' : '0'); } catch (e) {}
+            document.getElementById('muteBtn').textContent = tttMuted ? '🔇' : '🔊';
+        }
+
+        function playerLabel(p) {
+            if (mode === 'solo') return p === 'X' ? 'You (X)' : 'Computer (O)';
+            return 'Player ' + p;
+        }
+
+        function updateScoreboard() {
+            const xName = mode === 'solo' ? 'You' : 'X';
+            const oName = mode === 'solo' ? 'CPU' : 'O';
+            document.getElementById('scoreboard').textContent =
+                `${xName}: ${tally.X} • ${oName}: ${tally.O} • Draws: ${tally.D}`;
+            try {
+                localStorage.setItem('ttt_x', String(tally.X));
+                localStorage.setItem('ttt_o', String(tally.O));
+                localStorage.setItem('ttt_d', String(tally.D));
+            } catch (e) {}
+        }
+
+        function selectMode(m) {
+            mode = m;
+            document.getElementById('modeSolo').classList.toggle('sel', m === 'solo');
+            document.getElementById('modeDuo').classList.toggle('sel', m === 'duo');
+            document.getElementById('diffRow').style.display = m === 'solo' ? 'flex' : 'none';
+            resetGame();
+        }
+
+        function selectDiff(d) {
+            aiLevel = d;
+            ['easy', 'medium', 'hard'].forEach(l => {
+                document.getElementById('diff' + l[0].toUpperCase() + l.slice(1))
+                    .classList.toggle('sel', l === d);
+            });
+            resetGame();
+        }
 
         const winningCombinations = [
             [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
@@ -169,40 +284,132 @@
 
         function handleCellClick(e) {
             const cell = e.target;
-            const index = cell.getAttribute('data-index');
+            const index = parseInt(cell.getAttribute('data-index'));
 
-            if (gameState[index] !== '' || !gameActive) return;
+            if (gameState[index] !== '' || !gameActive || thinking) return;
+            // in solo mode you play X; wait your turn
+            if (mode === 'solo' && currentPlayer !== 'X') return;
 
-            gameState[index] = currentPlayer;
-            cell.textContent = currentPlayer;
-            cell.style.color = currentPlayer === 'X' ? '#2196F3' : '#9C27B0';  /* Blue for X, Purple for O */
+            makeMove(index, currentPlayer);
 
-            if (checkWin()) {
-                status.innerHTML = `
-                    <div class="winner">
-                        <span class="player-indicator ${currentPlayer === 'X' ? 'player-x' : 'player-o'}"></span>
-                        Player ${currentPlayer} Wins! 🎉
-                    </div>`;
+            if (gameActive && mode === 'solo' && currentPlayer === 'O') {
+                thinking = true;
+                status.innerHTML = `🤖 Computer's turn…`;
+                setTimeout(() => {
+                    thinking = false;
+                    if (gameActive) playAi();
+                }, 450);
+            }
+        }
+
+        function makeMove(index, player) {
+            gameState[index] = player;
+            const cell = document.querySelector(`.cell[data-index="${index}"]`) ||
+                [...cells].find(c => c.getAttribute('data-index') == index);
+            if (cell) {
+                cell.textContent = player;
+                cell.style.color = player === 'X' ? '#2196F3' : '#9C27B0';
+            }
+            placeSound(player);
+
+            const combo = winCombo(gameState, player);
+            if (combo) {
+                combo.forEach(i => {
+                    const c = [...cells].find(x => x.getAttribute('data-index') == i);
+                    if (c) c.classList.add('win-cell');
+                });
+                tally[player]++;
+                updateScoreboard();
+                winSound();
+                const msg = mode === 'solo'
+                    ? (player === 'X' ? 'You win! 🎉' : 'Computer wins! 💻')
+                    : `Player ${player} Wins! 🎉`;
+                status.innerHTML = `<div class="winner">${msg}</div>`;
                 gameActive = false;
                 return;
             }
 
             if (checkDraw()) {
+                tally.D++;
+                updateScoreboard();
+                drawSound();
                 status.innerHTML = `<div class="winner">Game ended in a draw! 🤝</div>`;
                 gameActive = false;
                 return;
             }
 
             currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
-            status.innerHTML = `<span class="player-indicator ${currentPlayer === 'X' ? 'player-x' : 'player-o'}"></span>Player ${currentPlayer}'s turn`;
+            const label = mode === 'solo'
+                ? (currentPlayer === 'X' ? 'Your turn! 🌟' : `🤖 Computer's turn…`)
+                : `Player ${currentPlayer}'s turn`;
+            status.innerHTML = `<span class="player-indicator ${currentPlayer === 'X' ? 'player-x' : 'player-o'}"></span>${label}`;
+        }
+
+        // ---- computer brain ----
+        function winCombo(b, p) {
+            for (const c of winningCombinations) {
+                if (c.every(i => b[i] === p)) return c;
+            }
+            return null;
+        }
+
+        function emptySpots(b) {
+            const r = [];
+            b.forEach((v, i) => { if (v === '') r.push(i); });
+            return r;
+        }
+
+        // spot where `p` could win right now (for wins + blocks)
+        function immediateWin(b, p) {
+            for (const i of emptySpots(b)) {
+                b[i] = p;
+                const wins = winCombo(b, p) !== null;
+                b[i] = '';
+                if (wins) return i;
+            }
+            return -1;
+        }
+
+        function minimax(b, isMax, depth) {
+            if (winCombo(b, 'O')) return 10 - depth;
+            if (winCombo(b, 'X')) return depth - 10;
+            const spots = emptySpots(b);
+            if (!spots.length) return 0;
+            if (isMax) {
+                let best = -Infinity;
+                for (const i of spots) { b[i] = 'O'; best = Math.max(best, minimax(b, false, depth + 1)); b[i] = ''; }
+                return best;
+            }
+            let best = Infinity;
+            for (const i of spots) { b[i] = 'X'; best = Math.min(best, minimax(b, true, depth + 1)); b[i] = ''; }
+            return best;
+        }
+
+        function playAi() {
+            const spots = emptySpots(gameState);
+            if (!spots.length || !gameActive) return;
+            let idx;
+            if (aiLevel === 'hard') {
+                let best = -Infinity;
+                idx = spots[0];
+                for (const i of spots) {
+                    gameState[i] = 'O';
+                    const s = minimax(gameState, false, 0);
+                    gameState[i] = '';
+                    if (s > best) { best = s; idx = i; }
+                }
+            } else if (aiLevel === 'medium') {
+                const win = immediateWin(gameState, 'O');
+                const block = immediateWin(gameState, 'X');
+                idx = win !== -1 ? win : block !== -1 ? block : spots[Math.floor(Math.random() * spots.length)];
+            } else {
+                idx = spots[Math.floor(Math.random() * spots.length)];
+            }
+            makeMove(idx, 'O');
         }
 
         function checkWin() {
-            return winningCombinations.some(combination => {
-                return combination.every(index => {
-                    return gameState[index] === currentPlayer;
-                });
-            });
+            return winCombo(gameState, currentPlayer) !== null;
         }
 
         function checkDraw() {
@@ -213,11 +420,18 @@
             currentPlayer = 'X';
             gameState = ['', '', '', '', '', '', '', '', ''];
             gameActive = true;
-            status.innerHTML = `<span class="player-indicator player-x"></span>Player ${currentPlayer}'s turn`;
+            thinking = false;
+            const label = mode === 'solo' ? 'Your turn! 🌟' : `Player X's turn`;
+            status.innerHTML = `<span class="player-indicator player-x"></span>${label}`;
             cells.forEach(cell => {
                 cell.textContent = '';
+                cell.classList.remove('win-cell');
             });
+            updateScoreboard();
         }
+
+        document.getElementById('muteBtn').textContent = tttMuted ? '🔇' : '🔊';
+        updateScoreboard();
 
         cells.forEach(cell => {
             cell.addEventListener('click', handleCellClick);
