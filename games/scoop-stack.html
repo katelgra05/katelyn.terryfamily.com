@@ -225,6 +225,7 @@
         <div class="best-line">🏆 Best: <span id="best">0</span></div>
       </div>
       <div class="hud-right">
+        <button id="musicBtn" class="icon-btn" onclick="toggleMusic()" title="Music on/off">🎵</button>
         <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Sounds on/off">🔊</button>
       </div>
     </div>
@@ -372,6 +373,199 @@
       muteBtn.classList.toggle('off', muted);
     }
 
+    // ============ cute music-box song (sweet, not loopy) ============
+    // 4-bar lullaby (C - Am - F - G) + AABA finale, soft shaker, dreamy echo
+    let musicOn = true;
+    try { musicOn = localStorage.getItem('scoop_music') !== '0'; } catch (e) {}
+    let musicTimer = null, musicStep = 0, nextNoteTime = 0;
+    let musicBus = null, noiseBuf = null;
+    const MSTEP = 60 / 112 / 2; // gentle 8ths @112bpm
+    const mmidi = m => 440 * Math.pow(2, (m - 69) / 12);
+    const MLEAD_A = [
+      // Bar 0 (C): twinkle up to high C
+      72,0,76,0, 79,0,76,0, 84,0,79,81, 79,0,76,0,
+      // Bar 1 (Am): soft lullaby steps down
+      81,0,79,0, 76,0,79,0, 76,0,74,76, 74,0,72,0,
+      // Bar 2 (F): happy lift
+      77,0,81,0, 84,0,81,0, 79,0,81,77, 76,0,74,0,
+      // Bar 3 (G -> C): turnaround home
+      74,0,79,0, 83,0,79,0, 81,79,76,74, 72,0,0,0
+    ];
+    const MLEAD_B = [
+      // Bars 0-2: same tune with tiny ornaments
+      72,76,76,0, 79,0,76,79, 84,0,79,81, 79,76,76,74,
+      81,0,79,81, 76,0,79,76, 76,0,74,76, 74,76,72,74,
+      77,0,81,77, 84,0,81,84, 79,0,81,77, 76,77,74,76,
+      // Bar 3 finale: sparkling run, lands on high C
+      74,79,83,79, 84,83,81,83, 86,83,81,79, 84,0,0,0
+    ];
+    const MBASS_ROOTS = [48, 45, 41, 43]; // C Am F G
+    const MBASS = (() => {
+      const out = new Array(64).fill(0);
+      for (let bar = 0; bar < 4; bar++) {
+        const R = MBASS_ROOTS[bar], b = bar * 16;
+        out[b+0] = R; out[b+4] = R + 7; out[b+8] = R; out[b+12] = R + 7; out[b+14] = R + 12;
+      }
+      return out;
+    })();
+    const MCHORDS = [
+      [60, 64, 67], // C
+      [57, 60, 64], // Am
+      [53, 57, 65], // F
+      [55, 59, 62]  // G
+    ];
+    function ensureMusicBus() {
+      if (!audioCtx || musicBus) return;
+      try {
+        musicBus = audioCtx.createGain();
+        musicBus.gain.value = 0.9;
+        musicBus.connect(audioCtx.destination);
+        const dly = audioCtx.createDelay(1);
+        dly.delayTime.value = MSTEP * 3; // dreamy dotted echo
+        const fb = audioCtx.createGain();
+        fb.gain.value = 0.34;
+        const wet = audioCtx.createGain();
+        wet.gain.value = 0.25;
+        musicBus.connect(dly);
+        dly.connect(fb);
+        fb.connect(dly);
+        dly.connect(wet);
+        wet.connect(audioCtx.destination);
+        noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+        const d = noiseBuf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      } catch (e) {}
+    }
+    function playBox(m, t, vol) {
+      // music-box voice: sine + faint 4x partial, long soft decay
+      try {
+        const dur = MSTEP * 3.2;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(mmidi(m), t);
+        const v = vol * (0.9 + Math.random() * 0.2);
+        gain.gain.setValueAtTime(v, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(gain);
+        gain.connect(musicBus || audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(mmidi(m) * 4, t);
+        gain2.gain.setValueAtTime(v * 0.18, t);
+        gain2.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.4);
+        osc2.connect(gain2);
+        gain2.connect(musicBus || audioCtx.destination);
+        osc2.start(t);
+        osc2.stop(t + dur * 0.5);
+        // faint octave shimmer
+        const osc3 = audioCtx.createOscillator();
+        const gain3 = audioCtx.createGain();
+        osc3.type = 'triangle';
+        osc3.frequency.setValueAtTime(mmidi(m + 12), t);
+        gain3.gain.setValueAtTime(v * 0.25, t);
+        gain3.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.6);
+        osc3.connect(gain3);
+        gain3.connect(musicBus || audioCtx.destination);
+        osc3.start(t);
+        osc3.stop(t + dur * 0.7);
+      } catch (e) {}
+    }
+    function playSoftBass(m, t) {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(mmidi(m), t);
+        gain.gain.setValueAtTime(0.055, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + MSTEP * 3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + MSTEP * 3.2);
+      } catch (e) {}
+    }
+    function softKick(t) {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+        gain.gain.setValueAtTime(0.14, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.14);
+      } catch (e) {}
+    }
+    function shaker(t) {
+      if (!noiseBuf) return;
+      try {
+        const src = audioCtx.createBufferSource();
+        src.buffer = noiseBuf;
+        const f = audioCtx.createBiquadFilter();
+        f.type = 'highpass';
+        f.frequency.value = 8000;
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.016, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        src.connect(f);
+        f.connect(gain);
+        gain.connect(audioCtx.destination);
+        src.start(t);
+        src.stop(t + 0.07);
+      } catch (e) {}
+    }
+    function stepScoopMusic() {
+      if (!musicOn || muted || !audioCtx || !running) return;
+      try {
+        const ahead = audioCtx.currentTime + 0.3;
+        while (nextNoteTime < ahead) {
+          const pos = musicStep % 64;
+          const bar = (pos / 16) | 0;
+          const s16 = pos % 16;
+          const pass = ((musicStep / 64) | 0) % 4;
+          const LEAD = pass === 3 ? MLEAD_B : MLEAD_A; // sparkle finale every 4th loop
+          const t = nextNoteTime;
+          const L = LEAD[pos];
+          if (L) playBox(L, t, 0.05);
+          const B = MBASS[pos];
+          if (B) playSoftBass(B, t);
+          if (s16 === 0) MCHORDS[bar].forEach(n => playBox(n, t, 0.014));
+          if (s16 === 0 || s16 === 8) softKick(t);
+          if (s16 % 2 === 1) shaker(t);
+          nextNoteTime += MSTEP;
+          musicStep++;
+        }
+      } catch (e) {}
+    }
+    function startScoopMusic() {
+      ensureAudio();
+      if (!audioCtx) return;
+      ensureMusicBus();
+      nextNoteTime = audioCtx.currentTime + 0.1;
+      if (!musicTimer) musicTimer = setInterval(stepScoopMusic, 80);
+    }
+    function toggleMusic() {
+      musicOn = !musicOn;
+      try { localStorage.setItem('scoop_music', musicOn ? '1' : '0'); } catch (e) {}
+      musicBtn.textContent = musicOn ? '🎵' : '🔇';
+      musicBtn.classList.toggle('off', !musicOn);
+      if (musicOn && running) startScoopMusic();
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!audioCtx) return;
+      try {
+        if (document.hidden) audioCtx.suspend();
+        else if (running) audioCtx.resume();
+      } catch (e) {}
+    });
+
     // ============ gameplay: stack rides the cone, top scoop is the catcher ============
     function startGame() {
       ensureAudio();
@@ -394,6 +588,8 @@
       boardScreen.style.display = 'none';
       spawnCurrent();
       updateHUD();
+      musicStep = 0;
+      if (musicOn) startScoopMusic();
       lastT = performance.now();
       rafId = requestAnimationFrame(loop);
     }
@@ -1233,6 +1429,8 @@
     // ============ boot ============
     muteBtn.textContent = muted ? '🔇' : '🔊';
     muteBtn.classList.toggle('off', muted);
+    musicBtn.textContent = musicOn ? '🎵' : '🔇';
+    musicBtn.classList.toggle('off', !musicOn);
     updateHUD();
     // idle backdrop behind the start panel
     startGameBackdrop();
@@ -1244,7 +1442,7 @@
       camY = camTarget();
       draw(performance.now());
     }
-    window.addEventListener('pagehide', () => cancelAnimationFrame(rafId));
+    window.addEventListener('pagehide', () => { cancelAnimationFrame(rafId); if (musicTimer) clearInterval(musicTimer); });
   </script>
 </body>
 </html>
