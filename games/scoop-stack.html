@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Scoop Stack - Katelyn's Games</title>
+  <link rel="icon" type="image/png" href="../pixll-logo.png">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .pixll-topbar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 5000;
+      pointer-events: none;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    }
+    .pixll-topbar > * { pointer-events: auto; }
+    .pixll-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: rgba(10, 8, 30, 0.72);
+      color: #fff !important;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      transition: transform 0.18s ease;
+    }
+    .pixll-back:hover { transform: scale(1.05); }
+    .pixll-badge {
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(10px);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.4);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .game-container {
+      position: relative;
+      margin: 0;
+      width: 100vw;
+      flex: 1;
+      min-height: 0;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: pointer;
+    }
+    .hud {
+      position: absolute;
+      top: 60px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .hud > * { pointer-events: auto; }
+    .score-card {
+      background: rgba(10, 8, 30, 0.62);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(8px);
+      border-radius: 16px;
+      padding: 10px 16px;
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+    .score-card .scoops {
+      font-size: clamp(24px, 4.6vmin, 34px);
+      font-weight: 900;
+    }
+    .score-card .best-line {
+      font-size: clamp(12px, 2.4vmin, 15px);
+      opacity: 0.85;
+    }
+    .hud-right {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: transform 0.15s ease;
+    }
+    .icon-btn:hover { transform: scale(1.1); }
+    .icon-btn.off { opacity: 0.55; }
+    .overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: white;
+      background: linear-gradient(160deg, rgba(20,12,50,0.94), rgba(48,43,99,0.94));
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 34px 32px;
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      max-width: min(92vw, 440px);
+      z-index: 10;
+    }
+    .overlay h2 {
+      font-size: 32px;
+      margin: 0 0 10px;
+      background: linear-gradient(90deg, #ffb3e2, #8ee7fa);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .overlay p { color: rgba(255,255,255,0.85); font-size: 15px; }
+    .overlay .big-score { font-size: 22px; font-weight: 900; color: #ffd94d; }
+    .game-button {
+      padding: 15px 38px;
+      font-size: 20px;
+      background: linear-gradient(135deg, #66e6ff, #7cf29b);
+      color: #071018;
+      font-weight: 900;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      box-shadow: 0 12px 30px rgba(102,230,255,0.4);
+      transition: transform 0.15s ease;
+      margin-top: 10px;
+    }
+    .game-button:hover { transform: scale(1.06); }
+  </style>
+</head>
+<body>
+  <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🍨 Scoop Stack</span></nav>
+  <div class="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div class="hud">
+      <div class="score-card">
+        <div class="scoops">🍨 <span id="score">0</span></div>
+        <div class="best-line">🏆 Best: <span id="best">0</span></div>
+      </div>
+      <div class="hud-right">
+        <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Sounds on/off">🔊</button>
+      </div>
+    </div>
+    <div class="overlay" id="startScreen">
+      <div style="font-size:52px;margin-bottom:8px;">🍨</div>
+      <h2>Scoop Stack!</h2>
+      <p>Tap to drop each sliding scoop!<br>
+      Stack high — overhangs slice off and tumble!<br>
+      Miss the tower and it's game over!</p>
+      <button class="game-button" onclick="startGame()">▶ Start Stacking!</button>
+    </div>
+    <div class="overlay" id="overScreen" style="display:none;">
+      <div style="font-size:52px;margin-bottom:8px;">💦</div>
+      <h2>Splat!</h2>
+      <p class="big-score">🍨 <span id="finalScore">0</span> scoops</p>
+      <p id="newBest" style="font-weight:bold;color:#ffd94d;display:none;">🎉 New best! 🎉</p>
+      <p style="color:rgba(255,255,255,0.85);">🏆 Best: <span id="finalBest">0</span></p>
+      <button class="game-button" onclick="startGame()">↻ Stack Again!</button>
+    </div>
+  </div>
+
+  <script>
+    // ============ setup ============
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const finalScoreEl = document.getElementById('finalScore');
+    const finalBestEl = document.getElementById('finalBest');
+    const newBestEl = document.getElementById('newBest');
+    const startScreen = document.getElementById('startScreen');
+    const overScreen = document.getElementById('overScreen');
+    const muteBtn = document.getElementById('muteBtn');
+
+    let W = 0, H = 0;
+    function resizeCanvas() {
+      W = canvas.width = window.innerWidth || 800;
+      H = canvas.height = window.innerHeight || 600;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ============ state ============
+    let running = false, over = false, rafId = null, lastT = 0;
+    let blocks = [], cur = null, debris = [], popups = [];
+    let level = 0, best = 0, camY = 0;
+    let muted = false;
+    try {
+      best = parseInt(localStorage.getItem('scoop_best')) || 0;
+      muted = localStorage.getItem('scoop_muted') === '1';
+    } catch (e) {}
+
+    const BLOCK_H = 34;
+    const PERFECT_TOL = 9;
+    const FLAVORS = [
+      { c: '#ff8ab5', d: '#e0559a' },
+      { c: '#9ff0c8', d: '#3fbf7f' },
+      { c: '#c9a06a', d: '#7a5230' },
+      { c: '#fff6d8', d: '#e3c878' },
+      { c: '#b9a7f2', d: '#7c5cd6' },
+      { c: '#ffe066', d: '#eaa50f' }
+    ];
+    const SPRINKLE_COLORS = ['#ff5d5d', '#4aa8ff', '#ffd94d', '#7cf29b', '#ffffff', '#c084fc'];
+    const flavorFor = i => FLAVORS[i % FLAVORS.length];
+    const baseWidth = () => Math.min(W * 0.55, 300);
+    const speedFor = lvl => Math.min(200 + lvl * 16, 640);
+    const groundY = () => H * 0.86;
+
+    function srand(seed) {
+      let s = (seed * 1664525 + 1013904223) >>> 0;
+      return () => {
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return s / 4294967296;
+      };
+    }
+
+    // ============ audio ============
+    let audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) {
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+    function tone(freq, dur, type, vol, when, slideTo) {
+      if (muted || !audioCtx) return;
+      try {
+        const t = (when || audioCtx.currentTime);
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+        gain.gain.setValueAtTime(vol || 0.1, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.02);
+      } catch (e) {}
+    }
+    const sndPlace = () => tone(320, 0.08, 'triangle', 0.12);
+    const sndPerfect = () => {
+      if (!audioCtx) return;
+      tone(660, 0.09, 'sine', 0.12);
+      tone(990, 0.12, 'sine', 0.12, audioCtx.currentTime + 0.08);
+    };
+    const sndFall = () => tone(400, 0.4, 'sawtooth', 0.06, 0, 90);
+    function toggleMute() {
+      muted = !muted;
+      try { localStorage.setItem('scoop_muted', muted ? '1' : '0'); } catch (e) {}
+      muteBtn.textContent = muted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('off', muted);
+    }
+
+    // ============ gameplay ============
+    function startGame() {
+      ensureAudio();
+      cancelAnimationFrame(rafId);
+      resizeCanvas();
+      const w = baseWidth();
+      blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
+      level = 0;
+      debris = [];
+      popups = [];
+      camY = 0;
+      over = false;
+      running = true;
+      startScreen.style.display = 'none';
+      overScreen.style.display = 'none';
+      spawnCurrent();
+      updateHUD();
+      lastT = performance.now();
+      rafId = requestAnimationFrame(loop);
+    }
+
+    function spawnCurrent() {
+      const w = blocks[blocks.length - 1].w;
+      const dir = (level % 2 === 0) ? 1 : -1;
+      cur = { x: dir === 1 ? -w : W, w, dir, lvl: level + 1 };
+    }
+
+    function topWorldY() {
+      return groundY() - blocks.length * BLOCK_H;
+    }
+
+    function drop() {
+      if (!running || over || !cur) return;
+      const prev = blocks[blocks.length - 1];
+      const a0 = cur.x, a1 = cur.x + cur.w;
+      const b0 = prev.x, b1 = prev.x + prev.w;
+      const o0 = Math.max(a0, b0), o1 = Math.min(a1, b1);
+      const overlap = o1 - o0;
+      if (overlap <= 0) {
+        // total miss — the scoop tumbles away
+        debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: cur.dir * 220, vy: -160, rot: 0, vr: cur.dir * 4, life: 1.4 });
+        cur = null;
+        sndFall();
+        gameOver();
+        return;
+      }
+      if (Math.abs(cur.x - prev.x) <= PERFECT_TOL && cur.w === prev.w) {
+        // perfect landing — no slice
+        blocks.push({ x: prev.x, w: prev.w, lvl: cur.lvl, perfect: true });
+        popups.push({ x: prev.x + prev.w / 2, wy: topWorldY(), text: '✨ Perfect!', life: 1 });
+        sndPerfect();
+      } else {
+        // slice the overhang
+        if (a0 < o0) {
+          debris.push({ x: a0, w: o0 - a0, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: -160, vy: -60, rot: 0, vr: -3, life: 1.2 });
+        }
+        if (a1 > o1) {
+          debris.push({ x: o1, w: a1 - o1, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: 160, vy: -60, rot: 0, vr: 3, life: 1.2 });
+        }
+        blocks.push({ x: o0, w: overlap, lvl: cur.lvl });
+        sndPlace();
+      }
+      level++;
+      if (level > best) {
+        best = level;
+        try { localStorage.setItem('scoop_best', String(best)); } catch (e) {}
+      }
+      updateHUD();
+      spawnCurrent();
+    }
+
+    function gameOver() {
+      over = true;
+      running = false;
+      cancelAnimationFrame(rafId);
+      // let the missed scoop fall for a beat, then show the panel
+      let shown = false;
+      const finish = () => {
+        if (shown) return;
+        shown = true;
+        finalScoreEl.textContent = level;
+        finalBestEl.textContent = best;
+        newBestEl.style.display = (level > 0 && level >= best) ? '' : 'none';
+        overScreen.style.display = '';
+      };
+      setTimeout(finish, 650);
+      updateHUD();
+    }
+
+    function updateHUD() {
+      scoreEl.textContent = level;
+      bestEl.textContent = best;
+    }
+
+    // ============ update ============
+    function update(dt) {
+      if (cur && !over) {
+        const sp = speedFor(level);
+        cur.x += cur.dir * sp * dt;
+        if (cur.dir === 1 && cur.x > W) { cur.x = W; cur.dir = -1; }
+        if (cur.dir === -1 && cur.x + cur.w < 0) { cur.x = -cur.w; cur.dir = 1; }
+      }
+      // camera follows the top of the tower
+      const target = topWorldY() - H * 0.42;
+      camY += (target - camY) * Math.min(1, dt * 4);
+      // debris physics
+      for (let i = debris.length - 1; i >= 0; i--) {
+        const d = debris[i];
+        d.wy += d.vy * dt;
+        d.x += d.vx * dt;
+        d.vy += 1800 * dt;
+        d.rot += d.vr * dt;
+        d.life -= dt;
+        if (d.life <= 0 || d.wy - camY > H + 120) debris.splice(i, 1);
+      }
+      for (let i = popups.length - 1; i >= 0; i--) {
+        popups[i].wy -= 60 * dt;
+        popups[i].life -= dt;
+        if (popups[i].life <= 0) popups.splice(i, 1);
+      }
+    }
+
+    // ============ draw ============
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawScoop(x, sy, w, lvl, isTop) {
+      const f = flavorFor(lvl);
+      const rnd = srand(lvl * 997 + 13);
+      // scoop body
+      const g = ctx.createLinearGradient(0, sy, 0, sy + BLOCK_H);
+      g.addColorStop(0, f.c);
+      g.addColorStop(1, f.d);
+      ctx.fillStyle = g;
+      roundRect(x, sy, w, BLOCK_H, 13);
+      ctx.fill();
+      // bumpy scoop top
+      ctx.fillStyle = f.c;
+      const bumps = Math.max(2, Math.floor(w / 46));
+      for (let i = 0; i < bumps; i++) {
+        const bx = x + (w * (i + 0.5)) / bumps;
+        ctx.beginPath();
+        ctx.arc(bx, sy + 3, 13, Math.PI, 0);
+        ctx.fill();
+      }
+      // sprinkles
+      for (let i = 0; i < 9; i++) {
+        const px = x + 8 + rnd() * Math.max(1, w - 16);
+        const py = sy + 8 + rnd() * (BLOCK_H - 16);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(rnd() * Math.PI);
+        ctx.fillStyle = SPRINKLE_COLORS[Math.floor(rnd() * SPRINKLE_COLORS.length)];
+        ctx.fillRect(-4, -1.5, 8, 3);
+        ctx.restore();
+      }
+      // cherry on the newest scoop
+      if (isTop) {
+        const cxp = x + w / 2, cyp = sy - 16;
+        ctx.strokeStyle = '#3fbf7f';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cxp, cyp + 4);
+        ctx.quadraticCurveTo(cxp + 4, cyp - 6, cxp + 12, cyp - 8);
+        ctx.stroke();
+        ctx.fillStyle = '#e63946';
+        ctx.beginPath();
+        ctx.arc(cxp, cyp + 6, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath();
+        ctx.arc(cxp - 3, cyp + 3, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function draw(now) {
+      const t = now / 1000;
+      // sky
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#2b1b4e');
+      sky.addColorStop(0.6, '#4a2b6b');
+      sky.addColorStop(1, '#6b3a5d');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+      // stars
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      const rnd = srand(42);
+      for (let i = 0; i < 40; i++) {
+        const sx = rnd() * W, sy2 = rnd() * H * 0.6;
+        const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2 + i));
+        ctx.globalAlpha = tw * 0.7;
+        ctx.fillRect(sx, sy2, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+      const toSY = wy => wy - camY;
+      // table
+      const gy = toSY(groundY());
+      ctx.fillStyle = '#3a2b1f';
+      ctx.fillRect(0, gy, W, H - gy + 60);
+      ctx.fillStyle = '#54402c';
+      ctx.fillRect(0, gy, W, 10);
+      // cone under the tower
+      const b0 = blocks[0];
+      if (b0) {
+        const cxp = b0.x + b0.w / 2;
+        const topY = toSY(groundY());
+        ctx.fillStyle = '#d9a066';
+        ctx.beginPath();
+        ctx.moveTo(cxp - b0.w * 0.32, topY);
+        ctx.lineTo(cxp + b0.w * 0.32, topY);
+        ctx.lineTo(cxp, topY + 74);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(120,72,20,0.55)';
+        ctx.lineWidth = 3;
+        for (let i = 1; i <= 3; i++) {
+          const yy = topY + i * 18;
+          const half = b0.w * 0.32 * (1 - (i * 18) / 74);
+          ctx.beginPath();
+          ctx.moveTo(cxp - half, yy - 8);
+          ctx.lineTo(cxp + half, yy + 8);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(cxp + half, yy - 8);
+          ctx.lineTo(cxp - half, yy + 8);
+          ctx.stroke();
+        }
+      }
+      // placed scoops (bottom-up)
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+        const wy = groundY() - (i + 1) * BLOCK_H;
+        const sy = toSY(wy);
+        if (sy > H + 60 || sy + BLOCK_H < -80) continue;
+        drawScoop(b.x, sy, b.w, b.lvl, i === blocks.length - 1 && !cur);
+      }
+      // sliding scoop
+      if (cur && !over) {
+        const wy = groundY() - (blocks.length + 1) * BLOCK_H;
+        const bobY = toSY(wy) + Math.sin(t * 6) * 2;
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(cur.x + cur.w / 2, toSY(topWorldY()) + 6, cur.w * 0.42, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        drawScoop(cur.x, bobY, cur.w, cur.lvl, true);
+      }
+      // falling debris
+      debris.forEach(d => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, d.life));
+        ctx.translate(d.x + d.w / 2, toSY(d.wy) + BLOCK_H / 2);
+        ctx.rotate(d.rot);
+        drawScoop(-d.w / 2, -BLOCK_H / 2, d.w, d.lvl, false);
+        ctx.restore();
+      });
+      ctx.globalAlpha = 1;
+      // popups
+      ctx.textAlign = 'center';
+      popups.forEach(p => {
+        ctx.globalAlpha = Math.min(1, p.life * 2);
+        ctx.font = `900 24px 'Segoe UI', Arial, sans-serif`;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.strokeText(p.text, p.x, toSY(p.wy));
+        ctx.fillStyle = '#ffd94d';
+        ctx.fillText(p.text, p.x, toSY(p.wy));
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    // ============ main loop ============
+    function loop(now) {
+      if (!running && over) return;
+      if (!running) return;
+      let dt = (now - lastT) / 1000;
+      lastT = now;
+      if (dt > 0.05) dt = 0.05;
+      update(dt);
+      draw(now);
+      rafId = requestAnimationFrame(loop);
+    }
+
+    // ============ input ============
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      ensureAudio();
+      if (!running && !over) return;
+      if (over) return;
+      drop();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        ensureAudio();
+        if (running && !over) drop();
+        else if (!running && !over && startScreen.style.display !== 'none') startGame();
+      }
+    });
+
+    // ============ boot ============
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.classList.toggle('off', muted);
+    updateHUD();
+    // idle backdrop behind the start panel
+    startGameBackdrop();
+    function startGameBackdrop() {
+      resizeCanvas();
+      const w = baseWidth();
+      blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
+      camY = topWorldY() - H * 0.42;
+      draw(performance.now());
+    }
+    window.addEventListener('pagehide', () => cancelAnimationFrame(rafId));
+  </script>
+</body>
+</html>

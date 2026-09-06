@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
+  <defs>
+    <linearGradient id="sbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#232526"/>
+      <stop offset="1" stop-color="#414345"/>
+    </linearGradient>
+    <linearGradient id="scoop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8ab5"/>
+      <stop offset="1" stop-color="#e0559a"/>
+    </linearGradient>
+    <filter id="sglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="240" height="160" rx="16" fill="url(#sbg)"/>
+  <circle cx="205" cy="28" r="20" fill="#4caf50" opacity="0.25"/>
+  <circle cx="28" cy="132" r="26" fill="#2196f3" opacity="0.25"/>
+  <rect x="34" y="64" width="28" height="28" rx="6" fill="#ffd700" opacity="0.65" transform="rotate(-20 48 78)"/>
+  <rect x="178" y="64" width="28" height="28" rx="6" fill="#4caf50" opacity="0.65" transform="rotate(15 192 78)"/>
+  <g transform="rotate(-8 120 82)" filter="url(#sglow)">
+    <path d="M104,108 L120,142 L136,108 Z" fill="#d9a066"/>
+    <path d="M104,108 L120,142 L136,108 Z" fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M110,116 L124,130 M130,116 L116,130" stroke="#a06a3b" stroke-width="2.5"/>
+    <ellipse cx="120" cy="88" rx="30" ry="26" fill="url(#scoop)"/>
+    <ellipse cx="120" cy="88" rx="30" ry="26" fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="3"/>
+    <circle cx="120" cy="66" r="14" fill="#9ff0c8"/>
+    <circle cx="120" cy="66" r="14" fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="3"/>
+    <circle cx="120" cy="50" r="6" fill="#e63946"/>
+    <path d="M120,44 Q122,38 128,37" stroke="#3fbf7f" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <rect x="100" y="74" width="22" height="9" rx="4.5" fill="#ffffff" opacity="0.45"/>
+    <g fill="#ffffff" opacity="0.9">
+      <rect x="106" y="86" width="7" height="3" rx="1.5" transform="rotate(24 109 87)"/>
+      <rect x="124" y="92" width="7" height="3" rx="1.5" transform="rotate(-18 127 93)"/>
+      <rect x="114" y="98" width="7" height="3" rx="1.5" transform="rotate(40 117 99)"/>
+    </g>
+  </g>
+</svg>
