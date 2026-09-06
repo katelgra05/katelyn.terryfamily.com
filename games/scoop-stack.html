@@ -329,7 +329,7 @@
     function spawnCurrent() {
       // usually a scoop drops... but sometimes a bonus cherry instead!
       const cherry = level >= 3 && Math.random() < 0.15;
-      const w = cherry ? 64 : baseWidth();
+      const w = cherry ? 44 : baseWidth();
       const landWy = topWorldY() - BLOCK_H;
       const spawnWy = landWy - Math.max(420, H * 0.5);
       const fallDist = landWy - spawnWy;
