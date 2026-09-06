@@ -242,19 +242,19 @@
       <p class="big-score">🍨 <span id="finalScore">0</span> scoops</p>
       <p id="newBest" style="font-weight:bold;color:#ffd94d;display:none;">🎉 New best! 🎉</p>
       <p style="color:rgba(255,255,255,0.85);">🏆 Best: <span id="finalBest">0</span></p>
+      <p style="font-weight:800;color:#ffd94d;">Add your name to the leaderboard! 🎉</p>
+      <div id="boardForm">
+        <input id="nameInput" maxlength="12" placeholder="Your name..." autocomplete="off">
+        <button class="game-button small" id="saveScoreBtn" style="margin-top:10px;">Save my score</button>
+      </div>
+      <p id="boardMsg"></p>
       <button class="game-button" onclick="startGame()">↻ Stack Again!</button><br>
       <button class="game-button small" id="boardBtn" style="background:linear-gradient(135deg,#ffd94d,#ff9a3d);margin-top:12px;">🏆 Leaderboard</button>
     </div>
     <div class="overlay" id="boardScreen" style="display:none;">
       <div style="font-size:44px;margin-bottom:4px;">🏆</div>
       <h2>Leaderboard</h2>
-      <p id="boardYou" style="font-weight:800;color:#ffd94d;"></p>
       <div id="boardList"></div>
-      <div id="boardForm">
-        <input id="nameInput" maxlength="12" placeholder="Your name..." autocomplete="off">
-        <button class="game-button small" id="saveScoreBtn" style="margin-top:10px;">Save my score</button>
-      </div>
-      <p id="boardMsg"></p>
       <button class="game-button small" id="boardBackBtn">← Back</button>
     </div>
   </div>
@@ -274,7 +274,6 @@
     const muteBtn = document.getElementById('muteBtn');
     const boardScreen = document.getElementById('boardScreen');
     const boardList = document.getElementById('boardList');
-    const boardYou = document.getElementById('boardYou');
     const nameInput = document.getElementById('nameInput');
     const saveScoreBtn = document.getElementById('saveScoreBtn');
     const boardMsg = document.getElementById('boardMsg');
@@ -702,6 +701,9 @@
       finalScoreEl.textContent = level;
       finalBestEl.textContent = best;
       newBestEl.style.display = (level > 0 && level >= best) ? '' : 'none';
+      boardScore = level;
+      nameInput.value = '';
+      boardMsg.textContent = '';
       overScreen.style.display = '';
       running = false;
       cancelAnimationFrame(rafId);
@@ -745,9 +747,6 @@
     }
     function openBoard() {
       boardScore = level;
-      boardYou.textContent = 'Your run: ' + level.toLocaleString() + ' 🍨';
-      boardMsg.textContent = '';
-      nameInput.value = '';
       renderBoard(null);
       overScreen.style.display = 'none';
       boardScreen.style.display = '';

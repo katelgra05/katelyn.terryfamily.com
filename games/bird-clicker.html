@@ -439,11 +439,6 @@
       <h2>Leaderboard</h2>
       <p id="boardYou"></p>
       <div id="boardList"></div>
-      <div id="boardForm">
-        <input id="nameInput" maxlength="12" placeholder="Your name..." autocomplete="off">
-        <button class="game-button small" id="saveScoreBtn" style="margin-top:10px;">Save my score</button>
-      </div>
-      <p id="boardMsg"></p>
       <button class="game-button small" id="boardBackBtn">← Back</button>
     </div>
     <div id="endScreen" style="display:none;">
@@ -452,6 +447,12 @@
       <p class="big-score" style="font-size:22px;font-weight:900;color:#ffd94d;">🪶 <span id="finalScore">0</span> feathers</p>
       <p style="color:rgba(255,255,255,0.85);">🏆 Best: <span id="endBest">0</span></p>
       <p id="endGen" style="font-weight:800;color:#ffd94d;"></p>
+      <p style="font-weight:800;color:#ffd94d;">Add your name to the leaderboard! 🎉</p>
+      <div id="boardForm">
+        <input id="nameInput" maxlength="12" placeholder="Your name..." autocomplete="off">
+        <button class="game-button small" id="saveScoreBtn" style="margin-top:10px;">Save my score</button>
+      </div>
+      <p id="boardMsg"></p>
       <button class="game-button" onclick="startGame()">↻ Play Again!</button><br>
       <button class="game-button small" id="endBoardBtn" style="background:linear-gradient(135deg,#ffd94d,#ff9a3d);margin-top:12px;">🏆 Leaderboard</button>
     </div>
@@ -1713,8 +1714,6 @@
       boardFrom = from || null;
       boardScore = Math.floor(best);
       boardYou.textContent = 'Your best: ' + boardScore.toLocaleString() + ' 🪶';
-      boardMsg.textContent = '';
-      nameInput.value = '';
       renderBoard(null);
       endScreen.style.display = 'none';
       boardScreen.style.display = '';
@@ -1763,6 +1762,9 @@
       finalScoreEl.textContent = Math.floor(score).toLocaleString();
       endBestEl.textContent = Math.floor(best).toLocaleString();
       endGenEl.textContent = generation === 0 ? '🌱 First life • ' + curStages()[stageIdx].name : `🔁 Reborn x${generation} • ${genMult().toLocaleString()}x • ` + curStages()[stageIdx].name;
+      boardScore = Math.floor(best);
+      nameInput.value = '';
+      boardMsg.textContent = '';
       endScreen.style.display = '';
     }
     endBtn.addEventListener('click', () => { ensureAudio(); endGame(); });
