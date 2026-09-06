@@ -612,6 +612,61 @@
       sky.addColorStop(1, '#fff3d6');
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
+      // deep-space fade: the higher you climb, the more space takes over
+      const alt = groundY() - camY;
+      const spaceA = Math.max(0, Math.min(1, (alt - 1300) / 1100));
+      if (spaceA > 0) {
+        const sp = ctx.createLinearGradient(0, 0, 0, H);
+        sp.addColorStop(0, `rgba(5, 5, 28, ${0.97 * spaceA})`);
+        sp.addColorStop(0.7, `rgba(27, 27, 58, ${0.95 * spaceA})`);
+        sp.addColorStop(1, `rgba(60, 30, 90, ${0.9 * spaceA})`);
+        ctx.fillStyle = sp;
+        ctx.fillRect(0, 0, W, H);
+      }
+      // ringed planet + moon, waiting in deep space (world positions)
+      {
+        const px = W * 0.24, py = toSY(gy - 2600);
+        if (py > -140 && py < H + 140) {
+          const pg = ctx.createRadialGradient(px - 14, py - 14, 6, px, py, 60);
+          pg.addColorStop(0, 'rgba(200, 160, 255, 0.5)');
+          pg.addColorStop(1, 'rgba(200, 160, 255, 0)');
+          ctx.fillStyle = pg;
+          ctx.beginPath(); ctx.arc(px, py, 60, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#9b7ed9';
+          ctx.beginPath(); ctx.arc(px, py, 34, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#7c5cd6';
+          ctx.beginPath(); ctx.arc(px - 8, py + 6, 22, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(255, 235, 170, 0.9)';
+          ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.ellipse(px, py, 52, 14, -0.35, 0, Math.PI * 2); ctx.stroke();
+        }
+        const mx = W * 0.76, my = toSY(gy - 3300);
+        if (my > -100 && my < H + 100) {
+          ctx.fillStyle = '#e8e8f2';
+          ctx.beginPath(); ctx.arc(mx, my, 24, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(160,160,190,0.8)';
+          ctx.beginPath(); ctx.arc(mx - 7, my - 4, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(mx + 6, my + 7, 4, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(mx + 8, my - 8, 3, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // extra deep-space starfield (world-anchored)
+      {
+        const rndd = srand(123);
+        const deep = [];
+        for (let i = 0; i < 60; i++) {
+          deep.push({ off: 3500 + rndd() * 3500, sx: rndd() * W, r: 1 + (i % 2) });
+        }
+        ctx.fillStyle = '#ffffff';
+        for (let i = 0; i < deep.length; i++) {
+          const sy = toSY(gy - deep[i].off);
+          if (sy < -10 || sy > H + 10) continue;
+          const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * 2.2 + i * 2.3));
+          ctx.globalAlpha = tw;
+          ctx.fillRect(deep[i].sx, sy, deep[i].r + 1, deep[i].r + 1);
+        }
+        ctx.globalAlpha = 1;
+      }
       // sun, high in the sky (world position — scrolls by gradually)
       {
         const sunS = toSY(gy - 2650);
