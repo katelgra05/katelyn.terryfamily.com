@@ -330,7 +330,7 @@
     }
     .game-button:hover { transform: scale(1.06); }
     /* leaderboard overlay (same cozy panel style as Scoop Stack) */
-    #boardScreen {
+    #boardScreen, #endScreen {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -348,7 +348,7 @@
       z-index: 200;
       font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
     }
-    #boardScreen h2 {
+    #boardScreen h2, #endScreen h2 {
       font-size: 28px;
       margin: 0 0 6px;
       background: linear-gradient(90deg, #ffb3e2, #8ee7fa);
@@ -417,6 +417,7 @@
         <div class="best-card" id="best">🏆 0</div>
         <div class="icon-row">
           <button id="boardBtn" class="icon-btn" title="Leaderboard">🏆</button>
+          <button id="endBtn" class="icon-btn" title="End run">🏁</button>
           <button id="musicBtn" class="icon-btn" onclick="toggleMusic()" title="Music on/off">🎵</button>
           <button id="muteBtn" class="icon-btn" onclick="toggleMute()" title="Sounds on/off">🔊</button>
         </div>
@@ -444,6 +445,15 @@
       </div>
       <p id="boardMsg"></p>
       <button class="game-button small" id="boardBackBtn">← Back</button>
+    </div>
+    <div id="endScreen" style="display:none;">
+      <div style="font-size:52px;margin-bottom:8px;">🏁</div>
+      <h2>Run Over!</h2>
+      <p class="big-score" style="font-size:22px;font-weight:900;color:#ffd94d;">🪶 <span id="finalScore">0</span> feathers</p>
+      <p style="color:rgba(255,255,255,0.85);">🏆 Best: <span id="endBest">0</span></p>
+      <p id="endGen" style="font-weight:800;color:#ffd94d;"></p>
+      <button class="game-button" onclick="startGame()">↻ Play Again!</button><br>
+      <button class="game-button small" id="endBoardBtn" style="background:linear-gradient(135deg,#ffd94d,#ff9a3d);margin-top:12px;">🏆 Leaderboard</button>
     </div>
     <div id="shop-bar" title="Open Shop 🛒">🛒 Shop 💕</div>
   </div>
@@ -1661,7 +1671,14 @@
     const saveScoreBtn = document.getElementById('saveScoreBtn');
     const boardMsg = document.getElementById('boardMsg');
     const boardBackBtn = document.getElementById('boardBackBtn');
+    const endBtn = document.getElementById('endBtn');
+    const endScreen = document.getElementById('endScreen');
+    const finalScoreEl = document.getElementById('finalScore');
+    const endBestEl = document.getElementById('endBest');
+    const endGenEl = document.getElementById('endGen');
+    const endBoardBtn = document.getElementById('endBoardBtn');
     let boardScore = 0;
+    let boardFrom = null; // 'end' when the board was opened from the end panel
     function loadBoard() {
       try {
         const a = JSON.parse(localStorage.getItem('bird_board'));
@@ -1691,13 +1708,15 @@
         return '<div class="brow' + me + '"><span>' + rank + ' ' + escapeHtml(e.name) + '</span><span class="bscore">' + e.score.toLocaleString() + ' 🪶</span></div>';
       }).join('');
     }
-    function openBoard() {
+    function openBoard(from) {
       ensureAudio();
+      boardFrom = from || null;
       boardScore = Math.floor(best);
       boardYou.textContent = 'Your best: ' + boardScore.toLocaleString() + ' 🪶';
       boardMsg.textContent = '';
       nameInput.value = '';
       renderBoard(null);
+      endScreen.style.display = 'none';
       boardScreen.style.display = '';
     }
     function saveScore() {
@@ -1726,11 +1745,27 @@
       saveBoard(board);
       renderBoard(name);
     }
-    boardBtn.addEventListener('click', openBoard);
+    boardBtn.addEventListener('click', () => openBoard(null));
+    endBoardBtn.addEventListener('click', () => openBoard('end'));
     saveScoreBtn.addEventListener('click', saveScore);
     boardBackBtn.addEventListener('click', () => {
       boardScreen.style.display = 'none';
+      if (boardFrom === 'end') endScreen.style.display = '';
+      boardFrom = null;
     });
+    // ============ end the run whenever you want ============
+    function endGame() {
+      if (!running) return;
+      running = false;
+      cancelAnimationFrame(rafId);
+      shopDrawerBg.classList.remove('active');
+      boardScreen.style.display = 'none';
+      finalScoreEl.textContent = Math.floor(score).toLocaleString();
+      endBestEl.textContent = Math.floor(best).toLocaleString();
+      endGenEl.textContent = generation === 0 ? '🌱 First life • ' + curStages()[stageIdx].name : `🔁 Reborn x${generation} • ${genMult().toLocaleString()}x • ` + curStages()[stageIdx].name;
+      endScreen.style.display = '';
+    }
+    endBtn.addEventListener('click', () => { ensureAudio(); endGame(); });
 
     // ============ main loop ============
     function loop(now) {
@@ -1762,6 +1797,7 @@
       running = true;
       startScreen.style.display = 'none';
       boardScreen.style.display = 'none';
+      endScreen.style.display = 'none';
       refreshShopLocks();
       updateHUD(true);
       musicStep = 0;
