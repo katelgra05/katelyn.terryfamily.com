@@ -449,7 +449,7 @@
       }
       // camera scrolls up with the tower like someone scrolling
       const target = camTarget();
-      camY += (target - camY) * Math.min(1, dt * 4);
+      camY += (target - camY) * Math.min(1, dt * 6);
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
