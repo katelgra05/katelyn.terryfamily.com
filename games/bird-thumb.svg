@@ -35,15 +35,12 @@
     <ellipse cx="158" cy="172" rx="32" ry="28" fill="#ffe9f3" opacity="0.9"/>
     <ellipse cx="102" cy="146" rx="30" ry="15" fill="#e0559a" transform="rotate(-30 102 146)"/>
     <ellipse cx="198" cy="146" rx="30" ry="15" fill="#e0559a" transform="rotate(30 198 146)"/>
-    <circle cx="130" cy="138" r="13" fill="#fff"/>
-    <circle cx="170" cy="138" r="13" fill="#fff"/>
-    <circle cx="150" cy="138" r="13" fill="#fff"/>
-    <circle cx="131" cy="140" r="6" fill="#1a1a2e"/>
-    <circle cx="169" cy="140" r="6" fill="#1a1a2e"/>
-    <circle cx="150" cy="140" r="6" fill="#1a1a2e"/>
-    <circle cx="133" cy="138" r="2" fill="#fff"/>
-    <circle cx="171" cy="138" r="2" fill="#fff"/>
-    <circle cx="152" cy="138" r="2" fill="#fff"/>
+    <circle cx="132" cy="138" r="14" fill="#fff"/>
+    <circle cx="168" cy="138" r="14" fill="#fff"/>
+    <circle cx="133.5" cy="140" r="6.5" fill="#1a1a2e"/>
+    <circle cx="166.5" cy="140" r="6.5" fill="#1a1a2e"/>
+    <circle cx="135.5" cy="138" r="2.2" fill="#fff"/>
+    <circle cx="168.5" cy="138" r="2.2" fill="#fff"/>
     <ellipse cx="118" cy="160" rx="9" ry="6" fill="#fff" opacity="0.7"/>
     <ellipse cx="182" cy="160" rx="9" ry="6" fill="#fff" opacity="0.7"/>
     <path d="M140 158 L160 158 L150 172 Z" fill="#f4842c"/>
