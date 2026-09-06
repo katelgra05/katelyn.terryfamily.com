@@ -544,7 +544,7 @@
       boardScore = level;
       boardYou.textContent = 'Your run: ' + level.toLocaleString() + ' 🍨';
       boardMsg.textContent = '';
-      try { nameInput.value = localStorage.getItem('scoop_name') || ''; } catch (e) {}
+      nameInput.value = '';
       renderBoard(null);
       overScreen.style.display = 'none';
       boardScreen.style.display = '';
@@ -573,7 +573,6 @@
       }
       board.sort((a, b) => b.score - a.score);
       saveBoard(board);
-      try { localStorage.setItem('scoop_name', name); } catch (e) {}
       renderBoard(name);
     }
     boardBtn.addEventListener('click', () => { ensureAudio(); openBoard(); });
