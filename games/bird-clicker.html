@@ -362,43 +362,43 @@
       </div>
       <div id="shop-drawer-content">
         <div class="shop-item">
-          <span>+1 Click Power<br><span class="cost-note">(10 🪶)</span></span>
+          <span>+1 Click Power<br><span class="cost-note">(50 🪶)</span></span>
           <button class="shop-btn" id="buy-click-1">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+1 Per Second<br><span class="cost-note">(40 🪶)</span></span>
+          <span>+1 Per Second<br><span class="cost-note">(250 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-1">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+10 Per Second<br><span class="cost-note">(200 🪶)</span></span>
+          <span>+10 Per Second<br><span class="cost-note">(1,200 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-10">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+100 Per Second<br><span class="cost-note">(1,500 🪶)</span></span>
+          <span>+100 Per Second<br><span class="cost-note">(12,000 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-100">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+2,000 Click Power<br><span class="cost-note">(12,000 🪶)</span></span>
+          <span>+2,000 Click Power<br><span class="cost-note">(90,000 🪶)</span></span>
           <button class="shop-btn" id="buy-click-2000">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+250,000 Per Second<br><span class="cost-note">(60,000 🪶)</span></span>
+          <span>+250,000 Per Second<br><span class="cost-note">(600,000 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-250k">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+5,000,000 Per Second<br><span class="cost-note">(400,000 🪶)</span></span>
+          <span>+5,000,000 Per Second<br><span class="cost-note">(4,000,000 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-5m">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+2,000,000 Click Power<br><span class="cost-note">(2,500,000 🪶)</span></span>
+          <span>+2,000,000 Click Power<br><span class="cost-note">(30,000,000 🪶)</span></span>
           <button class="shop-btn" id="buy-click-2m">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+100,000,000 Per Second<br><span class="cost-note">(15,000,000 🪶)</span></span>
+          <span>+100,000,000 Per Second<br><span class="cost-note">(250,000,000 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-100m">Buy</button>
         </div>
         <div class="shop-item">
-          <span>+5,000,000,000 Per Second<br><span class="cost-note">(80,000,000 🪶)</span></span>
+          <span>+5,000,000,000 Per Second<br><span class="cost-note">(900,000,000 🪶)</span></span>
           <button class="shop-btn" id="buy-sec-5b">Buy</button>
         </div>
       </div>
@@ -454,16 +454,16 @@
       sec5b: document.getElementById('buy-sec-5b')
     };
     const SHOP = [
-      { btn: 'click1', cost: 10, run: () => { perClick += 1; } },
-      { btn: 'sec1', cost: 40, run: () => { perSec += 1; } },
-      { btn: 'sec10', cost: 200, run: () => { perSec += 10; } },
-      { btn: 'sec100', cost: 1500, run: () => { perSec += 100; } },
-      { btn: 'click2000', cost: 12000, run: () => { perClick += 2000; } },
-      { btn: 'sec250k', cost: 60000, run: () => { perSec += 250000; } },
-      { btn: 'sec5m', cost: 400000, run: () => { perSec += 5000000; } },
-      { btn: 'click2m', cost: 2500000, run: () => { perClick += 2000000; } },
-      { btn: 'sec100m', cost: 15000000, run: () => { perSec += 100000000; } },
-      { btn: 'sec5b', cost: 80000000, run: () => { perSec += 5000000000; } }
+      { btn: 'click1', cost: 50, run: () => { perClick += 1; } },
+      { btn: 'sec1', cost: 250, run: () => { perSec += 1; } },
+      { btn: 'sec10', cost: 1200, run: () => { perSec += 10; } },
+      { btn: 'sec100', cost: 12000, run: () => { perSec += 100; } },
+      { btn: 'click2000', cost: 90000, run: () => { perClick += 2000; } },
+      { btn: 'sec250k', cost: 600000, run: () => { perSec += 250000; } },
+      { btn: 'sec5m', cost: 4000000, run: () => { perSec += 5000000; } },
+      { btn: 'click2m', cost: 30000000, run: () => { perClick += 2000000; } },
+      { btn: 'sec100m', cost: 250000000, run: () => { perSec += 100000000; } },
+      { btn: 'sec5b', cost: 900000000, run: () => { perSec += 5000000000; } }
     ];
 
     const STAGES = [
