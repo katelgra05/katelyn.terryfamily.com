@@ -161,7 +161,7 @@ a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
 
 .game-thumb {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 3 / 2;
   object-fit: cover;
   border-radius: 12px;
   margin-bottom: 12px;
