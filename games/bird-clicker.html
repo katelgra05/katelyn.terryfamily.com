@@ -104,12 +104,6 @@
       font-size: clamp(12px, 2.4vmin, 15px);
       opacity: 0.85;
     }
-    .score-card .combo {
-      font-size: clamp(13px, 2.6vmin, 16px);
-      font-weight: 800;
-      color: #ffb3e2;
-      min-height: 1.2em;
-    }
     .hud-right {
       display: flex;
       flex-direction: column;
@@ -227,7 +221,6 @@
       <div class="score-card">
         <div class="feathers">🪶 <span id="score">0</span></div>
         <div class="rates"><span id="rates">1 /click • 0 /sec</span></div>
-        <div class="combo" id="combo"></div>
         <div class="rates" id="stageName">🐣 Hatchling</div>
       </div>
       <div class="hud-right">
@@ -240,17 +233,17 @@
     </div>
     <div class="shop">
       <button class="shop-btn" id="buyBeak" onclick="buy('beak')">
-        <div class="name">🐛 Beak <span id="beakLvl">0</span></div>
+        <div class="name">🐛 Beak</div>
         <div class="desc">+1 feather per click</div>
         <div class="cost">🪶 <span id="beakCost">15</span></div>
       </button>
       <button class="shop-btn" id="buyNest" onclick="buy('nest')">
-        <div class="name">🪹 Nest <span id="nestLvl">0</span></div>
+        <div class="name">🪹 Nest</div>
         <div class="desc">+1 feather /sec</div>
         <div class="cost">🪶 <span id="nestCost">25</span></div>
       </button>
       <button class="shop-btn" id="buyFlock" onclick="buy('flock')">
-        <div class="name">🐦 Flock <span id="flockLvl">0</span></div>
+        <div class="name">🐦 Flock</div>
         <div class="desc">+5 feathers /sec</div>
         <div class="cost">🪶 <span id="flockCost">120</span></div>
       </button>
@@ -260,7 +253,7 @@
       <div style="font-size:52px;margin-bottom:8px;">🐦</div>
       <h2>Bird Clicker!</h2>
       <p>Click your bird to shake out feathers! 🪶<br>
-      🔥 Fast clicks build combos • ✨ Catch the golden bird!<br>
+      ✨ Catch the golden bird!<br>
       🛒 Spend feathers on upgrades • 🌟 Earn evolutions!</p>
       <p id="bestStart" style="font-weight:bold;color:#ffd94d;">🏆 Best: 0</p>
       <button class="game-button" onclick="startGame()">▶ Start Clicking!</button>
@@ -273,7 +266,6 @@
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
     const ratesEl = document.getElementById('rates');
-    const comboEl = document.getElementById('combo');
     const stageEl = document.getElementById('stageName');
     const bestEl = document.getElementById('best');
     const bestStartEl = document.getElementById('bestStart');
@@ -284,9 +276,6 @@
     const beakCostEl = document.getElementById('beakCost');
     const nestCostEl = document.getElementById('nestCost');
     const flockCostEl = document.getElementById('flockCost');
-    const beakLvlEl = document.getElementById('beakLvl');
-    const nestLvlEl = document.getElementById('nestLvl');
-    const flockLvlEl = document.getElementById('flockLvl');
     const buyBeakEl = document.getElementById('buyBeak');
     const buyNestEl = document.getElementById('buyNest');
     const buyFlockEl = document.getElementById('buyFlock');
@@ -302,7 +291,6 @@
     // ============ state ============
     let running = false, rafId = null, lastT = 0;
     let score = 0, totalEarned = 0, best = 0;
-    let combo = 0, maxCombo = 0, lastClickAt = 0, totalClicks = 0;
     let upg = { beak: 0, nest: 0, flock: 0 };
     let stageIdx = 0;
     let muted = false, musicOn = true;
@@ -332,7 +320,7 @@
     const bird = { x: 0, y: 0, r: 60, tx: 0, hopT: 1, squash: 0, flap: 0, beak: 0, blink: 0, blinkAt: 2000, lookX: 0, lookY: 0 };
     let clouds = [], ambientFeathers = [];
     let particles = [], popups = [];
-    const gold = { active: false, x: 0, y: 0, vx: 0, t: 0, nextAt: 25 };
+    const gold = { active: false, x: 0, y: 0, vx: 0, t: 25 };
     let banner = null; // {text, life}
 
     function placeBird() {
@@ -436,9 +424,9 @@
       muteBtn.textContent = muted ? '🔇' : '🔊';
       muteBtn.classList.toggle('off', muted);
     }
-    function chirp(c) {
+    function chirp() {
       if (!audioCtx) return;
-      const base = 1700 + Math.min(c, 15) * 60;
+      const base = 1700 + Math.random() * 200;
       tone(base, 0.07, 'sine', 0.11);
       tone(base * 0.7, 0.09, 'sine', 0.09, audioCtx.currentTime + 0.06);
     }
@@ -482,7 +470,7 @@
     }
     function resetSave() {
       if (!confirm('Erase your bird progress and start over?')) return;
-      score = 0; totalEarned = 0; combo = 0;
+      score = 0; totalEarned = 0;
       upg = { beak: 0, nest: 0, flock: 0 };
       stageIdx = 0;
       try { localStorage.removeItem('bird_save'); } catch (e) {}
@@ -531,22 +519,15 @@
     }
 
     function birdClick(x, y) {
-      const now = performance.now();
-      combo = (now - lastClickAt < 1200) ? combo + 1 : 1;
-      lastClickAt = now;
-      maxCombo = Math.max(maxCombo, combo);
-      totalClicks++;
-      const mult = 1 + Math.min(combo, 20) * 0.05;
-      const pts = Math.max(1, Math.round(perClick() * mult));
+      const pts = perClick();
       gain(pts);
       bird.squash = 1;
       bird.flap = 1;
       bird.beak = 0.3;
       bird.lookX = x; bird.lookY = y;
-      burst(x, y, 5 + Math.min(combo, 12), false);
-      popup(x, y - bird.r, '+' + pts, '#ffffff', 22 + Math.min(combo, 10));
-      if (combo >= 3) popup(x, y - bird.r - 34, `🔥 x${combo}`, '#ffb3e2', 22);
-      chirp(combo);
+      burst(x, y, 6, false);
+      popup(x, y - bird.r, '+' + pts, '#ffffff', 24);
+      chirp();
       updateHUD(true);
     }
     function goldenClick(g) {
@@ -556,6 +537,7 @@
       burst(g.x, g.y, 24, true);
       fanfare();
       g.active = false;
+      g.t = 45 + Math.random() * 35;
       updateHUD(true);
     }
 
@@ -1018,7 +1000,7 @@
     }
 
     // ============ HUD ============
-    let lastShown = { score: -1, best: -1, combo: -1, stage: -1, rates: '' };
+    let lastShown = { score: -1, best: -1, stage: -1, rates: '' };
     function updateHUD(force) {
       const s = Math.floor(score), b = Math.floor(best);
       if (force || s !== lastShown.score) { scoreEl.textContent = s.toLocaleString(); lastShown.score = s; }
@@ -1026,10 +1008,6 @@
         bestEl.textContent = '🏆 ' + b.toLocaleString();
         bestStartEl.textContent = '🏆 Best: ' + b.toLocaleString();
         lastShown.best = b;
-      }
-      if (force || combo !== lastShown.combo) {
-        comboEl.textContent = combo >= 2 ? `🔥 Combo x${combo}` : '';
-        lastShown.combo = combo;
       }
       if (force || stageIdx !== lastShown.stage) {
         stageEl.textContent = STAGES[stageIdx].name;
@@ -1042,9 +1020,6 @@
       beakCostEl.textContent = costs.beak;
       nestCostEl.textContent = costs.nest;
       flockCostEl.textContent = costs.flock;
-      beakLvlEl.textContent = upg.beak;
-      nestLvlEl.textContent = upg.nest;
-      flockLvlEl.textContent = upg.flock;
       buyBeakEl.disabled = score < costs.beak;
       buyNestEl.disabled = score < costs.nest;
       buyFlockEl.disabled = score < costs.flock;
@@ -1069,7 +1044,6 @@
       initSky();
       particles = [];
       popups = [];
-      combo = 0;
       gold.active = false;
       gold.t = 22 + Math.random() * 10;
       banner = null;
@@ -1096,11 +1070,8 @@
       if (Math.hypot(x - bird.x, y - bird.y) < bird.r * 1.25) {
         birdClick(x, y);
       } else {
-        // background tap: tiny puff, combo fizzles
+        // background tap: tiny puff
         particles.push({ x, y, vx: 0, vy: -30, rot: 0, vr: 1, life: 0.4, maxLife: 0.4, size: 8, color: 'rgba(255,255,255,0.7)', sparkle: false });
-        if (combo >= 2) popup(x, y - 20, '💨', '#ffffff', 20);
-        combo = 0;
-        updateHUD(true);
       }
     });
 
