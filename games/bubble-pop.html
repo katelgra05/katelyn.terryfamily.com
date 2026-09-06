@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bubble Pop - Katelyn's Games</title>
     <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         .game-container {
             position: relative;
@@ -91,6 +92,7 @@
     </style>
 </head>
 <body>
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🫧 Bubble Pop</span></nav>
     <div class="title-container">
         <div class="stat-box left-stats">
             <h3>High Score</h3>
@@ -106,9 +108,11 @@
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <div id="score">Score: 0</div>
         <div id="startScreen">
+            <div style="font-size:52px;margin-bottom:8px;">🫧</div>
             <h2>Bubble Pop!</h2>
             <p>Pop the bubbles and watch them burst into beautiful particles!</p>
-            <button class="game-button" onclick="startGame()">Start Game</button>
+            <p style="font-size:14px;opacity:.85;">🖱️ Click bubbles to pop • ⚠️ Don't let them reach the top</p>
+            <button class="game-button" onclick="startGame()">▶ Start Popping!</button>
         </div>
     </div>
     <div class="button-container">

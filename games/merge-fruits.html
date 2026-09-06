@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Merge Fruits</title>
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -469,13 +472,17 @@
     </style>
 </head>
 <body>
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🍉 Merge Fruits</span></nav>
     <div class="start-overlay" id="start-overlay">
         <span class="start-pig" style="opacity:1;">🐷</span>
         <span class="start-cat">🐱</span>
         <div class="start-whitebox">
+            <div style="font-size:54px;">🍉</div>
             <div class="start-title">Merge Fruits</div>
-            <button class="start-btn" id="start-btn">Start</button>
-            <button class="instructions-btn" id="instructions-btn">Instructions</button>
+            <p style="color:rgba(255,255,255,.8);margin:0 0 12px;font-size:15px;">Merge up to a giant watermelon & serve cute customers!</p>
+            <button class="start-btn" id="start-btn">▶ Start Merging!</button>
+            <button class="instructions-btn" id="instructions-btn">📖 Instructions</button>
+            <a href="../index.html" style="margin-top:10px;font-size:13px;color:#8ee7fa;z-index:2002;">← Back to Pixll Arcade</a>
         </div>
     </div>
     <div class="instructions-modal" id="instructions-modal" style="display:none;">

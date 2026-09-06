@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Memory Match Game</title>
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         * {
             box-sizing: border-box;
@@ -318,14 +319,16 @@
     </style>
 </head>
 <body>
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🃏 Memory Match</span></nav>
     <a href="../index.html" class="back-button">← Back</a>
     <div class="game-container">
         <div class="game-info">
-            <h1>Memory Match Game</h1>
+            <h1>🃏 Memory Match Game</h1>
+            <p style="color:#555;font-size:15px;margin:0 0 14px;">Flip cards, find pairs, beat your friend! Pick a difficulty to begin ✨</p>
             <div class="difficulty-buttons" id="difficultyButtons">
-                <button class="difficulty-button" onclick="startGame('easy')">Easy (9 cards)</button>
-                <button class="difficulty-button" onclick="startGame('medium')">Medium (16 cards)</button>
-                <button class="difficulty-button" onclick="startGame('hard')">Hard (25 cards)</button>
+                <button class="difficulty-button" onclick="startGame('easy')">🌱 Easy (9 cards)</button>
+                <button class="difficulty-button" onclick="startGame('medium')">🌟 Medium (16 cards)</button>
+                <button class="difficulty-button" onclick="startGame('hard')">🔥 Hard (25 cards)</button>
             </div>
             <div id="gameContent" style="display: none;">
                 <div class="player-info">

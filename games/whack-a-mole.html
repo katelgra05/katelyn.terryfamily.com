@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Whack-A-Mole!</title>
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         body {
             text-align: center;
@@ -74,12 +77,15 @@
     </style>
 </head>
 <body>
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🔨 Whack-a-Mole</span></nav>
     <div class="difficulty-container" id="difficultyScreen">
+        <div style="font-size:56px;">🔨</div>
         <h1>🔨 Whack-A-Mole! 🦫</h1>
-        <h1>Select Difficulty</h1>
-        <button class="difficultyBtn" onclick="setDifficulty('easy')">Easy</button>
-        <button class="difficultyBtn" onclick="setDifficulty('medium')">Medium</button>
-        <button class="difficultyBtn" onclick="setDifficulty('hard')">Hard</button>
+        <p style="color:#fff;opacity:.9;">Bonk as many moles as you can in 30 seconds!</p>
+        <h1 style="font-size:22px;">Select Difficulty</h1>
+        <button class="difficultyBtn" onclick="setDifficulty('easy')">🌱 Easy</button>
+        <button class="difficultyBtn" onclick="setDifficulty('medium')">🌟 Medium</button>
+        <button class="difficultyBtn" onclick="setDifficulty('hard')">🔥 Hard</button>
     </div>
 
     <div class="game-container" id="gameScreen" style="display: none;">

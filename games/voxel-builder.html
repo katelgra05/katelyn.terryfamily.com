@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voxel Builder</title>
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         body {
             margin: 0;
@@ -132,7 +135,8 @@
     </style>
 </head>
 <body>
-    <div id="loading-overlay">Loading textures and world...</div>
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🧱 Voxel Builder</span></nav>
+    <div id="loading-overlay">🧱 Loading your voxel world...</div>
     <div id="error-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,0,0,0.85);color:#fff;font-size:2em;z-index:3000;align-items:center;justify-content:center;text-align:center;">No blocks were created! Check console for errors.</div>
     <div id="game-container">
         <div id="ui-container">

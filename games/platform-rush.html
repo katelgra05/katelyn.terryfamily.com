@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Platform Rush</title>
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         body {
             margin: 0;
@@ -271,6 +274,7 @@
     </style>
 </head>
 <body>
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🏃 Platform Rush</span></nav>
     <div class="header-bar">
         <h1>Platform Rush</h1>
         <div class="level-container">Level: <span id="level">1</span></div>
@@ -278,10 +282,13 @@
     <div class="game-container">
         <canvas id="gameCanvas"></canvas>
         <div id="homeScreen" class="home-screen">
-            <button class="go-back-btn" onclick="window.location.href='/'">Go Back</button>
-            <button class="home-btn" onclick="startGame()">Start Game</button>
-            <button class="home-btn" onclick="showOverlay('leaderboard')">Leaderboard</button>
-            <button class="home-btn" onclick="showOverlay('instructions')">Instructions</button>
+            <button class="go-back-btn" onclick="window.location.href='../index.html'">← Pixll Arcade</button>
+            <div style="font-size:64px;margin-bottom:6px;">🏃💨</div>
+            <h2 style="margin:0 0 6px;font-size:38px;background:linear-gradient(90deg,#ffb3e2,#8ee7fa);-webkit-background-clip:text;background-clip:text;color:transparent;">Platform Rush</h2>
+            <p style="color:rgba(255,255,255,.85);margin:0 0 14px;">Run, double-jump & grab every coin! 🪙</p>
+            <button class="home-btn" onclick="startGame()">▶ Start Game</button>
+            <button class="home-btn" onclick="showOverlay('leaderboard')">🏆 Leaderboard</button>
+            <button class="home-btn" onclick="showOverlay('instructions')">📖 Instructions</button>
         </div>
         <div id="leaderboardOverlay" class="overlay" style="display:none;">
             <button class="close-overlay" onclick="closeOverlay('leaderboard')">×</button>

@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guess the Number Game</title>
+    <link rel="stylesheet" href="./pixll-shell.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -51,7 +54,14 @@
     </style>
 </head>
 <body>
-    <div class="game-container">
+    <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🔢 Guess the Number</span></nav>
+    <div style="padding-top:60px;display:flex;flex-direction:column;align-items:center;width:100%;padding-left:16px;padding-right:16px;">
+    <header class="pixll-hero" style="margin:0 0 16px;max-width:600px;width:100%;">
+      <div class="pixll-hero-emoji">🔢</div>
+      <h2 class="pixll-hero-title">Guess the Number</h2>
+      <p class="pixll-hero-tag">I'm thinking of a number 1–100. You have 10 tries — follow the 📈📉 hints!</p>
+    </header>
+    <div class="game-container" style="width:100%;">
         <h1>🌌 Guess the Number! 🌌</h1>
         <p>I'm thinking of a number between 1 and 100...</p>
         <p>You have <span id="attempts">10</span> attempts left!</p>
@@ -61,6 +71,7 @@
         
         <p id="message"></p>
         <button onclick="resetGame()" id="resetButton" style="display: none;">Play Again</button>
+    </div>
     </div>
 
     <script>
