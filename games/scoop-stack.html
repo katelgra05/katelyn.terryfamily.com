@@ -180,7 +180,7 @@
     <div class="overlay" id="startScreen">
       <div style="font-size:52px;margin-bottom:8px;">🍨</div>
       <h2>Scoop Stack!</h2>
-      <p>Scoops fall from above — drag 👈👉 or use ◀ ▶ keys to steer!<br>
+      <p>Move the CONE! Drag 👈👉 or use ◀ ▶ keys to catch falling scoops!<br>
       Whole scoops stay — nothing gets sliced!<br>
       Keep the tower balanced or it topples! ⚖️</p>
       <button class="game-button" onclick="startGame()">▶ Start Stacking!</button>
@@ -220,8 +220,8 @@
     // ============ state ============
     let running = false, over = false, rafId = null, lastT = 0;
     let blocks = [], cur = null, debris = [], popups = [];
-    let level = 0, best = 0, camY = 0, lean = 0;
-    let dragging = false, dragX = 0;
+    let level = 0, best = 0, lean = 0, coneX = 0, viewS = 1;
+    let dragging = false, lastPX = 0;
     const keys = { left: false, right: false };
     let muted = false;
     try {
@@ -243,9 +243,13 @@
     ];
     const SPRINKLE_COLORS = ['#ff5d5d', '#4aa8ff', '#ffd94d', '#7cf29b', '#ffffff', '#c084fc'];
     const flavorFor = i => FLAVORS[i % FLAVORS.length];
-    const baseWidth = () => Math.min(W * 0.42, 190);
-    const fallSpeed = lvl => Math.min(150 + lvl * 12, 430);
+    const baseWidth = () => Math.min(W * 0.3, 110);
+    const fallSpeed = lvl => Math.min(150 + lvl * 11, 400);
     const groundY = () => H * 0.86;
+    const clampCone = () => {
+      const half = baseWidth() / 2 + 8;
+      coneX = Math.max(half, Math.min(W - half, coneX));
+    };
 
     function srand(seed) {
       let s = (seed * 1664525 + 1013904223) >>> 0;
@@ -300,12 +304,12 @@
       cancelAnimationFrame(rafId);
       resizeCanvas();
       const w = baseWidth();
-      blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
+      blocks = [{ dx: 0, w, lvl: 0 }];
       level = 0;
       lean = 0;
+      coneX = W / 2;
       debris = [];
       popups = [];
-      camY = 0;
       over = false;
       running = true;
       startScreen.style.display = 'none';
@@ -317,11 +321,12 @@
     }
 
     function spawnCurrent() {
-      // new scoop falls from above — no side-to-side sliding
+      // tiny scoop falls from above at a random spot — move the cone under it!
       const w = baseWidth();
-      cur = { x: W / 2 - w / 2, w, lvl: level + 1, wy: camY - 120, vx: 0 };
-      dragX = W / 2;
+      cur = { x: w / 2 + Math.random() * Math.max(1, W - w), w, lvl: level + 1, wy: topWorldY() - 280 };
     }
+
+    const blockCX = b => coneX + b.dx;
 
     function topWorldY() {
       return groundY() - blocks.length * BLOCK_H;
@@ -330,32 +335,34 @@
     function drop() {
       if (!running || over || !cur) return;
       const prev = blocks[blocks.length - 1];
+      const prevCX = blockCX(prev);
+      const scoopCX = cur.x + cur.w / 2;
       const a0 = cur.x, a1 = cur.x + cur.w;
-      const b0 = prev.x, b1 = prev.x + prev.w;
+      const b0 = prevCX - prev.w / 2, b1 = prevCX + prev.w / 2;
       const overlap = Math.min(a1, b1) - Math.max(a0, b0);
       if (overlap <= 0) {
-        // total miss — the scoop tumbles away
-        const side = ((cur.x + cur.w / 2) >= (prev.x + prev.w / 2)) ? 1 : -1;
+        // missed the stack — the scoop splats on the counter
+        const side = scoopCX >= prevCX ? 1 : -1;
         debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: side * 220, vy: -160, rot: 0, vr: side * 4, life: 1.4 });
         cur = null;
         sndFall();
         gameOver('miss');
         return;
       }
-      // whole scoop stays — no slicing! Off-center landings lean the tower.
-      const offset = (cur.x + cur.w / 2) - (prev.x + prev.w / 2);
+      // whole scoop stays — no slicing! Off-center catches lean the tower.
+      const offset = scoopCX - prevCX;
       lean = lean * 0.85 + offset;
       if (Math.abs(offset) <= PERFECT_TOL) {
-        // centered landing steadies the tower
-        blocks.push({ x: prev.x, w: cur.w, lvl: cur.lvl });
+        // centered catch steadies the tower
+        blocks.push({ dx: prev.dx, w: cur.w, lvl: cur.lvl });
         lean *= 0.4;
-        popups.push({ x: prev.x + prev.w / 2, wy: topWorldY(), text: '✨ Perfect!', life: 1 });
+        popups.push({ x: prevCX, wy: topWorldY(), text: '✨ Perfect!', life: 1 });
         sndPerfect();
       } else {
-        blocks.push({ x: cur.x, w: cur.w, lvl: cur.lvl });
+        blocks.push({ dx: scoopCX - coneX, w: cur.w, lvl: cur.lvl });
         sndPlace();
         if (Math.abs(lean) > maxLean() * 0.65) {
-          popups.push({ x: cur.x + cur.w / 2, wy: topWorldY(), text: '😬 Wobbly!', life: 1 });
+          popups.push({ x: scoopCX, wy: topWorldY(), text: '😬 Wobbly!', life: 1 });
         }
       }
       level++;
@@ -378,7 +385,7 @@
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         debris.push({
-          x: b.x, w: b.w, lvl: b.lvl,
+          x: coneX + b.dx - b.w / 2, w: b.w, lvl: b.lvl,
           wy: groundY() - (i + 1) * BLOCK_H,
           vx: dir * (120 + Math.random() * 140), vy: -60 - i * 34,
           rot: 0, vr: dir * (2 + Math.random() * 3), life: 1.8
@@ -415,14 +422,14 @@
 
     // ============ update ============
     function update(dt) {
+      if (!over) {
+        // the cone (and its whole stack) slides with drag / arrow keys
+        if (keys.left) coneX -= KEY_SPEED * dt / viewS;
+        if (keys.right) coneX += KEY_SPEED * dt / viewS;
+        clampCone();
+      }
       if (cur && !over) {
-        // scoop falls down; drag or arrow keys steer it sideways
-        const beforeX = cur.x;
-        if (keys.left) cur.x -= KEY_SPEED * dt;
-        if (keys.right) cur.x += KEY_SPEED * dt;
-        if (dragging || cur.followMouse) cur.x += (dragX - (cur.x + cur.w / 2)) * Math.min(1, dt * 12);
-        cur.x = Math.max(-cur.w * 0.6, Math.min(W - cur.w * 0.4, cur.x));
-        cur.vx = (cur.x - beforeX) / Math.max(dt, 0.001);
+        // scoop falls straight down onto wherever the cone is
         cur.wy += fallSpeed(level) * dt;
         const landWy = topWorldY() - BLOCK_H;
         if (cur.wy >= landWy) {
@@ -430,9 +437,6 @@
           drop();
         }
       }
-      // camera follows the top of the tower
-      const target = topWorldY() - H * 0.42;
-      camY += (target - camY) * Math.min(1, dt * 4);
       // debris physics
       for (let i = debris.length - 1; i >= 0; i--) {
         const d = debris[i];
@@ -441,7 +445,7 @@
         d.vy += 1800 * dt;
         d.rot += d.vr * dt;
         d.life -= dt;
-        if (d.life <= 0 || d.wy - camY > H + 120) debris.splice(i, 1);
+        if (d.life <= 0 || d.wy > groundY() + H) debris.splice(i, 1);
       }
       for (let i = popups.length - 1; i >= 0; i--) {
         popups[i].wy -= 60 * dt;
@@ -604,26 +608,31 @@
         ctx.arc(lx, ly + 20, 6, 0, Math.PI * 2);
         ctx.fill();
       });
-      const toSY = wy => wy - camY;
-      // shop counter (scrolls with the tower base)
-      const gy = toSY(groundY());
+      // zoom out as the tower grows so the cone always stays visible
+      const needH = blocks.length * BLOCK_H + 74 + 360;
+      viewS = Math.min(1, (H * 0.94) / needH);
+      ctx.save();
+      ctx.setTransform(viewS, 0, 0, viewS, W / 2 - coneX * viewS, H * 0.94 - groundY() * viewS);
+      // shop counter
+      const gy = groundY();
+      const halfV = W / (2 * viewS) + 60;
       ctx.fillStyle = '#f9b8d4';
-      ctx.fillRect(0, gy, W, H - gy + 60);
+      ctx.fillRect(coneX - halfV, gy, halfV * 2, H / viewS);
       ctx.fillStyle = '#ffffff';
-      for (let x = 0; x < W; x += 48) {
-        ctx.fillRect(x, gy, 24, Math.max(0, H - gy + 60));
+      for (let x = coneX - halfV; x < coneX + halfV; x += 48) {
+        ctx.fillRect(x, gy, 24, H / viewS);
       }
       ctx.fillStyle = '#e0559a';
-      ctx.fillRect(0, gy, W, 8);
-      // cone under the tower
-      const b0 = blocks[0];
-      if (b0) {
-        const cxp = b0.x + b0.w / 2;
-        const topY = toSY(groundY());
+      ctx.fillRect(coneX - halfV, gy, halfV * 2, 8);
+      // cone (this is what you move!)
+      {
+        const cw = baseWidth();
+        const cxp = coneX;
+        const topY = groundY();
         ctx.fillStyle = '#d9a066';
         ctx.beginPath();
-        ctx.moveTo(cxp - b0.w * 0.32, topY);
-        ctx.lineTo(cxp + b0.w * 0.32, topY);
+        ctx.moveTo(cxp - cw * 0.32, topY);
+        ctx.lineTo(cxp + cw * 0.32, topY);
         ctx.lineTo(cxp, topY + 74);
         ctx.closePath();
         ctx.fill();
@@ -631,7 +640,7 @@
         ctx.lineWidth = 3;
         for (let i = 1; i <= 3; i++) {
           const yy = topY + i * 18;
-          const half = b0.w * 0.32 * (1 - (i * 18) / 74);
+          const half = cw * 0.32 * (1 - (i * 18) / 74);
           ctx.beginPath();
           ctx.moveTo(cxp - half, yy - 8);
           ctx.lineTo(cxp + half, yy + 8);
@@ -645,34 +654,25 @@
       // placed scoops (bottom-up), swaying with the tower's lean
       const leanRatio = Math.max(-1, Math.min(1, lean / maxLean()));
       const sway = leanRatio * 0.09 + Math.sin(t * 4) * 0.012 * Math.abs(leanRatio);
-      const pivotX = blocks.length ? blocks[0].x + blocks[0].w / 2 : W / 2;
-      const pivotY = toSY(groundY());
       ctx.save();
-      ctx.translate(pivotX, pivotY);
+      ctx.translate(coneX, groundY());
       ctx.rotate(sway);
-      ctx.translate(-pivotX, -pivotY);
+      ctx.translate(-coneX, -groundY());
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         const wy = groundY() - (i + 1) * BLOCK_H;
-        const sy = toSY(wy);
-        if (sy > H + 60 || sy + BLOCK_H < -80) continue;
-        drawScoop(b.x, sy, b.w, b.lvl, i === blocks.length - 1 && !cur);
+        drawScoop(coneX + b.dx - b.w / 2, wy, b.w, b.lvl, i === blocks.length - 1 && !cur);
       }
       ctx.restore();
-      // falling scoop (tilts as you steer it)
+      // falling scoop
       if (cur && !over) {
-        const tilt = Math.max(-0.3, Math.min(0.3, cur.vx / 2400));
-        ctx.save();
-        ctx.translate(cur.x + cur.w / 2, toSY(cur.wy) + BLOCK_H / 2);
-        ctx.rotate(tilt);
-        drawScoop(-cur.w / 2, -BLOCK_H / 2, cur.w, cur.lvl, true);
-        ctx.restore();
+        drawScoop(cur.x, cur.wy, cur.w, cur.lvl, true);
       }
       // falling debris
       debris.forEach(d => {
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, d.life));
-        ctx.translate(d.x + d.w / 2, toSY(d.wy) + BLOCK_H / 2);
+        ctx.translate(d.x + d.w / 2, d.wy + BLOCK_H / 2);
         ctx.rotate(d.rot);
         drawScoop(-d.w / 2, -BLOCK_H / 2, d.w, d.lvl, false);
         ctx.restore();
@@ -682,14 +682,16 @@
       ctx.textAlign = 'center';
       popups.forEach(p => {
         ctx.globalAlpha = Math.min(1, p.life * 2);
-        ctx.font = `900 24px 'Segoe UI', Arial, sans-serif`;
-        ctx.lineWidth = 4;
+        ctx.font = `900 ${24 / viewS}px 'Segoe UI', Arial, sans-serif`;
+        ctx.lineWidth = 4 / viewS;
         ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-        ctx.strokeText(p.text, p.x, toSY(p.wy));
+        ctx.strokeText(p.text, p.x, p.wy);
         ctx.fillStyle = '#ffd94d';
-        ctx.fillText(p.text, p.x, toSY(p.wy));
+        ctx.fillText(p.text, p.x, p.wy);
       });
       ctx.globalAlpha = 1;
+      ctx.restore();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       // balance meter (only while stacking)
       if ((running || !over) && blocks.length > 0) {
         const bw = Math.min(200, W * 0.44), bx = W / 2 - bw / 2, by = 112;
@@ -725,7 +727,7 @@
       rafId = requestAnimationFrame(loop);
     }
 
-    // ============ input: drag (or arrow keys) to steer the falling scoop ============
+    // ============ input: drag (or arrow keys) to slide the cone ============
     function canvasPos(e) {
       const rect = canvas.getBoundingClientRect();
       return {
@@ -733,20 +735,23 @@
         y: (e.clientY - rect.top) * canvas.height / rect.height
       };
     }
+    // screen pixels -> world pixels (the view zooms out as the tower grows)
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       ensureAudio();
       if (!running || over) return;
       dragging = true;
-      dragX = canvasPos(e).x;
+      lastPX = canvasPos(e).x;
       try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     });
     canvas.addEventListener('pointermove', (e) => {
-      if (!running || over) return;
-      if (dragging || e.pointerType === 'mouse') dragX = canvasPos(e).x;
-      if (cur) cur.followMouse = e.pointerType === 'mouse' && !dragging;
+      if (!running || over || !dragging) return;
+      const sx = canvasPos(e).x;
+      coneX += (sx - lastPX) / viewS;
+      lastPX = sx;
+      clampCone();
     });
-    const stopDrag = () => { dragging = false; if (cur) cur.followMouse = false; };
+    const stopDrag = () => { dragging = false; };
     canvas.addEventListener('pointerup', stopDrag);
     canvas.addEventListener('pointercancel', stopDrag);
     document.addEventListener('keydown', (e) => {
@@ -772,8 +777,8 @@
     function startGameBackdrop() {
       resizeCanvas();
       const w = baseWidth();
-      blocks = [{ x: W / 2 - w / 2, w, lvl: 0 }];
-      camY = topWorldY() - H * 0.42;
+      blocks = [{ dx: 0, w, lvl: 0 }];
+      coneX = W / 2;
       draw(performance.now());
     }
     window.addEventListener('pagehide', () => cancelAnimationFrame(rafId));
