@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Bird Clicker - Katelyn's Games</title>
+  <title>🐦 Bird Clicker • Pixll</title>
   <link rel="icon" type="image/png" href="../pixll-logo.png">
   <link rel="stylesheet" href="../style.css">
   <style>
@@ -25,7 +25,7 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 10px 18px;
+      padding: 8px 18px 8px 10px;
       border-radius: 999px;
       background: rgba(10, 8, 30, 0.72);
       color: #fff !important;
@@ -38,6 +38,13 @@
       transition: transform 0.18s ease;
     }
     .pixll-back:hover { transform: scale(1.05); }
+    .pixll-back img {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      display: block;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+    }
     .pixll-badge {
       padding: 8px 14px;
       border-radius: 999px;
@@ -325,7 +332,7 @@
   </style>
 </head>
 <body>
-  <nav class="pixll-topbar"><a href="../index.html" class="pixll-back">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🐦 Bird Clicker</span></nav>
+  <nav class="pixll-topbar"><a href="../index.html" class="pixll-back"><img src="../pixll-logo.png" alt="Pixll logo">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🐦 Bird Clicker</span></nav>
   <div class="game-container">
     <canvas id="gameCanvas"></canvas>
     <div class="hud">
