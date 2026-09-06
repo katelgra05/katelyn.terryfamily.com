@@ -23,7 +23,7 @@ h1 {
 }
 
 /* General link styles */
-a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
+a:not(.button):not(.game-card):not(.featured-card) {
   font-size: 18px;
   color: #7df9ff;
 }
@@ -143,13 +143,14 @@ a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
   background: rgba(44, 62, 80, 0.92);
   border-radius: 18px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
-  padding: 28px 24px 20px;
+  padding: 24px 24px 20px;
   min-width: 220px;
   max-width: 270px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  text-decoration: none;
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
@@ -171,37 +172,8 @@ a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
 .game-title {
   font-size: 1.3rem;
   font-weight: bold;
-  margin-bottom: 10px;
   color: #ffd700;
   letter-spacing: 1px;
-}
-
-.game-desc {
-  font-size: 1rem;
-  color: #e0e0e0;
-  margin: 0 0 18px;
-  min-height: 48px;
-  line-height: 1.45;
-}
-
-.play-btn {
-  background: linear-gradient(90deg, #4caf50 0%, #2196f3 100%);
-  color: #fff !important;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 28px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.12s ease;
-  text-decoration: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  margin-top: 8px;
-  display: inline-block;
-}
-
-.play-btn:hover {
-  transform: scale(1.06);
 }
 
 /* ---------- Footer ---------- */
@@ -313,7 +285,6 @@ a:not(.button):not(.game-card):not(.featured-card):not(.play-btn) {
   .games-grid { flex-direction: column; align-items: center; }
   .game-card { width: 90vw; max-width: 98vw; }
   .game-title { font-size: 16px; }
-  .game-desc { font-size: 13px; min-height: 0; }
   .featured-text strong { font-size: 18px; }
   .button { font-size: 20px; padding: 14px 24px; min-width: 0; }
   .back-button { top: 12px; left: 12px; padding: 12px 20px; font-size: 18px; }
