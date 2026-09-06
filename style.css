@@ -200,6 +200,24 @@ a:not(.button):not(.game-card):not(.featured-card) {
 .featured-text small { font-size: 15px; opacity: 0.95; color: #fff; }
 .featured-arrow { font-size: 30px; font-weight: 800; opacity: 0.9; }
 
+/* Shorter variant for Specials row */
+.featured-card-short {
+  max-width: 420px;
+  margin: 0 auto 10px;
+  padding: 12px 18px;
+  gap: 12px;
+  border-radius: 16px;
+}
+.featured-card-short .featured-emoji {
+  font-size: 30px;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+.featured-card-short .featured-text strong { font-size: 18px; }
+.featured-card-short .featured-text small { font-size: 13px; }
+.featured-card-short .featured-arrow { font-size: 22px; }
+
 /* ---------- Games grid (like Andrew's Gamli cards) ---------- */
 .games-grid {
   display: flex;
