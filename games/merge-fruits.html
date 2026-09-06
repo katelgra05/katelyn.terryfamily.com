@@ -211,6 +211,22 @@
         .fruit:active {
             cursor: grabbing;
         }
+        .fruit.selected {
+            outline: 3px solid #20c997;
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(32,201,151,.35), 0 2px 5px rgba(0,0,0,.1);
+        }
+        @keyframes fruitPop {
+            0% { transform: scale(0.2); }
+            60% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+        .fruit-pop { animation: fruitPop 0.35s ease; }
+        #mute-btn {
+            padding: 6px 12px;
+            font-size: 1em;
+            margin-left: 12px;
+        }
         .shop {
             margin-top: 20px;
             background: #fff;
@@ -525,8 +541,9 @@
                 <span>Fruits:</span>
                 <span id="car-count">0</span>
             </div>
+            <button id="mute-btn" title="Sound on/off">🔊</button>
         </div>
-        <div class="served-bar">Customers Served: <span id="customers-served">0</span></div>
+        <div class="served-bar">Customers Served: <span id="customers-served">0</span>&nbsp;•&nbsp;Best: <span id="best-served">0</span></div>
         <div class="game-area" id="main-game-area">
             <div class="merge-area" id="merge-area">
                 <h3>Merge Area</h3>
@@ -551,6 +568,37 @@
     </div>
 
     <script>
+        // ---- tiny synth sounds (no audio files needed) ----
+        let mfAudio = null;
+        let mfMuted = false;
+        try { mfMuted = localStorage.getItem('mergeFruitsMuted') === '1'; } catch (e) {}
+        function mfTone(freq, dur, type, vol, delay) {
+            if (mfMuted) return;
+            try {
+                if (!mfAudio) mfAudio = new (window.AudioContext || window.webkitAudioContext)();
+                const t = mfAudio.currentTime + (delay || 0);
+                const osc = mfAudio.createOscillator();
+                const gain = mfAudio.createGain();
+                osc.type = type || 'sine';
+                osc.frequency.setValueAtTime(freq, t);
+                gain.gain.setValueAtTime(vol || 0.1, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                osc.connect(gain);
+                gain.connect(mfAudio.destination);
+                osc.start(t);
+                osc.stop(t + dur + 0.02);
+            } catch (e) {}
+        }
+        function mergeSound(lv) { mfTone(300 + lv * 70, 0.12, 'triangle', 0.12); mfTone(450 + lv * 70, 0.14, 'triangle', 0.1, 0.07); }
+        function coinSound() { mfTone(880, 0.09, 'square', 0.05); mfTone(1318, 0.14, 'square', 0.05, 0.07); }
+        function buySound() { mfTone(520, 0.08, 'triangle', 0.09); }
+        function mfLoad(key, fallback) {
+            try { const v = localStorage.getItem(key); return v === null ? fallback : parseInt(v); }
+            catch (e) { return fallback; }
+        }
+        function mfSave(key, value) {
+            try { localStorage.setItem(key, String(value)); } catch (e) {}
+        }
         class Fruit {
             constructor(level = 1) {
                 this.level = level;
@@ -575,7 +623,7 @@
 
         class Game {
             constructor() {
-                this.coins = 200;
+                this.coins = mfLoad('mergeFruitsCoins', 200);
                 this.fruits = [];
                 this.mergeSlots = [];
                 this.selectedFruit = null;
@@ -596,10 +644,15 @@
 
             setupEventListeners() {
                 document.getElementById('buy-car').addEventListener('click', () => this.buyFruit());
+                // tap-to-play (touch friendly): tap a fruit, then tap a slot to move / merge
+                document.getElementById('merge-area').addEventListener('click', (e) => {
+                    const slot = e.target.closest('.merge-slot');
+                    if (slot) this.tapSlot(slot);
+                });
                 
                 document.addEventListener('dragstart', (e) => {
                     if (e.target.classList.contains('fruit')) {
-                        this.selectedFruit = e.target;
+                        this.setSelected(e.target);
                         e.dataTransfer.setData('text/plain', '');
                         e.dataTransfer.effectAllowed = 'move';
                         // Hide the drag image
@@ -624,6 +677,7 @@
                     const slot = e.target.closest('.merge-slot');
                     if (slot) {
                         this.handleMerge(slot);
+                        this.setSelected(null);
                     }
                 });
             }
@@ -635,7 +689,12 @@
                     this.coins -= 25;
                     const fruit = new Fruit();
                     const fruitElement = fruit.createElement();
+                    // freshly bought fruits must also carry their emoji for drag-to-serve
+                    fruitElement.ondragstart = (e) => {
+                        e.dataTransfer.setData('text/plain', fruitElement.textContent.trim());
+                    };
                     this.fruits.push(fruit);
+                    buySound();
                     this.updateUI();
                     emptySlot.appendChild(fruitElement);
                 }
@@ -665,7 +724,12 @@
                         fruit2.element.remove();
                         
                         this.fruits.push(newFruit);
+                        newFruitElement.classList.add('fruit-pop');
+                        newFruitElement.ondragstart = (e) => {
+                            e.dataTransfer.setData('text/plain', newFruitElement.textContent.trim());
+                        };
                         slot.appendChild(newFruitElement);
+                        mergeSound(newFruit.level);
                     }
                 } else {
                     slot.appendChild(this.selectedFruit);
@@ -682,7 +746,27 @@
             updateUI() {
                 document.getElementById('coins').textContent = Math.floor(this.coins);
                 document.getElementById('car-count').textContent = this.fruits.length;
+                mfSave('mergeFruitsCoins', Math.floor(this.coins));
                 this.updateBuyButton();
+            }
+            setSelected(el) {
+                document.querySelectorAll('.fruit.selected').forEach(x => x.classList.remove('selected'));
+                this.selectedFruit = el;
+                if (el) el.classList.add('selected');
+            }
+            // tap-to-play: tap a fruit, then tap a slot to move / merge (touch friendly)
+            tapSlot(slot) {
+                const occupant = slot.querySelector('.fruit');
+                const sel = this.selectedFruit;
+                if (sel && sel.isConnected) {
+                    if (occupant === sel) { this.setSelected(null); return; }
+                    this.handleMerge(slot);
+                    const now = slot.querySelector('.fruit');
+                    // blocked (different levels) -> select what is there instead
+                    this.setSelected(now && now === occupant ? occupant : null);
+                    return;
+                }
+                if (occupant) this.setSelected(occupant);
             }
         }
 
@@ -707,8 +791,27 @@
             };
 
             const game = new Game();
-            let customersServed = 0;
+            // remove the Fruit object whose element was actually served
+            // (keeps the fruit counter and future merges honest)
+            function removeFruitEl(el) {
+                const i = game.fruits.findIndex(f => f.element === el);
+                if (i !== -1) game.fruits.splice(i, 1);
+            }
+            let customersServed = mfLoad('mergeFruitsServed', 0);
+            let bestServed = mfLoad('mergeFruitsBest', 0);
             const customersServedSpan = document.getElementById('customers-served');
+            customersServedSpan.textContent = customersServed;
+            document.getElementById('best-served').textContent = bestServed;
+            function bumpServed() {
+                customersServed++;
+                customersServedSpan.textContent = customersServed;
+                if (customersServed > bestServed) {
+                    bestServed = customersServed;
+                    document.getElementById('best-served').textContent = bestServed;
+                    mfSave('mergeFruitsBest', bestServed);
+                }
+                mfSave('mergeFruitsServed', customersServed);
+            }
             let patienceIntervals = [];
 
             // --- Right Sidebar Order System ---
@@ -723,6 +826,7 @@
             const backBtn = document.getElementById('back-to-merge');
 
             let currentOrders = null;
+            let orderGen = 0; // bumped when leaving/regenerating, so stale timers bail out
 
             function getRandomCustomerOrder() {
                 let orderFruits = [];
@@ -776,17 +880,17 @@
                 return {
                     orderFruits,
                     avatar,
-                    patience: 30,
+                    patience: Math.max(18, Math.round(32 - customersServed * 0.4)),
                     angry: false
                 };
             }
 
             function renderOrders() {
                 customerRow.innerHTML = '';
-                if (!currentOrders) return;
                 // Clear old intervals
                 patienceIntervals.forEach(clearInterval);
                 patienceIntervals = [];
+                if (!currentOrders) return;
                 for (let i = 0; i < currentOrders.length; i++) {
                     const order = currentOrders[i];
                     const card = document.createElement('div');
@@ -801,7 +905,9 @@
                     if (order.angry) card.classList.add('angry');
                     // Timer logic
                     if (!order.angry) {
+                        const myGen = orderGen;
                         const patienceInterval = setInterval(() => {
+                            if (myGen !== orderGen) { clearInterval(patienceInterval); return; }
                             order.patience--;
                             const timerEl = document.getElementById(`patience-timer-${i}`);
                             if (timerEl) {
@@ -814,6 +920,7 @@
                                 // Replace with new customer after short angry display
                                 renderOrders();
                                 setTimeout(() => {
+                                    if (myGen !== orderGen || !currentOrders) return;
                                     currentOrders[i] = getRandomCustomerOrder();
                                     renderOrders();
                                     updateFruitInventory();
@@ -838,18 +945,17 @@
                             slots.forEach(fruitEl => {
                                 if (!removed && fruitEl.textContent.trim() === fruitEmoji) {
                                     fruitEl.remove();
-                                    // Decrease fruits counter
-                                    game.fruits = game.fruits.slice(0, -1);
+                                    removeFruitEl(fruitEl);
                                     removed = true;
                                 }
                             });
                             // Fulfill one fruit for this order
                             order.orderFruits[matchIdx].qty--;
                             game.addCoins(30 * (fruitEmojis.indexOf(fruitEmoji) + 1));
+                            coinSound();
                             // If all fruits in the order are fulfilled, replace with a new customer and increment counter
                             if (order.orderFruits.every(ofr => ofr.qty <= 0)) {
-                                customersServed++;
-                                customersServedSpan.textContent = customersServed;
+                                bumpServed();
                                 currentOrders[i] = getRandomCustomerOrder();
                             }
                             renderOrders();
@@ -897,6 +1003,7 @@
                     };
                     fruitEl.ondragend = (e) => {
                         fruitEl.style.visibility = '';
+                        game.setSelected(null);
                     };
                 });
                 updateMergeSlotDroppable();
@@ -929,19 +1036,18 @@
                     slots.forEach(fruitEl => {
                         if (toRemove > 0 && fruitEl.textContent.trim() === order.orderFruits[matchIdx].fruit) {
                             fruitEl.remove();
-                            // Decrease fruits counter
-                            game.fruits = game.fruits.slice(0, -1);
+                            removeFruitEl(fruitEl);
                             toRemove--;
                         }
                     });
                     // Give coins for selling
                     game.addCoins(order.orderFruits[matchIdx].qty * 30 * (fruitEmojis.indexOf(order.orderFruits[matchIdx].fruit) + 1));
+                    coinSound();
                     // Mark this fruit as fulfilled
                     order.orderFruits[matchIdx].qty = 0;
                     // If all fruits in the order are fulfilled, replace with new customer and increment counter
                     if (order.orderFruits.every(ofr => ofr.qty <= 0)) {
-                        customersServed++;
-                        customersServedSpan.textContent = customersServed;
+                        bumpServed();
                         currentOrders[i] = getRandomCustomerOrder();
                     }
                     renderOrders();
@@ -972,6 +1078,7 @@
 
             sellBtn.addEventListener('click', () => {
                 // Hide main game, show customer screen
+                orderGen++;
                 mainGameArea.style.display = 'none';
                 shopArea.style.display = 'none';
                 customerScreen.style.display = 'flex';
@@ -990,6 +1097,7 @@
             });
 
             backBtn.addEventListener('click', () => {
+                orderGen++;
                 mainGameArea.style.display = '';
                 shopArea.style.display = '';
                 customerScreen.style.display = 'none';
@@ -999,7 +1107,14 @@
                 patienceIntervals = [];
             });
 
-            game.updateBuyButton();
+            game.updateUI();
+            const muteBtn = document.getElementById('mute-btn');
+            muteBtn.textContent = mfMuted ? '🔇' : '🔊';
+            muteBtn.addEventListener('click', () => {
+                mfMuted = !mfMuted;
+                try { localStorage.setItem('mergeFruitsMuted', mfMuted ? '1' : '0'); } catch (e) {}
+                muteBtn.textContent = mfMuted ? '🔇' : '🔊';
+            });
         });
     </script>
 </body>
