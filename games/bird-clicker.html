@@ -340,6 +340,7 @@
         <div class="feathers">🪶 <span id="score">0</span></div>
         <div class="rates"><span id="rates">1 /click • 0 /sec</span></div>
         <div class="rates" id="stageName">🐣 Hatchling</div>
+        <div class="rates" id="genLine" style="color:#ffd94d;font-weight:800;">🌱 First life</div>
       </div>
       <div class="hud-right">
         <div class="best-card" id="best">🏆 0</div>
@@ -354,7 +355,8 @@
       <h2>Bird Clicker!</h2>
       <p>Click your bird to shake out feathers! 🪶<br>
       ✨ Catch the golden bird! • 🌟 Earn evolutions!<br>
-      🛒 Open the shop for upgrades!</p>
+      🛒 Open the shop for upgrades!<br>
+      🔁 Max out your bird to rebirth it from an egg — 3x stronger!</p>
       <p id="bestStart" style="font-weight:bold;color:#ffd94d;">🏆 Best: 0</p>
       <button class="game-button" onclick="startGame()">▶ Start Clicking!</button>
     </div>
@@ -419,6 +421,7 @@
     const scoreEl = document.getElementById('score');
     const ratesEl = document.getElementById('rates');
     const stageEl = document.getElementById('stageName');
+    const genLineEl = document.getElementById('genLine');
     const bestEl = document.getElementById('best');
     const bestStartEl = document.getElementById('bestStart');
     const startScreen = document.getElementById('startScreen');
@@ -438,6 +441,11 @@
     let score = 0, totalEarned = 0, best = 0;
     let perClick = 1, perSec = 0;
     let stageIdx = 0;
+    // rebirth generations: maxed birds fall off, an egg hatches a 3x stronger bird
+    let generation = 0;
+    let mode = 'play'; // 'play' | 'falling' | 'egg'
+    let fall = { t: 0, vx: 0, vy: 0, rot: 0, vr: 0 };
+    let eggWob = 0;
     let muted = false, musicOn = true;
     try {
       muted = localStorage.getItem('bird_muted') === '1';
@@ -473,13 +481,53 @@
       { btn: 'sec5b', cost: 900000000, run: () => { perSec += 5000000000; } }
     ];
 
-    const STAGES = [
-      { at: 0,    name: '🐣 Hatchling',     body: '#7cc4ff', wing: '#4a90d9', belly: '#eaf7ff' },
-      { at: 150,  name: '☀️ Sunny Chick',   body: '#ffd94d', wing: '#f0a832', belly: '#fff6d8' },
-      { at: 600,  name: '🫐 Berry Bird',    body: '#ff8ab5', wing: '#e0559a', belly: '#ffe9f3' },
-      { at: 2000, name: '🌿 Forest Singer', body: '#5fd68a', wing: '#2f9e63', belly: '#e6fbee' },
-      { at: 6000, name: '👑 Royal Golden',  body: '#ffcf3f', wing: '#d99a12', belly: '#fff3c4', crown: true }
+    // Every generation has its own 5 tiers — new looks, new names, same journey.
+    // Thresholds scale up each rebirth so every life stays a fun climb.
+    const STAGE_AT = [0, 150, 600, 2000, 6000];
+    const THEMES = [
+      [ // Gen 0: classic sky flock
+        { name: '🐣 Hatchling',     body: '#7cc4ff', wing: '#4a90d9', belly: '#eaf7ff' },
+        { name: '☀️ Sunny Chick',   body: '#ffd94d', wing: '#f0a832', belly: '#fff6d8' },
+        { name: '🫐 Berry Bird',    body: '#ff8ab5', wing: '#e0559a', belly: '#ffe9f3' },
+        { name: '🌿 Forest Singer', body: '#5fd68a', wing: '#2f9e63', belly: '#e6fbee' },
+        { name: '👑 Royal Golden',  body: '#ffcf3f', wing: '#d99a12', belly: '#fff3c4', crown: true }
+      ],
+      [ // Gen 1: ember flock
+        { name: '🌋 Ash Hatchling', body: '#b8b8d0', wing: '#6e6e8a', belly: '#f0eef5' },
+        { name: '🔥 Cinder Puff',   body: '#ff9a5c', wing: '#d95f2b', belly: '#ffe8d6' },
+        { name: '🧡 Blaze Wing',    body: '#ff6b4a', wing: '#c22e2e', belly: '#ffd9c9' },
+        { name: '🌪️ Inferno Singer', body: '#ff4d6d', wing: '#a4133c', belly: '#ffe0e8' },
+        { name: '🐦‍🔥 Phoenix King', body: '#ffcf3f', wing: '#ff5722', belly: '#fff3c4', crown: true }
+      ],
+      [ // Gen 2: tide flock
+        { name: '🫧 Bubble Hatchling', body: '#a8dcff', wing: '#4a90d9', belly: '#f0faff' },
+        { name: '🪸 Coral Chick',      body: '#ff9a8a', wing: '#e05555', belly: '#ffe9e1' },
+        { name: '🌊 Wave Dancer',      body: '#40c4aa', wing: '#1d7a6e', belly: '#dcfbee' },
+        { name: '⛈️ Storm Singer',     body: '#7c8db0', wing: '#3e4c6d', belly: '#e3e9f5' },
+        { name: '🌊 Ocean Emperor',    body: '#4ad9ff', wing: '#0a6ebd', belly: '#dcf6ff', crown: true }
+      ],
+      [ // Gen 3: cosmic flock
+        { name: '✨ Stardust Hatchling', body: '#c9b8ff', wing: '#7c5cd6', belly: '#f1ebff' },
+        { name: '🌙 Moon Chick',         body: '#e8e8f2', wing: '#8a8aa3', belly: '#ffffff' },
+        { name: '🌌 Nebula Glider',     body: '#ff8ad8', wing: '#9333ea', belly: '#fbe9ff' },
+        { name: '☄️ Comet Singer',      body: '#7cf2d8', wing: '#0e9f8a', belly: '#e0fff7' },
+        { name: '🪐 Void Sovereign',    body: '#2b2b4d', wing: '#7c5cd6', belly: '#b9a7f2', crown: true }
+      ]
     ];
+    const STAGES = THEMES[0];
+    const stageScale = gen => Math.pow(4, gen);
+    const curStages = () => THEMES[generation % THEMES.length];
+    const genMult = () => Math.pow(3, generation);
+    const prestigeAt = gen => 15000 * stageScale(gen);
+    const effClick = () => perClick * genMult();
+    const effSec = () => perSec * genMult();
+    // where the nest + egg rest (also used for tap hit-testing)
+    function nestEggPos() {
+      const R = bird.r;
+      const nx = W / 2;
+      const branchY = H * 0.44 + R * 1.55;
+      return { x: nx, y: branchY - R * 0.55, r: Math.max(30, R * 0.72), branchY };
+    }
 
     // bird animation state (stays centered — no hopping)
     const bird = { x: 0, y: 0, r: 60, squash: 0, flap: 0, beak: 0, blink: 0, blinkAt: 2000, lookX: 0, lookY: 0 };
@@ -558,7 +606,7 @@
       }
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     }
-    function tone(freq, dur, type, vol, when) {
+    function tone(freq, dur, type, vol, when, slideTo) {
       if (muted || !audioCtx) return;
       try {
         const t = (when || audioCtx.currentTime);
@@ -566,6 +614,7 @@
         const gain = audioCtx.createGain();
         osc.type = type || 'sine';
         osc.frequency.setValueAtTime(freq, t);
+        if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
         gain.gain.setValueAtTime(vol || 0.08, t);
         gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
         osc.connect(gain);
@@ -744,11 +793,26 @@
       try { localStorage.removeItem('bird_save'); localStorage.removeItem('bird_best'); } catch (e) {}
     }
 
-    // ============ gameplay ============
+    // ============ gameplay: evolve, max out, fall off, hatch stronger ============
     function stageFor(total) {
+      const stages = curStages();
+      const scale = stageScale(generation);
       let idx = 0;
-      STAGES.forEach((s, i) => { if (total >= s.at) idx = i; });
+      stages.forEach((s, i) => { if (total >= STAGE_AT[i] * scale) idx = i; });
       return idx;
+    }
+    function checkEvolution() {
+      const ni = stageFor(Math.floor(totalEarned));
+      if (ni > stageIdx) {
+        stageIdx = ni;
+        banner = { text: `🌟 Your bird evolved: ${curStages()[ni].name}!`, life: 2.4 };
+        fanfare();
+        burst(bird.x, bird.y - bird.r, 26, true);
+      }
+      // fully maxed this life? time to fall off and leave an egg!
+      if (mode === 'play' && stageIdx >= curStages().length - 1 && totalEarned >= prestigeAt(generation)) {
+        startPrestigeFall();
+      }
     }
     function gain(amount) {
       score += amount;
@@ -756,13 +820,41 @@
       if (score > best) {
         best = score;
       }
-      const ni = stageFor(totalEarned);
-      if (ni > stageIdx) {
-        stageIdx = ni;
-        banner = { text: `🌟 Your bird evolved: ${STAGES[ni].name}!`, life: 2.4 };
-        fanfare();
-        burst(bird.x, bird.y - bird.r, 26, true);
-      }
+      checkEvolution();
+    }
+    function startPrestigeFall() {
+      mode = 'falling';
+      bird.dizzy = true;
+      bird.beak = 1;
+      fall = { t: 0, vx: (Math.random() < 0.5 ? -1 : 1) * (50 + Math.random() * 60), vy: -180, rot: 0, vr: (Math.random() < 0.5 ? -1 : 1) * 3.2 };
+      gold.active = false;
+      banner = { text: `💫 Whoa! Your ${curStages()[stageIdx].name} is moving on...`, life: 2.6 };
+      burst(bird.x, bird.y, 30, false);
+      try {
+        if (audioCtx) {
+          ensureAudio();
+          tone(900, 0.7, 'sine', 0.09, audioCtx.currentTime, 170); // slide-whistle tumble
+        }
+      } catch (e) {}
+      updateHUD(true);
+    }
+    function hatchEgg() {
+      generation++;
+      totalEarned = 0;
+      stageIdx = 0;
+      mode = 'play';
+      bird.dizzy = false;
+      bird.beak = 0.3;
+      bird.flap = 1;
+      placeBird();
+      gold.active = false;
+      gold.t = 8 + Math.random() * 8;
+      const p = nestEggPos();
+      burst(p.x, p.y, 30, true);
+      banner = { text: `🐣 Hatched! Meet the ${curStages()[0].name} — ${genMult().toLocaleString()}x feathers!`, life: 3 };
+      fanfare();
+      chirp();
+      updateHUD(true);
     }
     function burst(x, y, n, sparkle) {
       for (let i = 0; i < n; i++) {
@@ -785,21 +877,21 @@
     }
 
     function birdClick(x, y) {
-      const pts = perClick;
+      const pts = effClick();
       gain(pts);
       bird.squash = 1;
       bird.flap = 1;
       bird.beak = 0.3;
       bird.lookX = x; bird.lookY = y;
       burst(x, y, 6, false);
-      popup(x, y - bird.r, '+' + pts, '#ffffff', 24);
+      popup(x, y - bird.r, '+' + Math.floor(pts).toLocaleString(), '#ffffff', 24);
       chirp();
       updateHUD(true);
     }
     function goldenClick(g) {
-      const bonus = Math.max(25, perClick * 25);
+      const bonus = Math.max(25, perClick * 25) * genMult();
       gain(bonus);
-      popup(g.x, g.y - 20, '+' + bonus + ' ✨', '#ffd94d', 30);
+      popup(g.x, g.y - 20, '+' + Math.floor(bonus).toLocaleString() + ' ✨', '#ffd94d', 30);
       burst(g.x, g.y, 24, true);
       fanfare();
       g.active = false;
@@ -813,27 +905,54 @@
       bird.squash = Math.max(0, bird.squash - dt * 3.5);
       bird.flap = Math.max(0, bird.flap - dt * 2.2);
       bird.beak = Math.max(0, bird.beak - dt * 2.5);
-      // blink every few seconds
-      if (now > bird.blinkAt) {
+      // blink every few seconds (only while perched)
+      if (mode === 'play' && now > bird.blinkAt) {
         bird.blink = 0.12;
         bird.blinkAt = now + 2200 + Math.random() * 3200;
       }
       bird.blink = Math.max(0, bird.blink - dt);
-      // bird stays centered — no hopping
-      bird.x = W / 2;
-      bird.y = H * 0.44;
-      // passive income from shop upgrades
-      if (perSec > 0) {
-        const inc = perSec * dt;
+      if (mode === 'falling') {
+        // dizzy tumble off the branch — X eyes until it exits
+        fall.t += dt;
+        fall.vy += 1400 * dt;
+        bird.x += fall.vx * dt;
+        bird.y += fall.vy * dt;
+        fall.rot += fall.vr * dt;
+        if (Math.random() < dt * 14) {
+          particles.push({ x: bird.x, y: bird.y, vx: (Math.random() - 0.5) * 60, vy: -40, rot: 0, vr: 2, life: 0.7, maxLife: 0.7, size: 6, color: 'rgba(255,255,255,0.8)', sparkle: false });
+        }
+        if (bird.y > H + 160 || fall.t > 2.6) {
+          mode = 'egg';
+          eggWob = 0;
+          const p = nestEggPos();
+          burst(p.x, p.y - 10, 22, true);
+          banner = { text: '🥚 A mysterious egg appeared! Tap it to hatch!', life: 3 };
+          try {
+            if (audioCtx) {
+              ensureAudio();
+              tone(1175, 0.14, 'sine', 0.08, audioCtx.currentTime);
+              tone(1568, 0.2, 'sine', 0.08, audioCtx.currentTime + 0.12);
+            }
+          } catch (e) {}
+        }
+      } else if (mode === 'egg') {
+        eggWob += dt;
+        if (Math.random() < dt * 2) {
+          const p = nestEggPos();
+          particles.push({ x: p.x + (Math.random() - 0.5) * 60, y: p.y - 20 + (Math.random() - 0.5) * 30, vx: 0, vy: -24, rot: 0, vr: 1, life: 0.8, maxLife: 0.8, size: 4, color: '#ffd94d', sparkle: true });
+        }
+      } else {
+        // bird stays centered — no hopping
+        bird.x = W / 2;
+        bird.y = H * 0.44;
+      }
+      // passive income from shop upgrades (reborn birds earn multiplied feathers)
+      if (mode === 'play' && perSec > 0) {
+        const inc = effSec() * dt;
         score += inc;
         totalEarned += inc;
         if (score > best) best = Math.floor(score);
-        const ni = stageFor(Math.floor(totalEarned));
-        if (ni > stageIdx) {
-          stageIdx = ni;
-          banner = { text: `🌟 Your bird evolved: ${STAGES[ni].name}!`, life: 2.4 };
-          fanfare();
-        }
+        checkEvolution();
       }
       // clouds + ambient feathers
       clouds.forEach(c => {
@@ -846,7 +965,8 @@
         f.x += Math.sin(f.ph) * 14 * dt;
         if (f.y > H + 12) { f.y = -12; f.x = Math.random() * W; }
       });
-      // golden bird event
+      // golden bird event (only while a bird is perched)
+      if (mode === 'play') {
       gold.t -= dt;
       if (!gold.active && gold.t <= 0) {
         gold.active = true;
@@ -855,6 +975,7 @@
         gold.y = H * (0.15 + Math.random() * 0.25);
         gold.vx = gold.dir * (130 + Math.random() * 60);
         gold.ph = 0;
+      }
       }
       if (gold.active) {
         gold.ph += dt * 3;
@@ -953,8 +1074,10 @@
       ctx.lineTo(W, H);
       ctx.closePath();
       ctx.fill();
-      drawPerchAndBird(t);
-      drawGold(t);
+      if (mode === 'falling') drawFallingBird(t);
+      else if (mode === 'egg') drawNestAndEgg(t);
+      else drawPerchAndBird(t);
+      if (mode === 'play') drawGold(t);
       // ambient feathers
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ambientFeathers.forEach(f => {
@@ -1012,7 +1135,7 @@
     }
 
     function drawPerchAndBird(t) {
-      const st = STAGES[stageIdx];
+      const st = curStages()[stageIdx];
       const R = bird.r;
       const bob = Math.sin(t * 2) * R * 0.03;
       const bx = bird.x, by = bird.y + bob;
@@ -1122,9 +1245,20 @@
         ctx.arc(bx, cy - R * 0.16, R * 0.05, 0, Math.PI * 2);
         ctx.fill();
       }
-      // eye (blinks; pupil follows your last click)
+      // eye (blinks; pupil follows your last click; X when dizzy)
       const ex = bx + R * 0.38, ey = by - R * 0.28;
-      if (bird.blink > 0) {
+      if (bird.dizzy) {
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = Math.max(3, R * 0.06);
+        ctx.lineCap = 'round';
+        const xr = R * 0.16;
+        ctx.beginPath();
+        ctx.moveTo(ex - xr, ey - xr);
+        ctx.lineTo(ex + xr, ey + xr);
+        ctx.moveTo(ex + xr, ey - xr);
+        ctx.lineTo(ex - xr, ey + xr);
+        ctx.stroke();
+      } else if (bird.blink > 0) {
         ctx.strokeStyle = '#222';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -1165,6 +1299,142 @@
       ctx.closePath();
       ctx.fill();
       ctx.restore();
+    }
+    // dizzy bird tumbling off the branch (X eyes, spinning)
+    function drawFallingBird(t) {
+      const st = curStages()[stageIdx];
+      const R = bird.r;
+      const branchY = H * 0.44 + R * 1.55;
+      const bx0 = W / 2;
+      // empty branch left behind
+      ctx.fillStyle = '#7a4a21';
+      roundRect(bx0 - R * 2.6, branchY - R * 0.14, R * 5.2, R * 0.28, R * 0.14);
+      ctx.fill();
+      ctx.fillStyle = '#8B5E34';
+      roundRect(bx0 - R * 2.6, branchY - R * 0.14, R * 5.2, R * 0.1, R * 0.05);
+      ctx.fill();
+      // tumbling bird
+      ctx.save();
+      ctx.translate(bird.x, bird.y);
+      ctx.rotate(fall.rot);
+      const bg = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.15, 0, 0, R);
+      bg.addColorStop(0, st.belly);
+      bg.addColorStop(0.55, st.body);
+      bg.addColorStop(1, st.wing);
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R, R * 1.02, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // flailing wings
+      ctx.fillStyle = st.wing;
+      const flap = Math.sin(t * 20) * 0.7;
+      [-1, 1].forEach(s => {
+        ctx.save();
+        ctx.rotate(s * (0.7 + flap * 0.4));
+        ctx.beginPath();
+        ctx.ellipse(s * R * 0.7, 0, R * 0.5, R * 0.24, s * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      // X eyes (dizzy!)
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = Math.max(3, R * 0.06);
+      ctx.lineCap = 'round';
+      [[0.38, -0.28]].forEach(([ox, oy]) => {
+        const ex = ox * R, ey = oy * R, xr = R * 0.14;
+        ctx.beginPath();
+        ctx.moveTo(ex - xr, ey - xr);
+        ctx.lineTo(ex + xr, ey + xr);
+        ctx.moveTo(ex + xr, ey - xr);
+        ctx.lineTo(ex - xr, ey + xr);
+        ctx.stroke();
+      });
+      // beak hanging open
+      ctx.fillStyle = '#f4842c';
+      ctx.beginPath();
+      ctx.moveTo(R * 0.7, -R * 0.1);
+      ctx.lineTo(R * 1.1, R * 0.1);
+      ctx.lineTo(R * 0.7, R * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    // cozy twig nest with a speckled egg, waiting for a tap
+    function drawNestAndEgg(t) {
+      const p = nestEggPos();
+      const R = bird.r;
+      const glow = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, p.r * 2.2);
+      glow.addColorStop(0, 'rgba(255, 217, 77, 0.45)');
+      glow.addColorStop(1, 'rgba(255, 217, 77, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      // nest bowl
+      ctx.fillStyle = '#6f4423';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.branchY - R * 0.12, R * 1.15, R * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#8B5E34';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.branchY - R * 0.22, R * 1.0, R * 0.34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4e2f16';
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.branchY - R * 0.26, R * 0.72, R * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // twig strokes
+      ctx.strokeStyle = 'rgba(60, 35, 15, 0.8)';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 7; i++) {
+        const a = Math.PI * (0.12 + 0.76 * (i / 6));
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(a) * R * 0.5, p.branchY - R * 0.2 + Math.sin(a) * R * 0.2);
+        ctx.lineTo(p.x + Math.cos(a) * R * 1.05, p.branchY - R * 0.2 + Math.sin(a) * R * 0.36);
+        ctx.stroke();
+      }
+      // wobbling egg with speckles + hatch crack
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(Math.sin(eggWob * 3) * 0.07);
+      const eg = ctx.createLinearGradient(0, -p.r, 0, p.r);
+      eg.addColorStop(0, '#fffdf4');
+      eg.addColorStop(1, '#f5d9a8');
+      ctx.fillStyle = eg;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r * 0.78, p.r, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'rgba(190, 150, 100, 0.7)';
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(224, 85, 154, 0.55)';
+      [[-0.3, -0.3], [0.25, -0.1], [-0.05, 0.25], [0.35, 0.4], [-0.4, 0.05]].forEach(([ox, oy]) => {
+        ctx.beginPath();
+        ctx.arc(ox * p.r, oy * p.r, Math.max(2, p.r * 0.05), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      // crack near the top — something wants out!
+      ctx.strokeStyle = '#6b4a2b';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-p.r * 0.3, -p.r * 0.62);
+      ctx.lineTo(-p.r * 0.1, -p.r * 0.5);
+      ctx.lineTo(-p.r * 0.28, -p.r * 0.38);
+      ctx.lineTo(0, -p.r * 0.28);
+      ctx.lineTo(p.r * 0.2, -p.r * 0.4);
+      ctx.lineTo(p.r * 0.32, -p.r * 0.3);
+      ctx.stroke();
+      ctx.restore();
+      // pulsing hint
+      ctx.globalAlpha = 0.65 + 0.35 * Math.sin(t * 4);
+      ctx.font = `900 ${Math.max(16, Math.min(24, W * 0.05))}px 'Segoe UI', Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.strokeText('👆 Tap to hatch!', p.x, p.y - p.r - 16);
+      ctx.fillStyle = '#ffd94d';
+      ctx.fillText('👆 Tap to hatch!', p.x, p.y - p.r - 16);
+      ctx.globalAlpha = 1;
     }
     function drawGold(t) {
       if (!gold.active) return;
@@ -1215,7 +1485,10 @@
     }
 
     // ============ HUD ============
-    let lastShown = { score: -1, best: -1, stage: -1, rates: '' };
+    let lastShown = { score: -1, best: -1, stage: -1, gen: -1, rates: '' };
+    function genLabel() {
+      return generation === 0 ? '🌱 First life' : `🔁 Reborn x${generation} • ${genMult().toLocaleString()}x feathers`;
+    }
     function updateHUD(force) {
       const s = Math.floor(score), b = Math.floor(best);
       if (force || s !== lastShown.score) { scoreEl.textContent = s.toLocaleString(); lastShown.score = s; }
@@ -1224,11 +1497,13 @@
         bestStartEl.textContent = '🏆 Best: ' + b.toLocaleString();
         lastShown.best = b;
       }
-      if (force || stageIdx !== lastShown.stage) {
-        stageEl.textContent = STAGES[stageIdx].name;
+      if (force || stageIdx !== lastShown.stage || generation !== lastShown.gen) {
+        stageEl.textContent = curStages()[stageIdx].name;
+        genLineEl.textContent = genLabel();
         lastShown.stage = stageIdx;
+        lastShown.gen = generation;
       }
-      const rates = `${perClick.toLocaleString()} /click • ${perSec.toLocaleString()} /sec`;
+      const rates = `${Math.floor(effClick()).toLocaleString()} /click • ${Math.floor(effSec()).toLocaleString()} /sec`;
       if (force || rates !== lastShown.rates) { ratesEl.textContent = rates; lastShown.rates = rates; }
       // Andrew-style: disable Buy buttons you can't afford
       SHOP.forEach(item => {
@@ -1283,6 +1558,8 @@
       popups = [];
       score = 0; totalEarned = 0; best = 0; stageIdx = 0;
       perClick = 1; perSec = 0;
+      generation = 0; mode = 'play';
+      bird.dizzy = false;
       clearProgress();
       gold.active = false;
       gold.t = 22 + Math.random() * 10;
@@ -1304,6 +1581,17 @@
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * canvas.width / rect.width;
       const y = (e.clientY - rect.top) * canvas.height / rect.height;
+      if (mode === 'egg') {
+        // tap the egg to hatch a stronger bird!
+        const p = nestEggPos();
+        if (Math.hypot(x - p.x, y - p.y) < p.r * 1.5) {
+          hatchEgg();
+        } else {
+          particles.push({ x, y, vx: 0, vy: -30, rot: 0, vr: 1, life: 0.4, maxLife: 0.4, size: 8, color: 'rgba(255,255,255,0.7)', sparkle: false });
+        }
+        return;
+      }
+      if (mode !== 'play') return; // tumbling — no clicking until the egg lands
       if (gold.active && Math.hypot(x - gold.x, y - gold.y) < 52) {
         goldenClick(gold);
         return;
@@ -1320,6 +1608,8 @@
     clearProgress();
     score = 0; totalEarned = 0; best = 0; stageIdx = 0;
     perClick = 1; perSec = 0;
+    generation = 0; mode = 'play';
+    bird.dizzy = false;
     bestEl.textContent = '🏆 ' + Math.floor(best).toLocaleString();
     bestStartEl.textContent = '🏆 Best: ' + Math.floor(best).toLocaleString();
     muteBtn.textContent = muted ? '🔇' : '🔊';
@@ -1331,6 +1621,7 @@
     window.addEventListener('pagehide', () => {
       score = 0; totalEarned = 0; best = 0; stageIdx = 0;
       perClick = 1; perSec = 0;
+      generation = 0; mode = 'play';
       clearProgress();
     });
   </script>
