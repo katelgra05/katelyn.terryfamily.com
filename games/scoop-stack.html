@@ -180,7 +180,7 @@
     <div class="overlay" id="startScreen">
       <div style="font-size:52px;margin-bottom:8px;">🍨</div>
       <h2>Scoop Stack!</h2>
-      <p>Tap to drop each sliding scoop!<br>
+      <p>Scoops fall from above — drag 👈👉 or use ◀ ▶ keys to steer!<br>
       Whole scoops stay — nothing gets sliced!<br>
       Keep the tower balanced or it topples! ⚖️</p>
       <button class="game-button" onclick="startGame()">▶ Start Stacking!</button>
@@ -221,6 +221,8 @@
     let running = false, over = false, rafId = null, lastT = 0;
     let blocks = [], cur = null, debris = [], popups = [];
     let level = 0, best = 0, camY = 0, lean = 0;
+    let dragging = false, dragX = 0;
+    const keys = { left: false, right: false };
     let muted = false;
     try {
       best = parseInt(localStorage.getItem('scoop_best')) || 0;
@@ -229,6 +231,7 @@
 
     const BLOCK_H = 46;
     const PERFECT_TOL = 9;
+    const KEY_SPEED = 460;
     const maxLean = () => baseWidth() * 0.5;
     const FLAVORS = [
       { c: '#ff8ab5', d: '#e0559a' },
@@ -240,8 +243,8 @@
     ];
     const SPRINKLE_COLORS = ['#ff5d5d', '#4aa8ff', '#ffd94d', '#7cf29b', '#ffffff', '#c084fc'];
     const flavorFor = i => FLAVORS[i % FLAVORS.length];
-    const baseWidth = () => Math.min(W * 0.55, 300);
-    const speedFor = lvl => Math.min(200 + lvl * 16, 640);
+    const baseWidth = () => Math.min(W * 0.42, 190);
+    const fallSpeed = lvl => Math.min(150 + lvl * 12, 430);
     const groundY = () => H * 0.86;
 
     function srand(seed) {
@@ -314,9 +317,10 @@
     }
 
     function spawnCurrent() {
+      // new scoop falls from above — no side-to-side sliding
       const w = baseWidth();
-      const dir = (level % 2 === 0) ? 1 : -1;
-      cur = { x: dir === 1 ? -w : W, w, dir, lvl: level + 1 };
+      cur = { x: W / 2 - w / 2, w, lvl: level + 1, wy: camY - 120, vx: 0 };
+      dragX = W / 2;
     }
 
     function topWorldY() {
@@ -331,7 +335,8 @@
       const overlap = Math.min(a1, b1) - Math.max(a0, b0);
       if (overlap <= 0) {
         // total miss — the scoop tumbles away
-        debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: cur.dir * 220, vy: -160, rot: 0, vr: cur.dir * 4, life: 1.4 });
+        const side = ((cur.x + cur.w / 2) >= (prev.x + prev.w / 2)) ? 1 : -1;
+        debris.push({ x: cur.x, w: cur.w, lvl: cur.lvl, wy: topWorldY() - BLOCK_H, vx: side * 220, vy: -160, rot: 0, vr: side * 4, life: 1.4 });
         cur = null;
         sndFall();
         gameOver('miss');
@@ -411,10 +416,19 @@
     // ============ update ============
     function update(dt) {
       if (cur && !over) {
-        const sp = speedFor(level);
-        cur.x += cur.dir * sp * dt;
-        if (cur.dir === 1 && cur.x > W) { cur.x = W; cur.dir = -1; }
-        if (cur.dir === -1 && cur.x + cur.w < 0) { cur.x = -cur.w; cur.dir = 1; }
+        // scoop falls down; drag or arrow keys steer it sideways
+        const beforeX = cur.x;
+        if (keys.left) cur.x -= KEY_SPEED * dt;
+        if (keys.right) cur.x += KEY_SPEED * dt;
+        if (dragging || cur.followMouse) cur.x += (dragX - (cur.x + cur.w / 2)) * Math.min(1, dt * 12);
+        cur.x = Math.max(-cur.w * 0.6, Math.min(W - cur.w * 0.4, cur.x));
+        cur.vx = (cur.x - beforeX) / Math.max(dt, 0.001);
+        cur.wy += fallSpeed(level) * dt;
+        const landWy = topWorldY() - BLOCK_H;
+        if (cur.wy >= landWy) {
+          cur.wy = landWy;
+          drop();
+        }
       }
       // camera follows the top of the tower
       const target = topWorldY() - H * 0.42;
@@ -447,34 +461,43 @@
       ctx.closePath();
     }
 
-    // scoop drawn like the thumbnail: smooth ellipse, white outline, shine, sprinkles
-    const SCOOP_OVER = 6;
+    // real round scoops like the thumbnail: ball, white outline, shine, sprinkles
     function drawScoop(x, sy, w, lvl, isTop) {
       const f = flavorFor(lvl);
       const rnd = srand(lvl * 997 + 13);
-      const cx = x + w / 2, cy = sy + BLOCK_H / 2;
-      const rx = w / 2, ry = BLOCK_H / 2 + SCOOP_OVER;
-      // scoop body
-      const g = ctx.createLinearGradient(0, cy - ry, 0, cy + ry);
+      const rx = w / 2, ry = rx * 0.92;
+      const cx = x + rx;
+      const cyy = sy + BLOCK_H - ry;
+      // scoop ball
+      const g = ctx.createLinearGradient(0, cyy - ry, 0, cyy + ry);
       g.addColorStop(0, f.c);
       g.addColorStop(1, f.d);
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx, cyy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
       ctx.stroke();
+      // scalloped bottom edge
+      ctx.fillStyle = f.c;
+      const bumps = Math.max(3, Math.floor(w / 34));
+      for (let i = 0; i < bumps; i++) {
+        const bx = x + (w * (i + 0.5)) / bumps;
+        ctx.beginPath();
+        ctx.arc(bx, cyy + ry - 4, 9, 0, Math.PI);
+        ctx.fill();
+      }
       // shine streak
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
       ctx.beginPath();
-      ctx.ellipse(x + w * 0.28, sy + BLOCK_H * 0.28, Math.max(3, w * 0.07), BLOCK_H * 0.14, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(x + w * 0.3, cyy - ry * 0.35, Math.max(3, w * 0.06), ry * 0.3, -0.4, 0, Math.PI * 2);
       ctx.fill();
       // sprinkles (kept inside the scoop)
       for (let i = 0; i < 11; i++) {
         const px = x + 10 + rnd() * Math.max(1, w - 20);
-        const py = sy + 11 + rnd() * (BLOCK_H - 22);
-        const nx = (px - cx) / rx, ny = (py - cy) / ry;
+        const py = (cyy - ry + 8) + rnd() * (ry * 2 - 16);
+        const nx = (px - cx) / rx, ny = (py - cyy) / ry;
         if (nx * nx + ny * ny > 0.72) continue;
         ctx.save();
         ctx.translate(px, py);
@@ -483,9 +506,9 @@
         ctx.fillRect(-4, -1.5, 8, 3);
         ctx.restore();
       }
-      // cherry on the newest scoop
+      // cherry on the newest scoop (sits on top of the ball)
       if (isTop) {
-        const cxp = x + w / 2, cyp = sy - 16;
+        const cxp = x + w / 2, cyp = cyy - ry - 8;
         ctx.strokeStyle = '#3fbf7f';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -636,17 +659,14 @@
         drawScoop(b.x, sy, b.w, b.lvl, i === blocks.length - 1 && !cur);
       }
       ctx.restore();
-      // sliding scoop
+      // falling scoop (tilts as you steer it)
       if (cur && !over) {
-        const wy = groundY() - (blocks.length + 1) * BLOCK_H;
-        const bobY = toSY(wy) + Math.sin(t * 6) * 2;
-        ctx.globalAlpha = 0.25;
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.ellipse(cur.x + cur.w / 2, toSY(topWorldY()) + 6, cur.w * 0.42, 7, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        drawScoop(cur.x, bobY, cur.w, cur.lvl, true);
+        const tilt = Math.max(-0.3, Math.min(0.3, cur.vx / 2400));
+        ctx.save();
+        ctx.translate(cur.x + cur.w / 2, toSY(cur.wy) + BLOCK_H / 2);
+        ctx.rotate(tilt);
+        drawScoop(-cur.w / 2, -BLOCK_H / 2, cur.w, cur.lvl, true);
+        ctx.restore();
       }
       // falling debris
       debris.forEach(d => {
@@ -705,21 +725,42 @@
       rafId = requestAnimationFrame(loop);
     }
 
-    // ============ input ============
+    // ============ input: drag (or arrow keys) to steer the falling scoop ============
+    function canvasPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * canvas.width / rect.width,
+        y: (e.clientY - rect.top) * canvas.height / rect.height
+      };
+    }
     canvas.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       ensureAudio();
-      if (!running && !over) return;
-      if (over) return;
-      drop();
+      if (!running || over) return;
+      dragging = true;
+      dragX = canvasPos(e).x;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
     });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!running || over) return;
+      if (dragging || e.pointerType === 'mouse') dragX = canvasPos(e).x;
+      if (cur) cur.followMouse = e.pointerType === 'mouse' && !dragging;
+    });
+    const stopDrag = () => { dragging = false; if (cur) cur.followMouse = false; };
+    canvas.addEventListener('pointerup', stopDrag);
+    canvas.addEventListener('pointercancel', stopDrag);
     document.addEventListener('keydown', (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') { keys.left = true; e.preventDefault(); }
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') { keys.right = true; e.preventDefault(); }
       if (e.code === 'Space') {
         e.preventDefault();
         ensureAudio();
-        if (running && !over) drop();
-        else if (!running && !over && startScreen.style.display !== 'none') startGame();
+        if (!running && !over && startScreen.style.display !== 'none') startGame();
       }
+    });
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
     });
 
     // ============ boot ============
