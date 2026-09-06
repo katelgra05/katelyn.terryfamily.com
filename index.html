@@ -16,6 +16,11 @@
     <span class="pixels"></span>
   </div>
 
+  <div class="corner-search">
+    <span aria-hidden="true">🔍</span>
+    <input id="gameSearch" type="search" placeholder="Search games..." autocomplete="off" aria-label="Search games">
+  </div>
+
   <div class="corner-links">
     <a href="https://terryfamily.com" target="_blank" rel="noopener">🏠 FamPage</a>
     <a href="https://andrew.terryfamily.com" target="_blank" rel="noopener">🎮 Gamli</a>
@@ -46,20 +51,36 @@
 
     <h2 class="section-title">Choose your game</h2>
 
-    <div class="games-grid">
-      <a class="game-card" href="games/bird-clicker.html">
+    <div class="games-grid" id="gamesGrid">
+      <a class="game-card" href="games/bird-clicker.html" data-title="bird clicker">
         <img class="game-thumb" src="games/bird-thumb.svg?v=5" alt="Bird Clicker preview">
         <span class="game-title">Bird Clicker</span>
       </a>
-      <a class="game-card" href="games/scoop-stack.html">
+      <a class="game-card" href="games/scoop-stack.html" data-title="scoop stack ice cream">
         <img class="game-thumb" src="games/scoop-stack-thumb.svg?v=2" alt="Scoop Stack preview">
         <span class="game-title">Scoop Stack</span>
       </a>
     </div>
+    <p id="noResults" hidden>No games found — try another search! 🎮</p>
   </main>
 
   <footer class="site-footer">
     <p>💜 Katelyn's Homepage • Made for fun on <strong>Pixll</strong></p>
   </footer>
+  <script>
+    const searchInput = document.getElementById('gameSearch');
+    const cards = [...document.querySelectorAll('#gamesGrid .game-card')];
+    const noResults = document.getElementById('noResults');
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      let visible = 0;
+      cards.forEach(card => {
+        const hit = !q || (card.dataset.title || card.textContent.toLowerCase()).includes(q);
+        card.style.display = hit ? '' : 'none';
+        if (hit) visible++;
+      });
+      noResults.hidden = visible !== 0;
+    });
+  </script>
 </body>
 </html>

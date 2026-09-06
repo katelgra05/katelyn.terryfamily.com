@@ -78,6 +78,49 @@ a:not(.button):not(.game-card):not(.featured-card) {
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* ---------- Corner search (glassy, top left) ---------- */
+.corner-search {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 11px 20px;
+  border-radius: 999px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  font-size: 16px;
+}
+.corner-search:focus-within {
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px rgba(125, 249, 255, 0.35);
+}
+.corner-search input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  width: 190px;
+  font-family: inherit;
+}
+.corner-search input::placeholder { color: rgba(255, 255, 255, 0.6); }
+.corner-search input::-webkit-search-cancel-button { filter: invert(1); cursor: pointer; }
+
+#noResults {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 17px;
+  margin: 10px 0 20px;
+}
+
 /* ---------- Hero ---------- */
 .hero {
   text-align: center;
@@ -307,6 +350,8 @@ a:not(.button):not(.game-card):not(.featured-card) {
 @media (max-width: 600px) {
   .corner-links { top: 10px; right: 10px; }
   .corner-links a { padding: 6px 12px; font-size: 12px; }
+  .corner-search { top: 10px; left: 10px; padding: 8px 14px; font-size: 14px; }
+  .corner-search input { width: 120px; font-size: 14px; }
   .pixll-logo-text { font-size: 60px; }
   .pixll-logo-img { height: 62px; width: 62px; }
   .tagline { font-size: 17px; }
