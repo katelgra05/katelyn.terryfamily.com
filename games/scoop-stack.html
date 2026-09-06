@@ -243,7 +243,7 @@
     const SPRINKLE_COLORS = ['#ff5d5d', '#4aa8ff', '#ffd94d', '#7cf29b', '#ffffff', '#c084fc'];
     const flavorFor = i => FLAVORS[i % FLAVORS.length];
     const baseWidth = () => Math.min(W * 0.3, 110);
-    const fallSpeed = lvl => Math.min(280 + lvl * 15, 620);
+    const fallSpeed = lvl => Math.min(170 + lvl * 8, 380);
     const groundY = () => H * 0.86;
     const clampCone = () => {
       const half = baseWidth() / 2 + 8;
