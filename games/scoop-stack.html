@@ -572,23 +572,108 @@
           ctx.beginPath(); ctx.arc(sunX, sunS, sunR, 0, Math.PI * 2); ctx.fill();
         }
       }
-      // drifting clouds up in the sky (world positions)
+      // drifting clouds up in the sky (world positions — they stream by as you climb)
       {
         const rndc = srand(7);
+        const spots = [];
+        for (let i = 0; i < 10; i++) {
+          spots.push({ off: rndc() * 2800, seed: rndc(), s: 0.7 + (i % 3) * 0.3, v: 8 + i * 2 });
+        }
         ctx.fillStyle = 'rgba(255,255,255,0.92)';
-        for (let i = 0; i < 6; i++) {
-          const wy = gy - 1500 - rndc() * 1900;
-          const sy = toSY(wy);
+        for (let i = 0; i < spots.length; i++) {
+          const sp = spots[i];
+          const sy = toSY(gy - 900 - sp.off);
           if (sy < -60 || sy > H + 60) continue;
           const span = W + 260;
-          const cxp = ((rndc() * span + t * (8 + i * 2)) % span) - 130;
-          const s = 0.7 + (i % 3) * 0.3;
+          const cxp = ((sp.seed * span + t * sp.v) % span) - 130;
+          const s = sp.s;
           ctx.beginPath();
           ctx.arc(cxp, sy, 24 * s, 0, Math.PI * 2);
           ctx.arc(cxp + 24 * s, sy + 4 * s, 18 * s, 0, Math.PI * 2);
           ctx.arc(cxp - 24 * s, sy + 5 * s, 16 * s, 0, Math.PI * 2);
           ctx.fill();
         }
+      }
+      // twinkling sky sparkles (world-anchored so the climb feels like motion)
+      {
+        const rnds = srand(99);
+        const dots = [];
+        for (let i = 0; i < 50; i++) {
+          dots.push({ off: rnds() * 3000, sx: rnds() * W, r: 1 + (i % 3) });
+        }
+        ctx.fillStyle = '#ffffff';
+        for (let i = 0; i < dots.length; i++) {
+          const sy = toSY(gy - 800 - dots[i].off);
+          if (sy < -10 || sy > H + 10) continue;
+          const tw = 0.35 + 0.65 * Math.abs(Math.sin(t * 2 + i * 1.7));
+          ctx.globalAlpha = tw * 0.85;
+          ctx.fillRect(dots[i].sx, sy, dots[i].r, dots[i].r);
+        }
+        ctx.globalAlpha = 1;
+      }
+      // party bunting strung across the sky every so often
+      {
+        const flagColors = ['#ff8ab5', '#ffd94d', '#9ff0c8', '#7cc4ff', '#c084fc'];
+        [1500, 2300, 3100].forEach((up, band) => {
+          const yBase = toSY(gy - up);
+          if (yBase < -60 || yBase > H + 60) return;
+          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, yBase);
+          ctx.quadraticCurveTo(W / 2, yBase + 36, W, yBase);
+          ctx.stroke();
+          for (let i = 0; i < 9; i++) {
+            const fx = W * (0.06 + 0.88 * (i / 8));
+            const fy = yBase + Math.sin((fx / W) * Math.PI) * 14;
+            ctx.fillStyle = flagColors[(i + band * 2) % flagColors.length];
+            ctx.beginPath();
+            ctx.moveTo(fx - 8, fy);
+            ctx.lineTo(fx + 8, fy);
+            ctx.lineTo(fx, fy + 14);
+            ctx.closePath();
+            ctx.fill();
+          }
+        });
+      }
+      // floating ice-cream balloons (world-anchored landmarks)
+      {
+        const balloons = [
+          { fx: 0.16, up: 1300, c: '#ff8ab5', s: 1 },
+          { fx: 0.84, up: 2000, c: '#9ff0c8', s: 0.8 },
+          { fx: 0.24, up: 2700, c: '#b9a7f2', s: 1.1 },
+          { fx: 0.78, up: 3350, c: '#ffe066', s: 0.9 }
+        ];
+        balloons.forEach((bl, i) => {
+          const bx = W * bl.fx + Math.sin(t * 0.7 + i * 2) * 10;
+          const by = toSY(gy - bl.up) + Math.sin(t * 0.9 + i) * 6;
+          if (by < -90 || by > H + 90) return;
+          const s = bl.s;
+          ctx.strokeStyle = 'rgba(120, 80, 110, 0.6)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(bx, by + 34 * s);
+          ctx.quadraticCurveTo(bx + 8, by + 52 * s, bx, by + 70 * s);
+          ctx.stroke();
+          ctx.fillStyle = '#d9a066';
+          ctx.beginPath();
+          ctx.moveTo(bx - 10 * s, by + 22 * s);
+          ctx.lineTo(bx + 10 * s, by + 22 * s);
+          ctx.lineTo(bx, by + 38 * s);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = bl.c;
+          ctx.beginPath();
+          ctx.arc(bx, by, 22 * s, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255,255,255,0.55)';
+          ctx.beginPath();
+          ctx.arc(bx - 7 * s, by - 7 * s, 5 * s, 0, Math.PI * 2);
+          ctx.fill();
+        });
       }
       // brown board wall climbing into the sky (world band)
       {
@@ -639,15 +724,18 @@
           ctx.fillStyle = wall;
           ctx.fillRect(0, sTop, W, sBot - sTop);
           const rnd = srand(42);
-          ctx.fillStyle = 'rgba(192, 132, 252, 0.16)';
+          const dots = [];
           for (let i = 0; i < 30; i++) {
-            const dx = rnd() * W, dy = rnd() * 880;
-            const sy = toSY(gy - dy);
-            if (sy < sTop - 20 || sy > sBot + 20) continue;
-            ctx.beginPath();
-            ctx.arc(dx, sy, 5 + rnd() * 7, 0, Math.PI * 2);
-            ctx.fill();
+            dots.push({ dx: rnd() * W, dy: rnd() * 880, r: 5 + rnd() * 7 });
           }
+          ctx.fillStyle = 'rgba(192, 132, 252, 0.16)';
+          dots.forEach(d => {
+            const sy = toSY(gy - d.dy);
+            if (sy < sTop - 20 || sy > sBot + 20) return;
+            ctx.beginPath();
+            ctx.arc(d.dx, sy, d.r, 0, Math.PI * 2);
+            ctx.fill();
+          });
         }
       }
       // striped awning at the top of the shop wall (world position)
