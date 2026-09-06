@@ -50,6 +50,11 @@
     #menuColor { width:36px; height:32px; border-radius:10px; border:1px solid rgba(255,255,255,0.3); background:transparent; cursor:pointer; pointer-events:auto; }
     .menu-button { margin-top:18px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 22px; border-radius:999px; border:none; background:linear-gradient(135deg,#66e6ff,#7cf29b); color:#050717; font-weight:700; font-size:14px; cursor:pointer; box-shadow:0 12px 30px rgba(102,230,255,0.4); pointer-events:auto; }
     .menu-note { font-size:12px; color:#a9b9ff; margin-top:8px; }
+    .menu-best { font-size:13px; color:#ffd66b; font-weight:700; margin-top:6px; }
+    #sndBtn {
+      margin-left:8px; border:none; border-radius:999px; background:rgba(255,255,255,0.1);
+      color:#fff; font-size:14px; padding:4px 10px; cursor:pointer; pointer-events:auto;
+    }
     #gameOver { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background: radial-gradient(circle at top, rgba(0,0,0,0.85), rgba(0,0,0,0.92)); z-index:30; }
     .gameover-card { background:rgba(5,7,22,0.97); padding:26px 32px 22px; border-radius:20px; border:1px solid rgba(255,255,255,0.08); text-align:center; width:320px; box-shadow:0 26px 60px rgba(0,0,0,0.7); }
     .gameover-title { font-size:24px; margin-bottom:6px; }
@@ -80,7 +85,8 @@
       </div>
 
       <div id="controls">
-        <strong>WASD</strong> move • <strong>Mouse</strong> aim • <strong>Click</strong> shoot • <strong>Esc</strong> return to menu
+        <span id="controlsText"><strong>WASD</strong> move • <strong>Mouse</strong> aim • <strong>Click</strong> shoot • <strong>Esc</strong> return to menu</span>
+        <button id="sndBtn" title="Sound on/off">🔊</button>
       </div>
 
       <div id="minimap">
@@ -110,6 +116,7 @@
           </div>
 
           <div class="menu-note">This game is an insane project that I have been working on. Hope you enjoy it!</div>
+          <div class="menu-best" id="menuBest">🏆 Best score: — • Wins: 0</div>
         </div>
       </div>
     </div>
@@ -121,7 +128,8 @@
         <div class="gameover-stats">
           Score: <span class="value" id="goScore">0</span><br />
           Kills: <span class="value" id="goKills">0</span><br />
-          Survival time: <span class="value" id="goTime">0s</span>
+          Survival time: <span class="value" id="goTime">0s</span><br />
+          <span id="goBest"></span>
         </div>
         <div class="gameover-buttons">
           <button class="btn-secondary" id="btnReplay">Play again</button>
@@ -161,6 +169,22 @@
         this.lastTime = performance.now();
         this.elapsed = 0;
 
+        // touch controls (phones/tablets): drag to move, auto-fire
+        this.touch = { active: false, x: 0, y: 0 };
+        this.isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+
+        // personal bests
+        this.best = { score: 0, wins: 0, kills: 0 };
+        try {
+          this.best.score = parseInt(localStorage.getItem("doto_best_score")) || 0;
+          this.best.wins = parseInt(localStorage.getItem("doto_wins")) || 0;
+          this.best.kills = parseInt(localStorage.getItem("doto_best_kills")) || 0;
+        } catch (e) {}
+        this.muted = false;
+        try { this.muted = localStorage.getItem("doto_muted") === "1"; } catch (e) {}
+        this.audioCtx = null;
+        this.lastShootSnd = 0;
+
         // input
         this.keys = { w:false, a:false, s:false, d:false };
         this.mouse = { x:0, y:0, down:false };
@@ -182,6 +206,22 @@
         // initially pick a name to display (but not editable)
         this.pendingColor = document.getElementById("menuColor").value || "#66e6ff";
         this.pickAssignedName();
+        this.renderMenuBest();
+
+        // sound toggle
+        const sndBtn = document.getElementById("sndBtn");
+        sndBtn.textContent = this.muted ? "🔇" : "🔊";
+        sndBtn.addEventListener("click", () => {
+          this.muted = !this.muted;
+          try { localStorage.setItem("doto_muted", this.muted ? "1" : "0"); } catch (e) {}
+          sndBtn.textContent = this.muted ? "🔇" : "🔊";
+        });
+
+        // touch hint
+        if (this.isTouch) {
+          document.getElementById("controlsText").innerHTML =
+            "<strong>Drag</strong> to move • <strong>auto-fire</strong> at nearby enemies";
+        }
 
         // loop
         this.loop = this.loop.bind(this);
@@ -209,6 +249,46 @@
           set.add(candidate);
         }
         return Array.from(set);
+      }
+
+      // ---- game sounds (tiny synth) ----
+      tone(freq, dur, type, vol, delay) {
+        if (this.muted) return;
+        try {
+          if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const t = this.audioCtx.currentTime + (delay || 0);
+          const osc = this.audioCtx.createOscillator();
+          const gain = this.audioCtx.createGain();
+          osc.type = type || "sine";
+          osc.frequency.setValueAtTime(freq, t);
+          gain.gain.setValueAtTime(vol || 0.06, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+          osc.connect(gain);
+          gain.connect(this.audioCtx.destination);
+          osc.start(t);
+          osc.stop(t + dur + 0.02);
+        } catch (e) {}
+      }
+      shootSound() {
+        const now = performance.now();
+        if (now - this.lastShootSnd < 120) return; // don't spam
+        this.lastShootSnd = now;
+        this.tone(220, 0.06, "square", 0.03);
+      }
+      hitSound() { this.tone(640, 0.07, "triangle", 0.07); }
+      hurtSound() { this.tone(140, 0.15, "sawtooth", 0.08); }
+      dieSound() {
+        this.tone(300, 0.2, "sawtooth", 0.09);
+        this.tone(180, 0.3, "sawtooth", 0.09, 0.15);
+      }
+      winSound() {
+        this.tone(523, 0.12, "triangle", 0.09);
+        this.tone(659, 0.12, "triangle", 0.09, 0.1);
+        this.tone(784, 0.25, "triangle", 0.09, 0.2);
+      }
+      renderMenuBest() {
+        document.getElementById("menuBest").textContent =
+          `🏆 Best score: ${this.best.score || "—"} • Wins: ${this.best.wins}`;
       }
 
       // put a random name into the menu display (players can't edit it)
@@ -247,6 +327,25 @@
         });
         this.canvas.addEventListener("mousedown", () => { this.mouse.down = true; });
         window.addEventListener("mouseup", () => { this.mouse.down = false; });
+        // touch: drag to move (auto-fire handles shooting)
+        this.canvas.addEventListener("pointerdown", (e) => {
+          if (e.pointerType === "mouse") return;
+          this.touch.active = true;
+          this.setTouch(e);
+        });
+        window.addEventListener("pointermove", (e) => {
+          if (this.touch.active && e.pointerType !== "mouse") this.setTouch(e);
+        });
+        window.addEventListener("pointerup", (e) => {
+          if (e.pointerType !== "mouse") this.touch.active = false;
+        });
+        window.addEventListener("pointercancel", () => { this.touch.active = false; });
+      }
+
+      setTouch(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        this.touch.x = e.clientX - rect.left;
+        this.touch.y = e.clientY - rect.top;
       }
 
       startFromMenu() {
@@ -360,14 +459,21 @@
 
         const speedBase = 240;
 
-        // local movement
+        // local movement (touch drag overrides keys on phones/tablets)
         let mx=0,my=0;
-        if (this.keys.w) my -= 1;
-        if (this.keys.s) my += 1;
-        if (this.keys.a) mx -= 1;
-        if (this.keys.d) mx += 1;
-        let len = Math.hypot(mx,my);
-        if (len>0) { mx/=len; my/=len; }
+        if (this.touch.active) {
+          const cx = this.canvas.width / 2, cy = this.canvas.height / 2;
+          const dx = this.touch.x - cx, dy = this.touch.y - cy;
+          const d = Math.hypot(dx, dy);
+          if (d > 24) { mx = dx / d; my = dy / d; }
+        } else {
+          if (this.keys.w) my -= 1;
+          if (this.keys.s) my += 1;
+          if (this.keys.a) mx -= 1;
+          if (this.keys.d) mx += 1;
+          let len = Math.hypot(mx,my);
+          if (len>0) { mx/=len; my/=len; }
+        }
         const moveSpeed = speedBase * (20 / this.me.size);
         this.me.vx = mx * moveSpeed;
         this.me.vy = my * moveSpeed;
@@ -375,6 +481,17 @@
         // shooting by holding mouse
         if (this.mouse.down) {
           this.tryShoot(this.me, this.mouseWorldX(), this.mouseWorldY());
+        }
+
+        // touch auto-fire at the nearest enemy in range
+        if (this.touch.active) {
+          let bestBot = null, bestD = 750;
+          for (const p of this.players) {
+            if (!p.alive || !p.isBot) continue;
+            const d = Math.hypot(p.x - this.me.x, p.y - this.me.y);
+            if (d < bestD) { bestD = d; bestBot = p; }
+          }
+          if (bestBot) this.tryShoot(this.me, bestBot.x, bestBot.y);
         }
 
         // bots AI decisions
@@ -447,19 +564,18 @@
               this.bullets.splice(i,1);
               this.spawnParticles(b.x, b.y, b.color, 12);
               p.health -= b.damage;
+              if (b.ownerName === this.me.name) this.hitSound();
               if (p.health <= 0) {
                 p.alive = false;
-                // reward owner (if it's local)
-                if (b.ownerName === this.me.name) {
-                  this.me.kills++;
-                  this.me.score += 50;
-                }
                 const killer = this.players.find(pl => pl.name === b.ownerName);
                 if (killer) {
                   killer.kills++;
                   killer.score += 30;
                   killer.size = Math.min(65, killer.size + 2);
                 }
+                if (p.isLocal) this.dieSound();
+              } else if (p.isLocal) {
+                this.hurtSound();
               }
               break;
             }
@@ -477,6 +593,12 @@
         // local death check
         if (!this.me.alive) {
           this.endMatch(false);
+        }
+
+        // last-bot-standing? you win!
+        if (this.me.alive && this.players.length > 1 &&
+            this.players.every(p => !p.alive || p.isLocal)) {
+          this.endMatch(true);
         }
 
         // update top stats and leaderboard
@@ -557,6 +679,7 @@
           damage: 18
         });
         player.shootCooldown = player.isBot ? randRange(0.45, 0.9) : 0.25;
+        if (player.isLocal) this.shootSound();
       }
 
       spawnParticles(x,y,color,count) {
@@ -755,6 +878,7 @@
       }
 
       endMatch(won) {
+        if (!this.running) return; // already ended
         this.running = false;
         const go = document.getElementById("gameOver");
         const title = document.getElementById("gameOverTitle");
@@ -775,6 +899,20 @@
         scoreEl.textContent = this.me.score;
         killsEl.textContent = this.me.kills;
         timeEl.textContent = secs + "s";
+
+        // personal bests
+        let newBest = false;
+        if (this.me.score > this.best.score) { this.best.score = this.me.score; newBest = true; }
+        if (this.me.kills > this.best.kills) this.best.kills = this.me.kills;
+        if (won) { this.best.wins++; this.winSound(); }
+        try {
+          localStorage.setItem("doto_best_score", String(this.best.score));
+          localStorage.setItem("doto_wins", String(this.best.wins));
+          localStorage.setItem("doto_best_kills", String(this.best.kills));
+        } catch (e) {}
+        this.renderMenuBest();
+        document.getElementById("goBest").textContent =
+          `🏆 Best: ${this.best.score}${newBest ? " — new best!" : ""} • Wins: ${this.best.wins}`;
 
         go.style.display = "flex";
       }
