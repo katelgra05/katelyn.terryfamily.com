@@ -1,0 +1,4252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🗺️ Open World • Pixll</title>
+  <link rel="icon" type="image/png" href="../pixll-logo.png">
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .pixll-topbar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 5000;
+      pointer-events: none;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    }
+    .pixll-topbar > * { pointer-events: auto; }
+    .pixll-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px 8px 10px;
+      border-radius: 999px;
+      background: rgba(10, 8, 30, 0.72);
+      color: #fff !important;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+      transition: transform 0.18s ease;
+    }
+    .pixll-back:hover { transform: scale(1.05); }
+    .pixll-back img {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      display: block;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+    }
+    .pixll-badge {
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(10px);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.4);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .game-container {
+      position: relative;
+      margin: 0;
+      width: 100vw;
+      flex: 1;
+      min-height: 0;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: pointer;
+    }
+    .hud {
+      position: absolute;
+      top: 60px;
+      left: 14px;
+      z-index: 5;
+      background: rgba(13, 19, 27, 0.93);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      pointer-events: none;
+    }
+    .hud .title { font-weight: bold; color: #ffd700; font-size: 1rem; }
+    #hiddenBadge {
+      display: none;
+      position: absolute;
+      top: 196px;
+      left: 14px;
+      z-index: 5;
+      background: rgba(13, 19, 27, 0.93);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+    #hintBar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      background: rgba(13, 19, 27, 0.93);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <nav class="pixll-topbar"><a href="../index.html" class="pixll-back"><img src="../pixll-logo.png" alt="Pixll logo">← Pixll Arcade</a><span class="pixll-badge">✨ Pixll • 🗺️ Open World</span></nav>
+  <div class="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div class="hud">
+      <div class="title">🌍 Open World</div>
+      <div id="coords">x: 0, y: 0</div>
+      <div>🫐 Berries: <span id="berries">0</span></div>
+      <div>🍄 Mushrooms: <span id="shrooms">0</span></div>
+    </div>
+    <div id="hiddenBadge">🤫 Hidden!</div>
+    <div id="hintBar">WASD / Arrows to walk &nbsp;•&nbsp; Shift to run &nbsp;•&nbsp; Touch: drag to walk &nbsp;•&nbsp; 🍄 touch stumps &nbsp;•&nbsp; 🐚🦔🐗🐾 + meerkats!</div>
+  </div>
+
+  <script>
+    // ============ Open World: an original top-down island ramble ============
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const berriesEl = document.getElementById('berries');
+    const shroomsEl = document.getElementById('shrooms');
+    const coordsEl = document.getElementById('coords');
+    const hiddenBadge = document.getElementById('hiddenBadge');
+
+    let W = 0, H = 0;
+    function resizeCanvas() {
+      W = canvas.width = window.innerWidth || 800;
+      H = canvas.height = window.innerHeight || 600;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ============ state ============
+    let running = true, rafId = null, lastT = 0;
+
+    const TILE = 32, WT = 240, HT = 240; // one big island, ocean at the edges
+    const ZOOM = 1.6;                    // zoomed-in camera
+    const OCEAN = 0, WATER = 1, SAND = 2, GRASS = 3, MUD = 4;
+    const FIXED_SEED = 20260906;
+    let seed = FIXED_SEED;
+    let tiles = new Uint8Array(WT * HT);
+    let bigLake = new Uint8Array(WT * HT);
+    let snow = new Uint8Array(WT * HT);
+    let ice = new Uint8Array(WT * HT);
+    let damp = new Uint8Array(WT * HT); // dark wet floor hugging ponds + lake
+    let savannah = new Uint8Array(WT * HT); // yellow savannah ground, bottom-left (mud, not water)
+    let forest = new Uint8Array(WT * HT); // dense forest floor mask (tree clusters)
+    let trees = [];      // {x, y, r, hue, sway, pine}
+    let trunkSet = new Set();
+    let palms = [];      // {x, y, sway}
+    let palmSet = new Set();
+    let stumps = [];     // {x, y, r, mush: [{dx, dy, empty, timer}]}
+    let stumpSet = new Set();
+    let bushes = [];     // small berry bushes {x, y, r, berries, regrow, seed}
+    let bigBushes = [];  // hiding spots {x, y, rx, ry, seed}
+    let fishes = [];     // {x, y, heading, speed, turn, sea}
+    let pondSpots = [], oceanSpots = [];
+    let ducks = [];      // {x, y, heading, speed, timer, paused, sc, body, head, wakeT, age, fade, ...nesting}
+    let crabHoles = [];  // {x, y, state, timer, cx, cy, heading, dartT, pauseT, carrying, stash}
+    let shells = [];     // beach shells crabs haul home: {x, y, state, carrier, hx, hy, tint}
+    let shellRespT = 0;
+    let sprigSources = []; // nest sprigs: {x, y, kind, stock, max, timer} kind = cattail|grass|stick
+    let nests = [];        // {x, y, sprigs, need, eggs: [{age}], clutch, laid, mom}
+    let chicks = [];       // {x, y, heading, speed, mom, sc, findT}
+    let poos = [];         // duck business: {x, y, age}, melts away after 30s
+    let burrows = [];      // bunny dens: {x, y, snowy}
+    let bunnies = [];      // {x, y, bx, by, heading, state, timer, hop, moving, col, sc, baby, snowy}
+    let hedgehogs = [];    // forest friends: {x, y, hx, hy, heading, state, timer, moving, hop, col, ...}
+    let warthogs = [];     // savannah warthogs: {x, y, heading, state, timer, resting, sc, ...}
+    let snowyOwls = [];    // snowy owls roaming the snowfields: {x, y, heading, state, perch, ...}
+    let pineSpots = [];    // pine trees owls can perch on
+    let meerkats = [];     // savannah meerkat mob: {x, y, hx, hy, heading, state, timer, ...}
+    let hogSpots = [];     // savannah grass tiles warthogs can spawn on
+    let lilypads = [];     // floating pads on lake + ocean: {x, y, r, flower, phase}
+    let pondRegions = [];  // connected open-water areas (fish + ducks each)
+    let regionOf = new Int32Array(0);
+    let decor = [];      // {x, y, kind, s} tufts / flowers / pebbles / leaves / shells
+    let particles = [];
+    let mmCanvas = null; // pre-rendered minimap terrain
+    const player = { x: 0, y: 0, r: 9, fx: 0, fy: 1, moving: false, running: false, step: 0, vx: 0, vy: 0 };
+    let berries = 0, shroomCount = 0, hidden = false, rippleT = 0, eatCd = 0, shroomCd = 0, duckUpT = 0, fishUpT = 0;
+    let pondUpT = 0, bunnyUpT = 0, hedgeUpT = 0, hogUpT = 0, owlUpT = 0;
+    const keys = {};
+    const touch = { active: false, id: null, sx: 0, sy: 0, dx: 0, dy: 0 };
+    const WALK = 220, RUN = 340;
+
+    const tidx = (tx, ty) => ty * WT + tx;
+    const inTiles = (tx, ty) => tx >= 0 && ty >= 0 && tx < WT && ty < HT;
+
+    // ============ seeded random + value noise ============
+    function mulberry32(a) {
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function makeNoise(rand) {
+      const perm = Array.from({ length: 256 }, (_, i) => i);
+      for (let i = 255; i > 0; i--) {
+        const j = (rand() * (i + 1)) | 0;
+        const tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+      }
+      const p = new Uint8Array(512);
+      for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+      const lat = new Float32Array(256);
+      for (let i = 0; i < 256; i++) lat[i] = rand();
+      const fade = t => t * t * (3 - 2 * t);
+      return function (x, y) {
+        const xi = Math.floor(x), yi = Math.floor(y);
+        const xf = x - xi, yf = y - yi;
+        const X = xi & 255, Y = yi & 255;
+        const v00 = lat[p[(p[X] + Y) & 511] & 255];
+        const v10 = lat[p[(p[(X + 1) & 255] + Y) & 511] & 255];
+        const v01 = lat[p[(p[X] + Y + 1) & 511] & 255];
+        const v11 = lat[p[(p[(X + 1) & 255] + Y + 1) & 511] & 255];
+        const u = fade(xf), v = fade(yf);
+        return (v00 * (1 - u) + v10 * u) * (1 - v) + (v01 * (1 - u) + v11 * u) * v;
+      };
+    }
+    function fbm(n2, x, y) {
+      let v = 0, amp = 0.5, f = 1, norm = 0;
+      for (let o = 0; o < 4; o++) {
+        v += amp * n2(x * f, y * f);
+        norm += amp;
+        amp *= 0.5; f *= 2.03;
+      }
+      return v / norm;
+    }
+    const thash = (x, y) => {
+      let h = (x * 374761393 + y * 668265263 + seed * 974634211) | 0;
+      h = Math.imul(h ^ (h >>> 13), 1274126177);
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+    };
+
+    // ============ world generation: one island, ocean edges, ponds + big lake ============
+    function genWorld(s) {
+      seed = s;
+      const rand = mulberry32(s);
+      const nE = makeNoise(mulberry32((s ^ 0x9e37) | 0));
+      const nM = makeNoise(mulberry32((s ^ 0x51f3) | 0));
+      tiles = new Uint8Array(WT * HT);
+      bigLake = new Uint8Array(WT * HT);
+      snow = new Uint8Array(WT * HT);
+      ice = new Uint8Array(WT * HT);
+      damp = new Uint8Array(WT * HT);
+      forest = new Uint8Array(WT * HT);
+      savannah = new Uint8Array(WT * HT);
+      // elevation with island falloff so the ocean hugs the map edges
+      for (let ty = 0; ty < HT; ty++) {
+        for (let tx = 0; tx < WT; tx++) {
+          let e = fbm(nE, tx * 0.014, ty * 0.014) + 0.15 * fbm(nE, tx * 0.06 + 40, ty * 0.06 + 40);
+          const dx = (tx - WT / 2) / (WT / 2), dy = (ty - HT / 2) / (HT / 2);
+          const d = Math.sqrt(dx * dx + dy * dy) / Math.SQRT2;
+          e += 0.06 - Math.pow(d, 2.1) * 0.72;
+          tiles[tidx(tx, ty)] = e < 0.30 ? OCEAN : GRASS;
+        }
+      }
+      // ocean = wet touching the border; inland wet stays lakes
+      {
+        const stack = [];
+        for (let x = 0; x < WT; x++) { stack.push([x, 0]); stack.push([x, HT - 1]); }
+        for (let y = 0; y < HT; y++) { stack.push([0, y]); stack.push([WT - 1, y]); }
+        const seenO = new Uint8Array(WT * HT);
+        while (stack.length) {
+          const c = stack.pop();
+          if (!inTiles(c[0], c[1])) continue;
+          const i = tidx(c[0], c[1]);
+          if (seenO[i] || tiles[i] !== OCEAN) continue;
+          seenO[i] = 1;
+          stack.push([c[0] + 1, c[1]], [c[0] - 1, c[1]], [c[0], c[1] + 1], [c[0], c[1] - 1]);
+        }
+        for (let i = 0; i < WT * HT; i++) if (tiles[i] === OCEAN && !seenO[i]) tiles[i] = WATER;
+      }
+      // sink small side-islands: keep only the biggest landmass
+      {
+        const comp = new Int32Array(WT * HT).fill(-1);
+        const sizes = [];
+        let n = 0;
+        for (let y = 0; y < HT; y++) {
+          for (let x = 0; x < WT; x++) {
+            const si = tidx(x, y);
+            if (tiles[si] === OCEAN || tiles[si] === WATER || comp[si] !== -1) continue;
+            const q = [si];
+            comp[si] = n;
+            let sz = 0;
+            while (q.length) {
+              const c = q.pop();
+              sz++;
+              const cx = c % WT, cy = (c / WT) | 0;
+              const nb = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+              for (const nn of nb) {
+                if (!inTiles(nn[0], nn[1])) continue;
+                const ni = tidx(nn[0], nn[1]);
+                if (tiles[ni] === OCEAN || tiles[ni] === WATER || comp[ni] !== -1) continue;
+                comp[ni] = n;
+                q.push(ni);
+              }
+            }
+            sizes.push(sz);
+            n++;
+          }
+        }
+        if (n > 1) {
+          let main = 0;
+          for (let i = 1; i < n; i++) if (sizes[i] > sizes[main]) main = i;
+          for (let i = 0; i < WT * HT; i++) {
+            if (comp[i] === -1 || comp[i] === main) continue;
+            const bx = i % WT, by = (i / WT) | 0;
+            const sea =
+              (bx + 1 < WT && tiles[i + 1] === OCEAN) || (bx - 1 >= 0 && tiles[i - 1] === OCEAN) ||
+              (by + 1 < HT && tiles[i + WT] === OCEAN) || (by - 1 >= 0 && tiles[i - WT] === OCEAN);
+            tiles[i] = sea ? OCEAN : WATER;
+          }
+        }
+      }
+      // scattered inland ponds (grass runs straight to their water)
+      let pondsWanted = 24, tries = 0;
+      while (pondsWanted > 0 && tries < 800) {
+        tries++;
+        const px = 25 + ((rand() * (WT - 50)) | 0), py = 25 + ((rand() * (HT - 50)) | 0);
+        if (tiles[tidx(px, py)] !== GRASS) continue;
+        const dcx = px - (WT >> 1), dcy = py - (HT >> 1);
+        if (dcx * dcx + dcy * dcy < 100) continue;
+        let clear = true;
+        for (let yy = py - 10; yy <= py + 10 && clear; yy++) {
+          for (let xx = px - 10; xx <= px + 10; xx++) {
+            if (!inTiles(xx, yy)) continue;
+            if (tiles[tidx(xx, yy)] === OCEAN) { clear = false; break; }
+          }
+        }
+        if (!clear) continue;
+        const pr = 2 + rand() * 2.5;
+        for (let yy = Math.floor(py - pr - 1); yy <= Math.ceil(py + pr + 1); yy++) {
+          for (let xx = Math.floor(px - pr - 1); xx <= Math.ceil(px + pr + 1); xx++) {
+            if (!inTiles(xx, yy) || tiles[tidx(xx, yy)] !== GRASS) continue;
+            const ddx = xx - px, ddy = yy - py;
+            if (Math.sqrt(ddx * ddx + ddy * ddy) < pr + (thash(xx, yy) - 0.5) * 1.6) tiles[tidx(xx, yy)] = WATER;
+          }
+        }
+        pondsWanted--;
+      }
+      // one big lake, low and to the south-east
+      {
+        const blx = WT * 0.54, bly = HT * 0.83, blr = 13;
+        for (let yy = Math.floor(bly - blr - 2); yy <= Math.ceil(bly + blr + 2); yy++) {
+          for (let xx = Math.floor(blx - blr - 2); xx <= Math.ceil(blx + blr + 2); xx++) {
+            if (!inTiles(xx, yy) || tiles[tidx(xx, yy)] === OCEAN) continue;
+            const dx = (xx - blx) * 0.8, dy = (yy - bly) * 1.15;
+            if (Math.sqrt(dx * dx + dy * dy) < blr * (0.65 + 0.7 * fbm(nE, xx * 0.07 + 900, yy * 0.07 + 900))) {
+              tiles[tidx(xx, yy)] = WATER;
+              bigLake[tidx(xx, yy)] = 1;
+            }
+          }
+        }
+      }
+      // fill tiny odd ponds + lone wet tiles back to grass
+      {
+        const seen = new Uint8Array(WT * HT);
+        for (let y = 0; y < HT; y++) {
+          for (let x = 0; x < WT; x++) {
+            const li = tidx(x, y);
+            if (tiles[li] !== WATER || seen[li]) continue;
+            const region = [];
+            const q = [[x, y]];
+            seen[li] = 1;
+            while (q.length) {
+              const c = q.pop();
+              region.push(c);
+              const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+              for (const dd of dirs) {
+                const nx = c[0] + dd[0], ny = c[1] + dd[1];
+                if (!inTiles(nx, ny)) continue;
+                const ni = tidx(nx, ny);
+                if (tiles[ni] !== WATER || seen[ni]) continue;
+                seen[ni] = 1;
+                q.push([nx, ny]);
+              }
+            }
+            if (region.length < 25) {
+              for (const c of region) { tiles[tidx(c[0], c[1])] = GRASS; bigLake[tidx(c[0], c[1])] = 0; }
+            }
+          }
+        }
+      }
+      // sand hugs the ocean (ponds stay grassy), patchy bits by the big lake
+      for (let y = 0; y < HT; y++) {
+        for (let x = 0; x < WT; x++) {
+          const i = tidx(x, y);
+          if (tiles[i] !== GRASS) continue;
+          let nearOcean = false;
+          for (let oy = -2; oy <= 2 && !nearOcean; oy++) {
+            for (let ox = -2; ox <= 2; ox++) {
+              if (!ox && !oy) continue;
+              if (!inTiles(x + ox, y + oy)) continue;
+              if (tiles[tidx(x + ox, y + oy)] === OCEAN) { nearOcean = true; break; }
+            }
+          }
+          if (nearOcean) { tiles[i] = SAND; continue; }
+          let nearBig = false;
+          for (let oy = -1; oy <= 1 && !nearBig; oy++) {
+            for (let ox = -1; ox <= 1; ox++) {
+              if (!ox && !oy) continue;
+              if (!inTiles(x + ox, y + oy)) continue;
+              if (bigLake[tidx(x + ox, y + oy)]) { nearBig = true; break; }
+            }
+          }
+          if (nearBig && thash(x, y) < 0.35) tiles[i] = SAND;
+        }
+      }
+      // a few tiny sandy islets out in the ocean (palm homes)
+      const islets = [];
+      tries = 0;
+      while (islets.length < 8 && tries < 900) {
+        tries++;
+        const cx = 20 + ((rand() * (WT - 40)) | 0), cy = 20 + ((rand() * (HT - 40)) | 0);
+        const r = 3 + rand() * 3;
+        let ok = tiles[tidx(cx, cy)] === OCEAN;
+        for (let yy = Math.floor(cy - r - 3); yy <= Math.ceil(cy + r + 3) && ok; yy++) {
+          for (let xx = Math.floor(cx - r - 3); xx <= Math.ceil(cx + r + 3); xx++) {
+            if (!inTiles(xx, yy)) { ok = false; break; }
+            const ddx = xx - cx, ddy = yy - cy;
+            if (Math.sqrt(ddx * ddx + ddy * ddy) <= r + 3 && tiles[tidx(xx, yy)] !== OCEAN) { ok = false; break; }
+          }
+        }
+        if (!ok) continue;
+        for (const o of islets) {
+          const odx = cx - o.x, ody = cy - o.y;
+          if (Math.sqrt(odx * odx + ody * ody) < r + o.r + 8) { ok = false; break; }
+        }
+        if (!ok) continue;
+        for (let yy = Math.floor(cy - r - 1); yy <= Math.ceil(cy + r + 1); yy++) {
+          for (let xx = Math.floor(cx - r - 1); xx <= Math.ceil(cx + r + 1); xx++) {
+            if (!inTiles(xx, yy)) continue;
+            const ddx = xx - cx, ddy = yy - cy;
+            if (Math.sqrt(ddx * ddx + ddy * ddy) < r + (thash(xx, yy) - 0.5) * 1.4) tiles[tidx(xx, yy)] = SAND;
+          }
+        }
+        islets.push({ x: cx, y: cy, r });
+      }
+      // savannah bottom-left: yellow ground, pond water turns to mud; animals may wander in
+      {
+        const dx0 = 42, dy0 = 198, drx = 48, dry = 42;
+        for (let yy = 0; yy < HT; yy++) {
+          for (let xx = 0; xx < WT; xx++) {
+            const ex = (xx - dx0) / drx, ey = (yy - dy0) / dry;
+            if (ex * ex + ey * ey > 0.85 + 0.3 * thash(xx, yy)) continue;
+            const di = tidx(xx, yy);
+            if (tiles[di] === GRASS) savannah[di] = 1;
+            else if (tiles[di] === WATER) { tiles[di] = MUD; savannah[di] = 1; bigLake[di] = 0; }
+          }
+        }
+        // a few guaranteed mud ponds scooped out of the savannah floor
+        let mudWanted = 3, mudTries = 0;
+        while (mudWanted > 0 && mudTries < 400) {
+          mudTries++;
+          const px = dx0 + ((rand() - 0.5) * drx * 1.2), py = dy0 + ((rand() - 0.5) * dry * 1.2);
+          const ptx = Math.round(px), pty = Math.round(py);
+          if (!inTiles(ptx, pty) || tiles[tidx(ptx, pty)] !== GRASS || !savannah[tidx(ptx, pty)]) continue;
+          const pr = 2 + rand() * 1.5;
+          for (let yy = Math.floor(pty - pr - 1); yy <= Math.ceil(pty + pr + 1); yy++) {
+            for (let xx = Math.floor(ptx - pr - 1); xx <= Math.ceil(ptx + pr + 1); xx++) {
+              if (!inTiles(xx, yy) || tiles[tidx(xx, yy)] !== GRASS || !savannah[tidx(xx, yy)]) continue;
+              const ddx = xx - px, ddy = yy - py;
+              if (Math.sqrt(ddx * ddx + ddy * ddy) < pr + (thash(xx, yy) - 0.5) * 1.4) {
+                tiles[tidx(xx, yy)] = MUD;
+              }
+            }
+          }
+          mudWanted--;
+        }
+      }
+      // snowy top-left corner: grass up there turns to snow, ponds freeze to ice
+      const snowline = x => 150 + (fbm(nM, x * 0.025 + 500, 3.1) - 0.5) * 70;
+      for (let y = 0; y < HT; y++) {
+        for (let x = 0; x < WT; x++) {
+          const i = tidx(x, y);
+          if (tiles[i] === GRASS && !savannah[i] && x + y < snowline(x)) snow[i] = 1;
+          else if (tiles[i] === WATER && x + y < snowline(x) + 8) ice[i] = 1;
+        }
+      }
+      // spawn clearing near the middle on grass
+      let spawn = { x: WT >> 1, y: HT >> 1 };
+      outer:
+      for (let rad = 0; rad < WT; rad++) {
+        for (let ay = -rad; ay <= rad; ay++) {
+          for (let ax = -rad; ax <= rad; ax++) {
+            if (Math.max(Math.abs(ax), Math.abs(ay)) !== rad) continue;
+            const gx = (WT >> 1) + ax, gy = (HT >> 1) + ay;
+            if (inTiles(gx, gy) && tiles[tidx(gx, gy)] === GRASS) { spawn = { x: gx, y: gy }; break outer; }
+          }
+        }
+      }
+      for (let oy = -4; oy <= 4; oy++) {
+        for (let ox = -4; ox <= 4; ox++) {
+          const tx = spawn.x + ox, ty = spawn.y + oy;
+          if (inTiles(tx, ty)) { tiles[tidx(tx, ty)] = GRASS; snow[tidx(tx, ty)] = 0; ice[tidx(tx, ty)] = 0; }
+        }
+      }
+      const clearOfSpawn = (tx, ty, r) => {
+        const dx = tx - spawn.x, dy = ty - spawn.y;
+        return dx * dx + dy * dy > r * r;
+      };
+      const oceanNear = (tx, ty, r) => {
+        for (let oy = -r; oy <= r; oy++) {
+          for (let ox = -r; ox <= r; ox++) {
+            if (!ox && !oy) continue;
+            if (!inTiles(tx + ox, ty + oy)) continue;
+            if (tiles[tidx(tx + ox, ty + oy)] === OCEAN) return true;
+          }
+        }
+        return false;
+      };
+      const wetNear = (tx, ty) => {
+        for (let oy = -2; oy <= 2; oy++) {
+          for (let ox = -2; ox <= 2; ox++) {
+            if (!inTiles(tx + ox, ty + oy)) continue;
+            const t = tiles[tidx(tx + ox, ty + oy)];
+            if (t === OCEAN || t === WATER) return true;
+          }
+        }
+        return false;
+      };
+      trees = []; trunkSet = new Set(); palms = []; palmSet = new Set();
+      stumps = []; stumpSet = new Set(); bushes = []; bigBushes = [];
+      fishes = []; ducks = []; crabHoles = []; decor = [];
+      sprigSources = []; nests = []; chicks = [];
+      poos = []; burrows = []; bunnies = [];
+      shells = []; shellRespT = 8;
+      hedgehogs = []; lilypads = []; pondRegions = [];
+      warthogs = []; hogSpots = [];
+      snowyOwls = []; pineSpots = [];
+      meerkats = [];
+      regionOf = new Int32Array(WT * HT).fill(-1);
+      // small oval groves: a few trees clustered together, mostly open meadow
+      const forestBlobs = [];
+      tries = 0;
+      while (forestBlobs.length < 5 && tries < 1500) {
+        tries++;
+        const fx = 15 + ((rand() * (WT - 30)) | 0), fy = 15 + ((rand() * (HT - 30)) | 0);
+        if (tiles[tidx(fx, fy)] !== GRASS || snow[tidx(fx, fy)]) continue;
+        if (!clearOfSpawn(fx, fy, 12)) continue;
+        const rx = 4 + rand() * 2, ry = 3 + rand() * 2, rot = rand() * Math.PI;
+        if (forestBlobs.some(b => Math.hypot(b.x - fx, b.y - fy) < Math.max(b.rx, b.ry) + Math.max(rx, ry) + 16)) continue;
+        // needs mostly land around it, not beach / lake edge
+        let land = 0;
+        for (let oy = -8; oy <= 8; oy += 2) {
+          for (let ox = -8; ox <= 8; ox += 2) {
+            if (!inTiles(fx + ox, fy + oy)) continue;
+            if (tiles[tidx(fx + ox, fy + oy)] === GRASS) land++;
+          }
+        }
+        if (land < 55) continue;
+        forestBlobs.push({ x: fx, y: fy, rx, ry, rot });
+      }
+      for (const b of forestBlobs) {
+        const R = Math.max(b.rx, b.ry) + 1;
+        const cos = Math.cos(b.rot), sin = Math.sin(b.rot);
+        for (let yy = Math.floor(b.y - R); yy <= Math.ceil(b.y + R); yy++) {
+          for (let xx = Math.floor(b.x - R); xx <= Math.ceil(b.x + R); xx++) {
+            if (!inTiles(xx, yy)) continue;
+            const dx = xx - b.x, dy = yy - b.y;
+            const lx = (dx * cos + dy * sin) / b.rx, ly = (-dx * sin + dy * cos) / b.ry;
+            if (lx * lx + ly * ly < 0.8 + 0.4 * thash(xx, yy)) {
+              const fi = tidx(xx, yy);
+              if (tiles[fi] === GRASS && !snow[fi]) forest[fi] = 1;
+            }
+          }
+        }
+      }
+      const inForest = (tx, ty) => inTiles(tx, ty) && forest[tidx(tx, ty)] === 1;
+      // trees on grass (pines where it snowed), palms on ocean beaches + islets
+      for (let y = 2; y < HT - 2; y++) {
+        for (let x = 2; x < WT - 2; x++) {
+          const i = tidx(x, y);
+          if (!clearOfSpawn(x, y, 5)) continue;
+          if (tiles[i] === GRASS) {
+            const m = fbm(nM, x * 0.06, y * 0.06);
+            const r = rand();
+            const pine = snow[i] === 1;
+            const dense = inForest(x, y);
+            const sav = savannah[i] === 1;
+            const density = pine ? 0.03 : (sav ? 0.035 : (dense ? 0.12 : (m > 0.56 ? 0.03 : 0.005)));
+            if (r < density) {
+              trees.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, r: 24 + rand() * 12, hue: 95 + rand() * 45, sway: rand() * 6, pine, olive: sav && !pine });
+              trunkSet.add(x + ',' + y);
+            } else if (r < density + 0.02 && !wetNear(x, y)) {
+              if (sav) bushes.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, r: 12 + rand() * 4, berries: 0, regrow: 0, seed: rand() * 10, stick: true });
+              else bushes.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, r: 12 + rand() * 4, berries: 3, regrow: 0, seed: rand() * 10 });
+            }
+          } else if (tiles[i] === SAND && oceanNear(x, y, 2) && x + y > 200 && rand() < 0.03) {
+            let room = true;
+            for (let oy = -2; oy <= 2 && room; oy++) {
+              for (let ox = -2; ox <= 2; ox++) {
+                if (!inTiles(x + ox, y + oy)) continue;
+                const key = (x + ox) + ',' + (y + oy);
+                if (palmSet.has(key) || trunkSet.has(key)) { room = false; break; }
+              }
+            }
+            if (room) {
+              palms.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE, sway: rand() * 6 });
+              palmSet.add(x + ',' + y);
+            }
+          }
+        }
+      }
+      for (const isl of islets) {
+        if (rand() < 0.25) continue;
+        const n = 1 + ((rand() * 2) | 0);
+        for (let k = 0; k < n; k++) {
+          const a = rand() * Math.PI * 2, rr = rand() * isl.r * 0.6;
+          const tx = Math.round(isl.x + Math.cos(a) * rr), ty = Math.round(isl.y + Math.sin(a) * rr);
+          if (!inTiles(tx, ty) || tiles[tidx(tx, ty)] !== SAND || palmSet.has(tx + ',' + ty)) continue;
+          palms.push({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, sway: rand() * 6 });
+          palmSet.add(tx + ',' + ty);
+        }
+      }
+      // old stumps in + around forests, each with 5 easy-grab mushrooms
+      let stumpsWanted = 34;
+      tries = 0;
+      while (stumpsWanted > 0 && tries < 2200) {
+        tries++;
+        const tx = 3 + ((rand() * (WT - 6)) | 0), ty = 3 + ((rand() * (HT - 6)) | 0);
+        if (tiles[tidx(tx, ty)] !== GRASS || savannah[tidx(tx, ty)] || !clearOfSpawn(tx, ty, 6)) continue;
+        if (trunkSet.has(tx + ',' + ty) || snow[tidx(tx, ty)]) continue;
+        let nearTree = false;
+        for (let oy = -3; oy <= 3 && !nearTree; oy++) {
+          for (let ox = -3; ox <= 3; ox++) {
+            if (inTiles(tx + ox, ty + oy) && trunkSet.has((tx + ox) + ',' + (ty + oy))) { nearTree = true; break; }
+          }
+        }
+        // mostly near trees (esp. forests), sometimes in the open so they're easy to spot
+        if (!nearTree && rand() < 0.7) continue;
+        const full = rand() < 0.85;
+        const mush = [];
+        const baseA = rand() * Math.PI * 2;
+        for (let k = 0; k < 2; k++) {
+          const a = baseA + k * Math.PI + (rand() - 0.5) * 0.8, rr = 5 + rand() * 4;
+          mush.push({ dx: Math.cos(a) * rr, dy: Math.sin(a) * rr, empty: !full, timer: 0 });
+        }
+        stumps.push({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, r: 10 + rand() * 3, mush });
+        stumpSet.add(tx + ',' + ty);
+        stumpsWanted--;
+      }
+      // a few stumps out on the savannah so warthogs have mushrooms to snack
+      {
+        let savStumps = 0;
+        for (let a = 0; a < 400 && savStumps < 3; a++) {
+          const tx = 3 + ((rand() * (WT - 6)) | 0), ty = 3 + ((rand() * (HT - 6)) | 0);
+          if (tiles[tidx(tx, ty)] !== GRASS || savannah[tidx(tx, ty)] !== 1) continue;
+          if (trunkSet.has(tx + ',' + ty) || stumpSet.has(tx + ',' + ty)) continue;
+          if (!clearOfSpawn(tx, ty, 8)) continue;
+          const mush = [];
+          const baseA = rand() * Math.PI * 2;
+          for (let k = 0; k < 2; k++) {
+            const ma = baseA + k * Math.PI + (rand() - 0.5) * 0.8, rr = 5 + rand() * 4;
+            mush.push({ dx: Math.cos(ma) * rr, dy: Math.sin(ma) * rr, empty: false, timer: 0 });
+          }
+          stumps.push({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE, r: 10 + rand() * 3, mush });
+          stumpSet.add(tx + ',' + ty);
+          savStumps++;
+        }
+      }
+      // (big hiding bushes removed)
+      // fish: at least 35 in ponds/lakes + 67 out in the ocean, always
+      pondSpots = []; oceanSpots = [];
+      for (let y = 0; y < HT; y += 2) {
+        for (let x = 0; x < WT; x += 2) {
+          const t = tiles[tidx(x, y)];
+          if (t === WATER && !ice[tidx(x, y)]) pondSpots.push([x, y]);
+          else if (t === OCEAN) oceanSpots.push([x, y]);
+        }
+      }
+      for (let i = 0; i < 35; i++) spawnFish(rand, false);
+      for (let i = 0; i < 67; i++) spawnFish(rand, true);
+      // ducks paddling the ponds (never frozen ones) — start at a full flock
+      let duckTries = 0;
+      while (ducks.length < 25 && duckTries < 3000) {
+        duckTries++;
+        spawnDuck(rand);
+      }
+      // a starter pond just by spawn, stocked with ducks you'll actually meet
+      {
+        const dirs = [[11, 0], [-11, 0], [0, 11], [0, -11]];
+        for (const dd of dirs) {
+          const px = spawn.x + dd[0], py = spawn.y + dd[1];
+          let ok = true;
+          for (let oy = -4; oy <= 4 && ok; oy++) {
+            for (let ox = -4; ox <= 4; ox++) {
+              if (!inTiles(px + ox, py + oy) || tiles[tidx(px + ox, py + oy)] === OCEAN) { ok = false; break; }
+            }
+          }
+          if (!ok) continue;
+          for (let oy = -4; oy <= 4; oy++) {
+            for (let ox = -4; ox <= 4; ox++) {
+              const ddx = ox, ddy = oy;
+              if (Math.sqrt(ddx * ddx + ddy * ddy) < 3 + (thash(px + ox, py + oy) - 0.5)) {
+                const pi = tidx(px + ox, py + oy);
+                tiles[pi] = WATER;
+                bigLake[pi] = 0;
+              }
+            }
+          }
+          spawnDuck(rand, px, py);
+          spawnDuck(rand, px + 1, py);
+          spawnDuck(rand, px, py + 1);
+          break;
+        }
+      }
+      // dark damp floor hugging the ponds and lake — cattails + long grass only grow here
+      for (let y = 0; y < HT; y++) {
+        for (let x = 0; x < WT; x++) {
+          const i = tidx(x, y);
+          if (tiles[i] !== GRASS) continue;
+          for (let oy = -4; oy <= 4 && !damp[i]; oy++) {
+            for (let ox = -4; ox <= 4; ox++) {
+              if (!inTiles(x + ox, y + oy)) continue;
+              const ni = tidx(x + ox, y + oy);
+              if (tiles[ni] === WATER && !ice[ni]) { damp[i] = 1; break; }
+            }
+          }
+        }
+      }
+      // crab holes dotted along non-snowy ocean beaches
+      tries = 0;
+      while (crabHoles.length < 18 && tries < 1500) {
+        tries++;
+        const tx = 2 + ((rand() * (WT - 4)) | 0), ty = 2 + ((rand() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== SAND || !oceanNear(tx, ty, 1)) continue;
+        if (snow[tidx(tx, ty)]) continue;
+        const tooClose = crabHoles.some(h => Math.hypot(h.x - (tx + 0.5) * TILE, h.y - (ty + 0.5) * TILE) < 120);
+        if (tooClose) continue;
+        crabHoles.push({
+          x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE,
+          state: 'hidden', timer: 5 + rand() * 40, cx: 0, cy: 0, heading: 0, dartT: 0, pauseT: 0,
+          carrying: null, stash: 0
+        });
+      }
+      // beach shells for crabs to haul home: a starter pile near each burrow + strays
+      const shellTints = ['#ffffff', '#f7cad9', '#ffe5b4', '#ffd6e0'];
+      function dropShell(x, y) {
+        if (shells.length > 220) return;
+        shells.push({ x, y, state: 'loose', carrier: null, hx: 0, hy: 0, tint: shellTints[(rand() * shellTints.length) | 0], bob: rand() * 6 });
+      }
+      for (const h of crabHoles) {
+        const n = 3 + ((rand() * 3) | 0);
+        for (let k = 0; k < n; k++) {
+          const a = rand() * Math.PI * 2, rr = 30 + rand() * 70;
+          const sx = h.x + Math.cos(a) * rr, sy = h.y + Math.sin(a) * rr;
+          const stx = Math.floor(sx / TILE), sty = Math.floor(sy / TILE);
+          if (!inTiles(stx, sty)) continue;
+          const st = tiles[tidx(stx, sty)];
+          if (st === WATER || st === OCEAN) continue;
+          dropShell(sx, sy);
+        }
+      }
+      for (let k = 0; k < 30; k++) {
+        const tx = 2 + ((rand() * (WT - 4)) | 0), ty = 2 + ((rand() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== SAND || !oceanNear(tx, ty, 2)) continue;
+        dropShell((tx + 0.5) * TILE + (rand() - 0.5) * 20, (ty + 0.5) * TILE + (rand() - 0.5) * 20);
+      }
+      function respawnShells() {
+        // keep beaches supplied so crabs always have something to tidy
+        let loose = 0;
+        for (const s of shells) if (s.state === 'loose') loose++;
+        if (loose > 60) return;
+        for (let k = 0; k < 6; k++) {
+          const h = crabHoles[(rand() * crabHoles.length) | 0];
+          if (!h) return;
+          const a = rand() * Math.PI * 2, rr = 30 + rand() * 70;
+          const sx = h.x + Math.cos(a) * rr, sy = h.y + Math.sin(a) * rr;
+          const stx = Math.floor(sx / TILE), sty = Math.floor(sy / TILE);
+          if (!inTiles(stx, sty)) continue;
+          const st = tiles[tidx(stx, sty)];
+          if (st === WATER || st === OCEAN) continue;
+          if (shells.some(s => s.state === 'loose' && Math.hypot(s.x - sx, s.y - sy) < 14)) continue;
+          dropShell(sx, sy);
+        }
+      }
+      // nest sprigs: cattails + long grass on the dark damp floor, fallen sticks by trees
+      tries = 0;
+      let cattails = 0;
+      while (cattails < 130 && tries < 2500) {
+        tries++;
+        const tx = 2 + ((rand() * (WT - 4)) | 0), ty = 2 + ((rand() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== GRASS || !damp[tidx(tx, ty)]) continue;
+        if (trunkSet.has(tx + ',' + ty) || palmSet.has(tx + ',' + ty) || stumpSet.has(tx + ',' + ty)) continue;
+        sprigSources.push({ x: (tx + 0.5) * TILE + (rand() - 0.5) * 12, y: (ty + 0.5) * TILE + (rand() - 0.5) * 12, kind: 'cattail', stock: 3, max: 3, timer: 0 });
+        cattails++;
+      }
+      tries = 0;
+      let longGrass = 0;
+      while (longGrass < 150 && tries < 2500) {
+        tries++;
+        const tx = 2 + ((rand() * (WT - 4)) | 0), ty = 2 + ((rand() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== GRASS || !damp[tidx(tx, ty)]) continue;
+        if (trunkSet.has(tx + ',' + ty) || palmSet.has(tx + ',' + ty) || stumpSet.has(tx + ',' + ty)) continue;
+        if (!clearOfSpawn(tx, ty, 4)) continue;
+        sprigSources.push({ x: (tx + 0.5) * TILE + (rand() - 0.5) * 14, y: (ty + 0.5) * TILE + (rand() - 0.5) * 14, kind: 'grass', stock: 3, max: 3, timer: 0 });
+        longGrass++;
+      }
+      tries = 0;
+      let sticks = 0;
+      while (sticks < 90 && tries < 2500) {
+        tries++;
+        const tx = 2 + ((rand() * (WT - 4)) | 0), ty = 2 + ((rand() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== GRASS || snow[tidx(tx, ty)] || savannah[tidx(tx, ty)]) continue;
+        if (trunkSet.has(tx + ',' + ty) || palmSet.has(tx + ',' + ty) || stumpSet.has(tx + ',' + ty)) continue;
+        if (!clearOfSpawn(tx, ty, 4)) continue;
+        let nearTree = false;
+        for (let oy = -3; oy <= 3 && !nearTree; oy++) {
+          for (let ox = -3; ox <= 3; ox++) {
+            if (inTiles(tx + ox, ty + oy) && trunkSet.has((tx + ox) + ',' + (ty + oy))) { nearTree = true; break; }
+          }
+        }
+        if (!nearTree) continue;
+        sprigSources.push({ x: (tx + 0.5) * TILE + (rand() - 0.5) * 16, y: (ty + 0.5) * TILE + (rand() - 0.5) * 16, kind: 'stick', stock: 1, max: 1, timer: 0 });
+        sticks++;
+      }
+      // ground dressing: tufts, flowers, pebbles, leaves, shells
+      for (let i = 0; i < 2600; i++) {
+        const tx = (rand() * WT) | 0, ty = (rand() * HT) | 0;
+        const t = tiles[tidx(tx, ty)];
+        if (t === OCEAN || t === WATER) continue;
+        if (t === SAND) {
+          if (oceanNear(tx, ty, 2) && rand() < 0.06) {
+            decor.push({ x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE, kind: 4, s: 2.5 + rand() * 2 });
+          }
+          continue;
+        }
+        if (snow[tidx(tx, ty)]) continue;
+        const r = rand();
+        decor.push({
+          x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE,
+          kind: r < 0.45 ? 0 : (r < 0.7 ? 1 : (r < 0.85 ? 2 : 3)), s: 2 + rand() * 3
+        });
+      }
+      // lots of meadow grass: little V-pairs + fan tufts everywhere
+      for (let i = 0; i < 4200; i++) {
+        const tx = (rand() * WT) | 0, ty = (rand() * HT) | 0;
+        const gi = tidx(tx, ty);
+        if (tiles[gi] !== GRASS || snow[gi]) continue;
+        decor.push({
+          x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE,
+          kind: rand() < 0.55 ? 0 : 7, s: 2 + rand() * 2.5
+        });
+      }
+      // tiny wildflowers, thickest on the dark damp floor
+      for (let i = 0; i < 500; i++) {
+        const tx = (rand() * WT) | 0, ty = (rand() * HT) | 0;
+        const fi = tidx(tx, ty);
+        if (tiles[fi] !== GRASS || snow[fi]) continue;
+        if (!damp[fi] && rand() < 0.7) continue;
+        decor.push({ x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE, kind: 5, s: 1.6 + rand() * 1.4 });
+      }
+      // frosty tufts poking out of snow mounds on the snowfields
+      for (let i = 0; i < 3200; i++) {
+        const tx = (rand() * WT) | 0, ty = (rand() * HT) | 0;
+        const fi = tidx(tx, ty);
+        if (tiles[fi] !== GRASS || !snow[fi]) continue;
+        decor.push({ x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE, kind: 6, s: 1.5 + rand() * 2 });
+      }
+      // 7 bunny burrows spread across the meadows, two bunnies each
+      const burrowSpots = [];
+      tries = 0;
+      while (burrowSpots.length < 7 && tries < 2000) {
+        tries++;
+        const tx = 10 + ((rand() * (WT - 20)) | 0), ty = 10 + ((rand() * (HT - 20)) | 0);
+        if (tiles[tidx(tx, ty)] !== GRASS || snow[tidx(tx, ty)] || savannah[tidx(tx, ty)] || !clearOfSpawn(tx, ty, 12)) continue;
+        if (trunkSet.has(tx + ',' + ty) || palmSet.has(tx + ',' + ty) || stumpSet.has(tx + ',' + ty)) continue;
+        if (burrowSpots.some(b => Math.hypot(b.x - tx, b.y - ty) < 30)) continue;
+        burrowSpots.push({ x: tx, y: ty });
+      }
+      const bunCols = ['#9aa0a6', '#8a6f4d', '#c9b18a'];
+      for (const bs of burrowSpots) {
+        const bx = (bs.x + 0.5) * TILE, by = (bs.y + 0.5) * TILE;
+        burrows.push({ x: bx, y: by, snowy: false });
+        for (let k = 0; k < 2; k++) {
+          bunnies.push({
+            x: bx + (rand() - 0.5) * 30, y: by + (rand() - 0.5) * 30,
+            bx, by, heading: rand() * Math.PI * 2,
+            state: Math.random() < 0.5 ? 'out' : 'inside',
+            timer: 2 + rand() * 10, hop: rand() * 6, moving: false,
+            col: bunCols[(rand() * bunCols.length) | 0], sc: 1, baby: false, snowy: false
+          });
+        }
+      }
+      // snowy burrows: white bunnies for the snowy corner
+      const snowSpots = [];
+      tries = 0;
+      while (snowSpots.length < 3 && tries < 1200) {
+        tries++;
+        const tx = 10 + ((rand() * (WT - 20)) | 0), ty = 10 + ((rand() * (HT - 20)) | 0);
+        if (tiles[tidx(tx, ty)] !== GRASS || !snow[tidx(tx, ty)] || !clearOfSpawn(tx, ty, 12)) continue;
+        if (trunkSet.has(tx + ',' + ty) || palmSet.has(tx + ',' + ty) || stumpSet.has(tx + ',' + ty)) continue;
+        if (burrowSpots.some(b => Math.hypot(b.x - tx, b.y - ty) < 30)) continue;
+        if (snowSpots.some(b => Math.hypot(b.x - tx, b.y - ty) < 30)) continue;
+        snowSpots.push({ x: tx, y: ty });
+      }
+      for (const bs of snowSpots) {
+        const bx = (bs.x + 0.5) * TILE, by = (bs.y + 0.5) * TILE;
+        burrows.push({ x: bx, y: by, snowy: true });
+        for (let k = 0; k < 2; k++) {
+          bunnies.push({
+            x: bx + (rand() - 0.5) * 30, y: by + (rand() - 0.5) * 30,
+            bx, by, heading: rand() * Math.PI * 2,
+            state: Math.random() < 0.5 ? 'out' : 'inside',
+            timer: 2 + rand() * 10, hop: rand() * 6, moving: false,
+            col: '#f2f2ee', sc: 1, baby: false, snowy: true
+          });
+        }
+      }
+      // hedgehogs move into the forests (fall back to any meadow)
+      const hedgeCols = ['#8a6f4d', '#6e5739', '#a08458'];
+      for (let k = 0; k < 8; k++) {
+        let hx = null, hy = null;
+        for (let a = 0; a < 60 && hx === null; a++) {
+          const tx = 10 + ((rand() * (WT - 20)) | 0), ty = 10 + ((rand() * (HT - 20)) | 0);
+          if (tiles[tidx(tx, ty)] !== GRASS || snow[tidx(tx, ty)] || savannah[tidx(tx, ty)] || !clearOfSpawn(tx, ty, 10)) continue;
+          if (trunkSet.has(tx + ',' + ty)) continue;
+          if (forest[tidx(tx, ty)] !== 1 && a < 50) continue;
+          hx = (tx + 0.5) * TILE; hy = (ty + 0.5) * TILE;
+        }
+        if (hx === null) continue;
+        hedgehogs.push({
+          x: hx + (rand() - 0.5) * 40, y: hy + (rand() - 0.5) * 40,
+          hx, hy, heading: rand() * Math.PI * 2,
+          state: 'wander', timer: 2 + rand() * 3, moving: false, hop: rand() * 6,
+          col: hedgeCols[(rand() * hedgeCols.length) | 0],
+          target: null, stump: null, babyT: 20 + rand() * 40,
+          sc: 1, baby: false, mom: null, snowy: false
+        });
+      }
+      // snowy hedgehogs: white frosted friends for the snowy corner
+      for (let k = 0; k < 2; k++) {
+        let sx = null, sy = null;
+        for (let a = 0; a < 80 && sx === null; a++) {
+          const tx = 10 + ((rand() * (WT - 20)) | 0), ty = 10 + ((rand() * (HT - 20)) | 0);
+          if (tiles[tidx(tx, ty)] !== GRASS || !snow[tidx(tx, ty)] || !clearOfSpawn(tx, ty, 10)) continue;
+          if (trunkSet.has(tx + ',' + ty)) continue;
+          sx = (tx + 0.5) * TILE; sy = (ty + 0.5) * TILE;
+        }
+        if (sx === null) continue;
+        hedgehogs.push({
+          x: sx + (rand() - 0.5) * 40, y: sy + (rand() - 0.5) * 40,
+          hx: sx, hy: sy, heading: rand() * Math.PI * 2,
+          state: 'wander', timer: 2 + rand() * 3, moving: false, hop: rand() * 6,
+          col: '#eceee9',
+          target: null, stump: null, babyT: 20 + rand() * 40,
+          sc: 1, baby: false, mom: null, snowy: true
+        });
+      }
+      // starter babies so you meet families right away: bunnies + hoglets
+      {
+        const grownBuns = bunnies.filter(b => !b.baby);
+        for (let k = 0; k < 4 && k < grownBuns.length; k++) {
+          const momB = grownBuns[(rand() * grownBuns.length) | 0];
+          bunnies.push({
+            x: momB.x + (rand() - 0.5) * 20, y: momB.y + (rand() - 0.5) * 20,
+            bx: momB.bx, by: momB.by, heading: rand() * Math.PI * 2,
+            state: 'out', timer: 1, hop: 0, moving: false, sc: 0.55, baby: true,
+            snowy: momB.snowy, col: momB.snowy ? '#f2f2ee' : momB.col
+          });
+        }
+        const grownHogs = hedgehogs.filter(h => !h.baby);
+        for (let k = 0; k < 3 && k < grownHogs.length; k++) {
+          const momH = grownHogs[(rand() * grownHogs.length) | 0];
+          hedgehogs.push({
+            x: momH.x + (rand() - 0.5) * 20, y: momH.y + (rand() - 0.5) * 20,
+            hx: momH.hx, hy: momH.hy, heading: rand() * Math.PI * 2,
+            state: 'wander', timer: 2, moving: false, hop: 0, col: momH.col,
+            target: null, stump: null, babyT: 999, sc: 0.5, baby: true, mom: momH, snowy: momH.snowy || false
+          });
+        }
+      }
+      // pond regions (connected open water) so every pond keeps its own fish + ducks
+      pondRegions = [];
+      regionOf = new Int32Array(WT * HT).fill(-1);
+      {
+        const seen = new Uint8Array(WT * HT);
+        for (let y = 0; y < HT; y++) {
+          for (let x = 0; x < WT; x++) {
+            const li = tidx(x, y);
+            if (tiles[li] !== WATER || ice[li] || seen[li]) continue;
+            const region = [];
+            const q = [[x, y]];
+            seen[li] = 1;
+            while (q.length) {
+              const c = q.pop();
+              region.push(tidx(c[0], c[1]));
+              const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+              for (const dd of dirs) {
+                const nx = c[0] + dd[0], ny = c[1] + dd[1];
+                if (!inTiles(nx, ny)) continue;
+                const ni = tidx(nx, ny);
+                if (tiles[ni] !== WATER || ice[ni] || seen[ni]) continue;
+                seen[ni] = 1;
+                q.push([nx, ny]);
+              }
+            }
+            const id = pondRegions.length;
+            pondRegions.push(region);
+            for (const ti of region) regionOf[ti] = id;
+          }
+        }
+      }
+      // lilypads floating on the big lake + out on the ocean (guaranteed both)
+      lilypads = [];
+      {
+        const lakeTiles = [];
+        for (let y = 0; y < HT; y++) {
+          for (let x = 0; x < WT; x++) {
+            const li = tidx(x, y);
+            if (tiles[li] === WATER && bigLake[li] && !ice[li]) lakeTiles.push(li);
+          }
+        }
+        for (let k = 0; k < 22 && lakeTiles.length; k++) {
+          const li = lakeTiles[(rand() * lakeTiles.length) | 0];
+          const tx = li % WT, ty = (li / WT) | 0;
+          lilypads.push({
+            x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE,
+            r: 6 + rand() * 5, flower: rand() < 0.3, phase: rand() * 6, sea: false
+          });
+        }
+        let seaTries = 0;
+        let seaPads = 0;
+        while (seaPads < 23 && seaTries < 800) {
+          seaTries++;
+          const s = oceanSpots[(rand() * oceanSpots.length) | 0];
+          if (!s) break;
+          const tx = s[0], ty = s[1];
+          if (ice[tidx(tx, ty)]) continue;
+          lilypads.push({
+            x: (tx + 0.5) * TILE + (rand() - 0.5) * 20, y: (ty + 0.5) * TILE + (rand() - 0.5) * 20,
+            r: 6 + rand() * 5, flower: rand() < 0.2, phase: rand() * 6, sea: true
+          });
+          seaPads++;
+        }
+        // a few extra pond pads so ducks have company everywhere
+        for (let i = 0; i < 200 && lilypads.length < 55; i++) {
+          const tx = (rand() * WT) | 0, ty = (rand() * HT) | 0;
+          const t = tiles[tidx(tx, ty)];
+          if (t !== WATER || bigLake[tidx(tx, ty)] || ice[tidx(tx, ty)]) continue;
+          lilypads.push({
+            x: tx * TILE + rand() * TILE, y: ty * TILE + rand() * TILE,
+            r: 5 + rand() * 4, flower: rand() < 0.25, phase: rand() * 6, sea: false
+          });
+        }
+      }
+      // tag everyone with their home water, then fill every pond to 2 + 2
+      for (const f of fishes) {
+        if (!f.sea) f.region = regionOf[tidx(Math.floor(f.x / TILE), Math.floor(f.y / TILE))];
+      }
+      for (const d of ducks) {
+        d.region = regionOf[tidx(Math.floor(d.x / TILE), Math.floor(d.y / TILE))];
+      }
+      pondUpkeep();
+      // starter nests: a few ready-made rings with eggs so chicks hatch early
+      {
+        let placedN = 0;
+        for (let a = 0; a < 300 && placedN < 4; a++) {
+          const tx = 3 + ((rand() * (WT - 6)) | 0), ty = 3 + ((rand() * (HT - 6)) | 0);
+          const ti = tidx(tx, ty);
+          if ((tiles[ti] !== GRASS && tiles[ti] !== SAND) || snow[ti]) continue;
+          if (!clearOfSpawn(tx, ty, 8)) continue;
+          let shore = false;
+          for (let oy = -2; oy <= 2 && !shore; oy++) {
+            for (let ox = -2; ox <= 2; ox++) {
+              if (!inTiles(tx + ox, ty + oy)) continue;
+              const wt = tiles[tidx(tx + ox, ty + oy)];
+              if ((wt === WATER || wt === OCEAN) && !ice[tidx(tx + ox, ty + oy)]) { shore = true; break; }
+            }
+          }
+          if (!shore) continue;
+          const nx = (tx + 0.5) * TILE, ny = (ty + 0.5) * TILE;
+          if (solidAt(nx, ny)) continue;
+          if (nests.some(n => Math.hypot(n.x - nx, n.y - ny) < 90)) continue;
+          nests.push({ x: nx, y: ny, sprigs: 6, need: 6, eggs: [{ age: 20 + rand() * 20 }, { age: rand() * 20 }], clutch: 2, laid: 0, mom: null });
+          placedN++;
+        }
+      }
+      // a few ducks start out already ashore so land strolls are visible right away
+      {
+        let placedD = 0;
+        for (const d of ducks) {
+          if (placedD >= 6) break;
+          if (d.state !== 'swim') continue;
+          for (let a = 0; a < 20; a++) {
+            const tx = Math.floor(d.x / TILE) + Math.round((rand() - 0.5) * 10);
+            const ty = Math.floor(d.y / TILE) + Math.round((rand() - 0.5) * 10);
+            if (!inTiles(tx, ty)) continue;
+            const tt = tiles[tidx(tx, ty)];
+            if ((tt !== GRASS && tt !== SAND) || snow[tidx(tx, ty)]) continue;
+            const px = (tx + 0.5) * TILE, py = (ty + 0.5) * TILE;
+            if (solidAt(px, py)) continue;
+            d.lwx = d.x; d.lwy = d.y;
+            d.x = px; d.y = py;
+            d.tx = px; d.ty = py;
+            d.state = 'land'; d.landT = 6 + rand() * 8; d.paused = true;
+            d.strollT = 8 + rand() * 10; d.hunting = null;
+            placedD++;
+            break;
+          }
+        }
+      }
+      // warthogs: spots across the savannah, a sounder rooting around from the start
+      for (let y = 0; y < HT; y++) {
+        for (let x = 0; x < WT; x++) {
+          const hi = tidx(x, y);
+          if (tiles[hi] === GRASS && savannah[hi] === 1) hogSpots.push(hi);
+        }
+      }
+      for (let k = 0; k < 10 && hogSpots.length; k++) spawnWarthog(k);
+      // snowy owls: pine perches mapped, a parliament roosting from the start
+      for (const tr of trees) {
+        if (tr.pine) pineSpots.push(tr);
+      }
+      for (let k = 0; k < 8 && pineSpots.length; k++) {
+        const p = pineSpots[(Math.random() * pineSpots.length) | 0];
+        spawnSnowyOwl(p.x, p.y);
+      }
+      // meerkat mob: one family rooted in the savannah, paired up as buddies
+      if (hogSpots.length) {
+        const home = hogSpots[(Math.random() * hogSpots.length) | 0];
+        const hx = (home % WT + 0.5) * TILE, hy = (((home / WT) | 0) + 0.5) * TILE;
+        for (let k = 0; k < 6; k++) spawnMeerkat(hx, hy);
+        for (let k = 0; k + 1 < meerkats.length; k += 2) {
+          meerkats[k].buddy = meerkats[k + 1];
+          meerkats[k + 1].buddy = meerkats[k];
+        }
+      }
+      player.x = (spawn.x + 0.5) * TILE;
+      player.y = (spawn.y + 0.5) * TILE;
+      player.vx = 0; player.vy = 0;
+      berries = 0; shroomCount = 0; hidden = false;
+      eatCd = 0; shroomCd = 0; rippleT = 0; duckUpT = 0; fishUpT = 0;
+      pondUpT = 0; bunnyUpT = 12; hedgeUpT = 0; hogUpT = 5; owlUpT = 2;
+      shellRespT = 8;
+      particles = [];
+      buildMinimap();
+      updateTallies(true);
+    }
+
+    // warthogs roam anywhere dry, but drift back toward the savannah when out
+    function hogBlocked(x, y) {
+      const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+      if (!inTiles(tx, ty)) return true;
+      const ti = tidx(tx, ty);
+      const tt = tiles[ti];
+      if (tt === OCEAN || tt === WATER) return true;
+      if (tt !== GRASS && tt !== MUD) return true;
+      return solidAt(x, y);
+    }
+    function hogStep(wt, speed, dt) {
+      wt.heading = wt.heading || 0;
+      const step = speed * dt;
+      const ox = wt.x, oy = wt.y;
+      const nx = wt.x + Math.cos(wt.heading) * step;
+      if (!hogBlocked(nx, wt.y)) wt.x = nx;
+      const ny = wt.y + Math.sin(wt.heading) * step;
+      if (!hogBlocked(wt.x, ny)) wt.y = ny;
+      wt.moving = Math.hypot(wt.x - ox, wt.y - oy) > step * 0.3;
+      if (wt.moving) wt.hop += dt * 10;
+      return wt.moving;
+    }
+    function spawnWarthog(k) {
+      if (!hogSpots.length) return;
+      const spot = hogSpots[((k || 0) * 37 + 11) % hogSpots.length];
+      const sx = (spot % WT + 0.5) * TILE, sy = (((spot / WT) | 0) + 0.5) * TILE;
+      let px = sx, py = sy;
+      for (let a = 0; a < 10; a++) {
+        const jx = sx + (Math.random() - 0.5) * 40, jy = sy + (Math.random() - 0.5) * 40;
+        if (!hogBlocked(jx, jy)) { px = jx; py = jy; break; }
+      }
+      warthogs.push({
+        x: px, y: py,
+        heading: Math.random() * Math.PI * 2,
+        state: 'wander', timer: 0.5 + Math.random() * 1.5, resting: true, moving: false, hop: 0,
+        stx: -1, sty: -1, mtx: -1, mty: -1, stump: null,
+        sc: 1.4 + Math.random() * 0.25, nibT: 0, splashT: 0, muddyT: 0,
+        craveT: 10 + Math.random() * 15, mudT: 8 + Math.random() * 14
+      });
+    }
+    // nearest stump with mushrooms for a hog to snack
+    function findHogShroom(wt) {
+      let best = null, bd = 450 * 450;
+      for (const st of stumps) {
+        if (!st.mush.some(m => !m.empty)) continue;
+        const dd = (st.x - wt.x) * (st.x - wt.x) + (st.y - wt.y) * (st.y - wt.y);
+        if (dd < bd) { bd = dd; best = st; }
+      }
+      return best;
+    }
+    // nearest mud flat for a hog to wallow in (tile coords, or null)
+    function findHogMud(wt) {
+      const hx = Math.floor(wt.x / TILE), hy = Math.floor(wt.y / TILE);
+      let best = null, bd = 16 * 16;
+      for (let oy = -16; oy <= 16; oy++) {
+        for (let ox = -16; ox <= 16; ox++) {
+          const nx = hx + ox, ny = hy + oy;
+          if (!inTiles(nx, ny)) continue;
+          if (tiles[tidx(nx, ny)] !== MUD) continue;
+          const dd = ox * ox + oy * oy;
+          if (dd < bd) { bd = dd; best = { x: nx, y: ny }; }
+        }
+      }
+      return best;
+    }
+
+    // a snowy owl roaming the snowfields: wanders, perches on pines, hunts bunnies
+    function spawnSnowyOwl(x, y) {
+      snowyOwls.push({
+        x: x + (Math.random() - 0.5) * 40, y: y + (Math.random() - 0.5) * 40,
+        heading: Math.random() * Math.PI * 2,
+        tx: x, ty: y, state: 'fly', perch: null,
+        timer: 1 + Math.random() * 2, sc: 1.7 + Math.random() * 0.4,
+        flap: Math.random() * 10, glideT: Math.random() * 3,
+        speed: 50 + Math.random() * 25,
+        prey: null, preySc: 1, gulpT: 0, huntCd: 6 + Math.random() * 10
+      });
+    }
+    // true if another owl is already using this pine (one owl per pine)
+    function pineTaken(pine, self) {
+      for (const o of snowyOwls) {
+        if (o === self) continue;
+        if ((o.state === 'perch' || o.state === 'landing' || o.state === 'carry' || o.state === 'eat') && o.perch === pine) return true;
+      }
+      return false;
+    }
+    // a free pine near the owl to land on (or null)
+    function pickFreePine(ow) {
+      if (!pineSpots.length) return null;
+      let best = null, bd = 700 * 700;
+      for (let a = 0; a < 6; a++) {
+        const pine = pineSpots[(Math.random() * pineSpots.length) | 0];
+        if (pineTaken(pine, ow)) continue;
+        const dx = pine.x - ow.x, dy = pine.y - ow.y;
+        const d = dx * dx + dy * dy;
+        if (d > 700 * 700) continue;
+        if (d < bd) { bd = d; best = pine; }
+      }
+      return best;
+    }
+    // nearest catchable bunny (not hidden inside, not already caught)
+    function nearestBunny(ow, maxDist) {
+      let best = null, bd = maxDist * maxDist;
+      for (const bn of bunnies) {
+        if (bn.state === 'inside' || bn.state === 'caught') continue;
+        const dx = bn.x - ow.x, dy = bn.y - ow.y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = bn; }
+      }
+      return best;
+    }
+
+    // a meerkat for the savannah mob: forages, digs, takes sentry turns
+    function spawnMeerkat(x, y) {
+      meerkats.push({
+        x: x + (Math.random() - 0.5) * 50, y: y + (Math.random() - 0.5) * 50,
+        hx: x, hy: y, heading: Math.random() * Math.PI * 2,
+        state: 'forage', timer: 1 + Math.random() * 2, moving: false, hop: 0,
+        sc: 0.8 + Math.random() * 0.2, digT: 0, buddy: null
+      });
+    }
+
+    function spawnFish(rng, sea) {
+      const spots = sea ? oceanSpots : pondSpots;
+      if (!spots.length) return;
+      const spot = spots[(rng() * spots.length) | 0];
+      fishes.push({
+        x: (spot[0] + 0.5) * TILE, y: (spot[1] + 0.5) * TILE,
+        heading: rng() * Math.PI * 2,
+        speed: sea ? 26 + rng() * 22 : 22 + rng() * 18,
+        turn: 0, sea: sea ? 1 : 0, region: sea ? -1 : regionOf[tidx(spot[0], spot[1])]
+      });
+    }
+
+    // every pond keeps at least 2 fish + 2 ducks of its own (counted live, works for tiny ponds)
+    function pondUpkeep() {
+      // re-tag fish from current positions (they can't leave their water, so this just heals stale tags);
+      // ducks keep their home-pond tag even while waddling ashore to nest, so nest trips don't spawn doubles
+      for (const f of fishes) {
+        if (f.sea) { f.region = -1; continue; }
+        f.region = regionOf[tidx(Math.floor(f.x / TILE), Math.floor(f.y / TILE))];
+      }
+      for (const d of ducks) {
+        const live = regionOf[tidx(Math.floor(d.x / TILE), Math.floor(d.y / TILE))];
+        if (live >= 0) d.region = live;
+      }
+      for (let r = 0; r < pondRegions.length; r++) {
+        const tiles2 = pondRegions[r];
+        if (!tiles2.length) continue;
+        let fish = 0, dk = 0;
+        for (const f of fishes) if (!f.sea && f.region === r) fish++;
+        for (const d of ducks) if (d.region === r && d.fade >= 1) dk++;
+        for (let k = fish; k < 3; k++) {
+          const t = tiles2[(Math.random() * tiles2.length) | 0];
+          fishes.push({
+            x: (t % WT + 0.5) * TILE, y: (((t / WT) | 0) + 0.5) * TILE,
+            heading: Math.random() * Math.PI * 2, speed: 22 + Math.random() * 18,
+            turn: 0, sea: 0, region: r
+          });
+        }
+        for (let k = dk; k < 2; k++) {
+          let placed = false;
+          for (let a = 0; a < 10 && !placed; a++) {
+            const t = tiles2[(Math.random() * tiles2.length) | 0];
+            const before = ducks.length;
+            spawnDuck(Math.random, t % WT, (t / WT) | 0);
+            if (ducks.length > before) { ducks[ducks.length - 1].region = r; placed = true; }
+          }
+          if (!placed) {
+            // tiny pond with no 3x3 open water: drop a duck on any open tile, no room check
+            const t = tiles2[(Math.random() * tiles2.length) | 0];
+            const tx = t % WT, ty = (t / WT) | 0;
+            ducks.push({
+              x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE,
+              heading: Math.random() * Math.PI * 2, speed: 26 + Math.random() * 14,
+              timer: 6 + Math.random() * 10, paused: false, sc: 0.8 + Math.random() * 0.6,
+              body: '#8a6f4d', head: '#6e5739',
+              spots: [0, 1, 2, 3].map(() => [(Math.random() - 0.5) * 10, (Math.random() - 0.5) * 6]),
+              wakeT: 0, age: 0, fade: 1,
+              nester: false, state: 'swim', nest: null, nestCd: 60 + Math.random() * 60,
+              carry: false, src: null, layT: 0,
+              hunting: null, holding: null, gulpT: 0, fishCd: 15 + Math.random() * 25,
+              region: r
+            });
+          }
+        }
+      }
+    }
+
+    function spawnDuck(rand, atTx, atTy) {
+      for (let i = 0; i < 60; i++) {
+        const tx = atTx !== undefined ? atTx : 2 + ((Math.random() * (WT - 4)) | 0);
+        const ty = atTy !== undefined ? atTy : 2 + ((Math.random() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== WATER || ice[tidx(tx, ty)]) continue;
+        let room = true;
+        for (let oy = -1; oy <= 1 && room; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            if (!inTiles(tx + ox, ty + oy)) continue;
+            const t = tiles[tidx(tx + ox, ty + oy)];
+            if (t !== WATER || ice[tidx(tx + ox, ty + oy)]) { room = false; break; }
+          }
+        }
+        if (!room) continue;
+        const tones = [['#8a6f4d', '#6e5739'], ['#9aa0a6', '#7c8288'], ['#6b5b45', '#52452f']];
+        const tone = tones[(Math.random() * tones.length) | 0];
+        ducks.push({
+          x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE,
+          heading: Math.random() * Math.PI * 2, speed: 26 + Math.random() * 14,
+          timer: 6 + Math.random() * 18, paused: false, sc: 0.8 + Math.random() * 0.6,
+          body: tone[0], head: Math.random() < 0.45 ? '#1f7a3d' : tone[1],
+          spots: [0, 1, 2, 3].map(() => [(Math.random() - 0.5) * 10, (Math.random() - 0.5) * 6]),
+          wakeT: Math.random() * 0.45, age: Math.random() * 120, fade: 1,
+          nester: Math.random() < 0.35, state: 'swim', nest: null, nestCd: 20 + Math.random() * 50,
+          carry: false, src: null, layT: 0,
+          hunting: null, holding: null, gulpT: 0, fishCd: 15 + Math.random() * 25,
+          region: regionOf[tidx(tx, ty)]
+        });
+        return;
+      }
+    }
+
+    function tileAtPx(x, y) {
+      const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+      if (!inTiles(tx, ty)) return OCEAN;
+      return tiles[tidx(tx, ty)];
+    }
+    function iceAtPx(x, y) {
+      const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+      if (!inTiles(tx, ty)) return false;
+      return ice[tidx(tx, ty)] === 1;
+    }
+    function trunkNear(x, y, rad) {
+      // tree / palm / stump cores near a point (for solid bumps + hiding)
+      const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+      for (let oy = -1; oy <= 1; oy++) {
+        for (let ox = -1; ox <= 1; ox++) {
+          const key = (tx + ox) + ',' + (ty + oy);
+          if (!trunkSet.has(key) && !palmSet.has(key) && !stumpSet.has(key)) continue;
+          const cx = (tx + ox + 0.5) * TILE, cy = (ty + oy + 0.5) * TILE;
+          if (Math.hypot(x - cx, y - cy) < rad) return true;
+        }
+      }
+      return false;
+    }
+    function solidAt(x, y) {
+      // only the map rim and trunk/stump cores are solid — water is for wading!
+      if (x < 10 || y < 10 || x > WT * TILE - 10 || y > HT * TILE - 10) return true;
+      return trunkNear(x, y, player.r + 7);
+    }
+
+    // ============ HUD ============
+    function updateTallies() {
+      if (berriesEl.textContent !== String(berries)) berriesEl.textContent = berries;
+      if (shroomsEl.textContent !== String(shroomCount)) shroomsEl.textContent = shroomCount;
+      coordsEl.textContent = 'x: ' + Math.floor(player.x / TILE) + ', y: ' + Math.floor(player.y / TILE);
+      hiddenBadge.style.display = hidden ? '' : 'none';
+    }
+    function puff(x, y, color, n) {
+      for (let i = 0; i < (n || 8); i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 40 + Math.random() * 90;
+        particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.6 + Math.random() * 0.4, maxLife: 1, size: 3 + Math.random() * 3, color, ring: false });
+      }
+    }
+    function ripple(x, y) {
+      particles.push({ x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8, vx: 0, vy: 0, life: 0.6, maxLife: 0.6, size: 4, color: 'rgba(255,255,255,0.6)', ring: true });
+      puff(x, y, 'rgba(255,255,255,0.7)', 1);
+    }
+
+    // ============ input: keys + drag joystick touch ============
+    document.addEventListener('keydown', (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      keys[e.code] = true;
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
+    });
+    document.addEventListener('keyup', (e) => { keys[e.code] = false; });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (touch.active) return;
+      touch.active = true;
+      touch.id = e.pointerId;
+      touch.sx = e.clientX; touch.sy = e.clientY;
+      touch.dx = 0; touch.dy = 0;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!touch.active || e.pointerId !== touch.id) return;
+      touch.dx = e.clientX - touch.sx;
+      touch.dy = e.clientY - touch.sy;
+    });
+    const endTouch = (e) => {
+      if (e.pointerId !== touch.id) return;
+      touch.active = false;
+      touch.dx = 0; touch.dy = 0;
+    };
+    canvas.addEventListener('pointerup', endTouch);
+    canvas.addEventListener('pointercancel', endTouch);
+
+    function inputVector() {
+      let dx = 0, dy = 0;
+      if (keys['ArrowLeft'] || keys['KeyA']) dx -= 1;
+      if (keys['ArrowRight'] || keys['KeyD']) dx += 1;
+      if (keys['ArrowUp'] || keys['KeyW']) dy -= 1;
+      if (keys['ArrowDown'] || keys['KeyS']) dy += 1;
+      if (touch.active) {
+        const d = Math.hypot(touch.dx, touch.dy);
+        if (d > 0.01) {
+          const cl = Math.min(1, d / 55); // 55px stick radius, then full speed
+          dx += (touch.dx / (d || 1)) * cl;
+          dy += (touch.dy / (d || 1)) * cl;
+        }
+      }
+      const len = Math.hypot(dx, dy);
+      if (len < 0.01) return { x: 0, y: 0, mag: 0, run: false };
+      return { x: dx / len, y: dy / len, mag: Math.min(1, len), run: !!(keys['ShiftLeft'] || keys['ShiftRight']) };
+    }
+
+    // ============ update ============
+    function update(dt, now) {
+      const iv = inputVector();
+      player.moving = iv.mag > 0.01;
+      player.running = iv.run;
+      if (player.moving) {
+        player.fx = iv.x; player.fy = iv.y;
+        player.step += dt * (iv.run ? 11 : 8);
+      }
+      const onIce = iceAtPx(player.x, player.y);
+      const t = tileAtPx(player.x, player.y);
+      const wet = !onIce && (t === WATER || t === OCEAN);
+      const muddy = !onIce && t === MUD;
+      const sp = (iv.run ? RUN : WALK) * iv.mag * (wet ? 0.5 : (muddy ? 0.55 : 1));
+      if (onIce) {
+        // skate: velocity chases input, glides on after release
+        player.vx += (iv.x * sp - player.vx) * Math.min(1, 3.5 * dt);
+        player.vy += (iv.y * sp - player.vy) * Math.min(1, 3.5 * dt);
+      } else {
+        player.vx = iv.x * sp;
+        player.vy = iv.y * sp;
+      }
+      const px0 = player.x, py0 = player.y;
+      const nx = player.x + player.vx * dt;
+      if (!solidAt(nx, player.y)) player.x = nx;
+      else player.vx = 0;
+      const ny = player.y + player.vy * dt;
+      if (!solidAt(player.x, ny)) player.y = ny;
+      else player.vy = 0;
+      // wading ripples while actually displacing through open water
+      if (wet && Math.hypot(player.x - px0, player.y - py0) > 1) {
+        rippleT -= dt;
+        if (rippleT <= 0) {
+          rippleT = 0.12;
+          ripple(player.x, player.y + 6);
+        }
+      }
+      // muddy puffs while squelching through mud
+      if (muddy && Math.hypot(player.x - px0, player.y - py0) > 1) {
+        rippleT -= dt;
+        if (rippleT <= 0) {
+          rippleT = 0.2;
+          puff(player.x, player.y + 6, 'rgba(122, 82, 48, 0.7)', 2);
+        }
+      }
+      eatCd = Math.max(0, eatCd - dt);
+      shroomCd = Math.max(0, shroomCd - dt);
+      // munch berries by touch (shared nibble cooldown)
+      if (eatCd <= 0) {
+        for (const b of bushes) {
+          if (b.berries > 0 && Math.hypot(player.x - b.x, player.y - b.y) < 24) {
+            b.berries--;
+            if (b.regrow <= 0) b.regrow = 20;
+            berries++;
+            eatCd = 0.25;
+            puff(b.x, b.y - 8, '#ff5d7a', 7);
+            updateTallies();
+            break;
+          }
+        }
+      }
+      for (const b of bushes) {
+        if (b.stick || b.berries >= 3) continue;
+        b.regrow -= dt;
+        if (b.regrow <= 0) { b.berries = Math.min(3, b.berries + 1); b.regrow = b.berries < 3 ? 20 : 0; }
+      }
+      // stump mushrooms: generous magnet radius + own quick cooldown so they're easy
+      if (shroomCd <= 0) {
+        outer:
+        for (const st of stumps) {
+          // whole-stump magnet: close to the trunk grabs the nearest shroom
+          if (Math.hypot(player.x - st.x, player.y - st.y) > 46) continue;
+          for (const m of st.mush) {
+            if (m.empty) continue;
+            if (Math.hypot(player.x - (st.x + m.dx), player.y - (st.y + m.dy)) < 34) {
+              m.empty = true;
+              m.timer = 12;
+              shroomCount++;
+              shroomCd = 0.15;
+              puff(st.x + m.dx, st.y + m.dy - 6, '#ffd94d', 10);
+              updateTallies();
+              break outer;
+            }
+          }
+        }
+      }
+      for (const st of stumps) {
+        for (const m of st.mush) {
+          if (!m.empty) continue;
+          m.timer -= dt;
+          if (m.timer <= 0) m.empty = false;
+        }
+      }
+      // hiding: tucked by a trunk, or tucked right inside a bush?
+      hidden = trunkNear(player.x, player.y, 30);
+      if (!hidden) {
+        for (const b of bushes) {
+          if (Math.hypot(player.x - b.x, player.y - b.y) < 12) { hidden = true; break; }
+        }
+      }
+      // fish wander their waters
+      for (const f of fishes) {
+        f.turn += (Math.random() - 0.5) * 3 * dt;
+        f.heading += f.turn * dt;
+        f.turn *= (1 - dt);
+        const nx2 = f.x + Math.cos(f.heading) * f.speed * dt;
+        const ny2 = f.y + Math.sin(f.heading) * f.speed * dt;
+        const tt = tileAtPx(nx2, ny2);
+        if (tt === WATER || tt === OCEAN) { f.x = nx2; f.y = ny2; }
+        else { f.heading += Math.PI / 2; f.turn = 0; }
+      }
+      // bunnies hop dry land only — no swimming rabbits!
+    function bunnyGround(x, y) {
+      const t = tileAtPx(x, y);
+      return t !== WATER && t !== OCEAN;
+    }
+    // angle helpers for soft home-preference steering (animals may roam, but drift back)
+    function angDiff(a, b) {
+      let d = a - b;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      return d;
+    }
+    // little critter stroll toward a point (dry land, no clipping trunks)
+    function walkTo(ent, tx, ty, speed, dt) {
+      const dx = tx - ent.x, dy = ty - ent.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 2) return true;
+      ent.heading = Math.atan2(dy, dx);
+      ent.moving = true;
+      ent.hop += dt * 10;
+      const step = Math.min(dist, speed * dt);
+      const nx = ent.x + Math.cos(ent.heading) * step;
+      if (!solidAt(nx, ent.y) && bunnyGround(nx, ent.y)) ent.x = nx;
+      const ny = ent.y + Math.sin(ent.heading) * step;
+      if (!solidAt(ent.x, ny) && bunnyGround(ent.x, ny)) ent.y = ny;
+      return dist < 14;
+    }
+    // a nesting duck walks anywhere (paddling out, waddling ashore with sprigs)
+    function duckWalk(d, tx, ty, speed, dt) {
+      const dx = tx - d.x, dy = ty - d.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 2) return true;
+      d.heading = Math.atan2(dy, dx);
+      const step = Math.min(dist, speed * dt);
+      const nx = d.x + Math.cos(d.heading) * step;
+      if (!solidAt(nx, d.y)) d.x = nx;
+      const ny = d.y + Math.sin(d.heading) * step;
+      if (!solidAt(d.x, ny)) d.y = ny;
+      const t = tileAtPx(d.x, d.y);
+      if ((t === WATER || t === OCEAN) && !iceAtPx(d.x, d.y)) {
+        d.wakeT -= dt;
+        if (d.wakeT <= 0) {
+          d.wakeT = 0.45;
+          ripple(d.x, d.y + 4);
+        }
+      }
+      return dist < 16;
+    }
+    function updateNester(d, dt) {
+      d.paused = false;
+      if (d.state === 'seek') {
+        // a grassy/sandy shore nook near water for the nest
+        for (let i = 0; i < 40; i++) {
+          const a = Math.random() * Math.PI * 2, rr = 60 + Math.random() * 160;
+          const tx = d.x + Math.cos(a) * rr, ty = d.y + Math.sin(a) * rr;
+          const txx = Math.floor(tx / TILE), tyy = Math.floor(ty / TILE);
+          if (!inTiles(txx, tyy)) continue;
+          const tt = tiles[tidx(txx, tyy)];
+          if ((tt !== GRASS && tt !== SAND) || snow[tidx(txx, tyy)]) continue;
+          if (solidAt(tx, ty)) continue;
+          let shore = false;
+          for (let oy = -2; oy <= 2 && !shore; oy++) {
+            for (let ox = -2; ox <= 2; ox++) {
+              if (!inTiles(txx + ox, tyy + oy)) continue;
+              const wt = tiles[tidx(txx + ox, tyy + oy)];
+              if ((wt === WATER || wt === OCEAN) && !ice[tidx(txx + ox, tyy + oy)]) { shore = true; break; }
+            }
+          }
+          if (!shore) continue;
+          if (nests.some(n => Math.hypot(n.x - tx, n.y - ty) < 70)) continue;
+          const nest = { x: tx, y: ty, sprigs: 0, need: 6, eggs: [], clutch: 2 + ((Math.random() * 3) | 0), laid: 0, mom: d };
+          nests.push(nest);
+          d.nest = nest;
+          d.state = 'gather';
+          d.src = null;
+          return;
+        }
+        d.nestCd = 30;
+        d.state = 'swim';
+      } else if (d.state === 'gather') {
+        // fetch a cattail blade, grass tuft or stick
+        if (!d.src || d.src.stock <= 0) {
+          let bestS = null, bd = 900;
+          for (const s of sprigSources) {
+            if (s.stock <= 0) continue;
+            const dd = Math.hypot(s.x - d.x, s.y - d.y);
+            if (dd < bd) { bd = dd; bestS = s; }
+          }
+          d.src = bestS;
+          if (!bestS) return;
+        }
+        if (duckWalk(d, d.src.x, d.src.y, 26, dt)) {
+          if (d.src.stock > 0) {
+            d.src.stock--;
+            d.src.timer = 30;
+            d.carry = true;
+            d.state = 'carry';
+          } else d.src = null;
+        }
+      } else if (d.state === 'carry') {
+        if (!d.nest || !nests.includes(d.nest)) { d.carry = false; d.state = 'swim'; d.nestCd = 30; return; }
+        if (duckWalk(d, d.nest.x, d.nest.y, 26, dt)) {
+          d.nest.sprigs++;
+          d.carry = false;
+          if (d.nest.sprigs >= d.nest.need) { d.state = 'lay'; d.layT = 2; }
+          else { d.state = 'gather'; d.src = null; }
+        }
+      } else if (d.state === 'lay') {
+        if (!d.nest || !nests.includes(d.nest)) { d.state = 'swim'; d.nestCd = 30; return; }
+        if (Math.hypot(d.nest.x - d.x, d.nest.y - d.y) > 50) duckWalk(d, d.nest.x, d.nest.y, 24, dt);
+        d.layT -= dt;
+        if (d.layT <= 0) {
+          d.nest.eggs.push({ age: 0 });
+          d.nest.laid++;
+          d.layT = 8;
+          if (d.nest.laid >= d.nest.clutch) d.state = 'brood';
+        }
+      } else if (d.state === 'brood') {
+        if (!d.nest || !nests.includes(d.nest)) { d.state = 'swim'; d.nestCd = 90; d.nest = null; return; }
+        if (Math.hypot(d.nest.x - d.x, d.nest.y - d.y) > 60) duckWalk(d, d.nest.x, d.nest.y, 24, dt);
+      }
+    }
+    // ducks paddle the ponds, pausing to bob; old ones fade, newcomers paddle in
+      for (let i = ducks.length - 1; i >= 0; i--) {
+        const d = ducks[i];
+        if (d.state === 'swim') d.age += dt; // nesting keeps them young
+        if (d.age > 180) {
+          d.fade -= dt / 5;
+          if (d.fade <= 0) { ducks.splice(i, 1); continue; }
+        }
+        if (d.nester && (d.state === 'seek' || d.state === 'gather' || d.state === 'carry' || d.state === 'lay' || d.state === 'brood')) {
+          updateNester(d, dt);
+          continue;
+        }
+        if (d.nester && d.state === 'swim') {
+          d.nestCd -= dt;
+          if (d.nestCd <= 0 && d.fade >= 1) { d.state = 'seek'; d.hunting = null; }
+        }
+        // fishing trips: chase a fish, flaunt it flailing, gulp it down
+        if (d.state === 'swim' && d.fade >= 1 && !d.holding && d.gulpT <= 0) {
+          if (d.hunting) {
+            if (!fishes.includes(d.hunting)) d.hunting = null;
+            else {
+              const f = d.hunting;
+              if (!f.sea && f.region !== undefined && f.region >= 0) {
+                let n = 0;
+                for (const o of fishes) if (!o.sea && o.region === f.region) { if (++n > 2) break; }
+                if (n <= 2) { d.hunting = null; d.fishCd = 10; }
+              }
+              if (d.hunting) {
+              const f2 = d.hunting;
+              d.huntT = (d.huntT === undefined ? 8 : d.huntT) - dt;
+              if (d.huntT <= 0) { d.hunting = null; d.fishCd = 10; }
+              else {
+              const dx = f2.x - d.x, dy = f2.y - d.y, dd = Math.hypot(dx, dy);
+              if (dd < 16) {
+                fishes.splice(fishes.indexOf(f2), 1);
+                d.hunting = null;
+                d.holding = { t: 2.5, seed: Math.random() * 10 };
+              } else {
+                d.heading = Math.atan2(dy, dx);
+                const nx = d.x + Math.cos(d.heading) * 75 * dt;
+                const ny = d.y + Math.sin(d.heading) * 75 * dt;
+                const tt = tileAtPx(nx, ny);
+                if ((tt === WATER || tt === OCEAN) && !iceAtPx(nx, ny)) { d.x = nx; d.y = ny; }
+                else d.heading += Math.PI / 2; // slide along the shore, keep hunting
+                d.wakeT -= dt;
+                if (d.wakeT <= 0) {
+                  d.wakeT = 0.45;
+                  ripple(d.x, d.y + 4);
+                }
+              }
+              }
+            }
+            }
+          } else {
+            d.fishCd -= dt;
+            if (d.fishCd <= 0) {
+              let bestF = null, bd = 170;
+              for (const f of fishes) {
+                const dd = Math.hypot(f.x - d.x, f.y - d.y);
+                if (dd >= bd) continue;
+                // never hunt a pond down below its guaranteed pair
+                if (!f.sea && f.region !== undefined && f.region >= 0) {
+                  let n = 0;
+                  for (const o of fishes) if (!o.sea && o.region === f.region && fishes.includes(o)) { if (++n > 2) break; }
+                  if (n <= 2) continue;
+                }
+                bd = dd; bestF = f;
+              }
+              if (bestF) { d.hunting = bestF; d.huntT = 8; d.paused = false; }
+              else d.fishCd = 10;
+            }
+          }
+        }
+        if (d.holding) {
+          d.holding.t -= dt;
+          if (d.holding.t <= 0) {
+            d.holding = null;
+            d.gulpT = 0.5;
+            poos.push({ x: d.x, y: d.y, age: 0 });
+            if (poos.length > 24) poos.splice(0, poos.length - 24);
+            d.fishCd = 25 + Math.random() * 20;
+          }
+        }
+        if (d.gulpT > 0) d.gulpT -= dt;
+        // land strolls like Andrew's ducks: waddle ashore, sit a while, waddle back
+        if ((d.state === 'swim' || d.state === 'toLand' || d.state === 'land' || d.state === 'toWater') && d.fade >= 1) {
+          if (d.lwx === undefined) { d.lwx = d.x; d.lwy = d.y; d.strollT = 4 + Math.random() * 8; }
+          if (d.state === 'swim' && tileAtPx(d.x, d.y) === WATER && !iceAtPx(d.x, d.y)) { d.lwx = d.x; d.lwy = d.y; }
+          if (d.state === 'swim') {
+            if (!d.hunting && !d.holding && d.gulpT <= 0) {
+              d.strollT -= dt;
+              if (d.strollT <= 0) {
+                d.strollT = 8 + Math.random() * 10;
+                for (let a = 0; a < 14; a++) {
+                  const tx = Math.floor(d.x / TILE) + Math.round((Math.random() - 0.5) * 10);
+                  const ty = Math.floor(d.y / TILE) + Math.round((Math.random() - 0.5) * 10);
+                  if (!inTiles(tx, ty)) continue;
+                  const tt = tiles[tidx(tx, ty)];
+                  if ((tt !== GRASS && tt !== SAND) || snow[tidx(tx, ty)]) continue;
+                  if (solidAt((tx + 0.5) * TILE, (ty + 0.5) * TILE)) continue;
+                  d.tx = (tx + 0.5) * TILE; d.ty = (ty + 0.5) * TILE;
+                  d.state = 'toLand'; d.paused = false; d.hunting = null;
+                  break;
+                }
+              }
+            }
+          } else if (d.state === 'toLand') {
+            if (duckWalk(d, d.tx, d.ty, 20, dt)) { d.state = 'land'; d.landT = 5 + Math.random() * 6; d.paused = true; }
+          } else if (d.state === 'land') {
+            d.landT -= dt;
+            if (Math.random() < dt * 0.4) d.heading += (Math.random() - 0.5) * 1.5;
+            if (d.landT <= 0) { d.state = 'toWater'; d.paused = false; }
+          } else if (d.state === 'toWater') {
+            if (duckWalk(d, d.lwx, d.lwy, 20, dt)) { d.state = 'swim'; d.strollT = 8 + Math.random() * 10; }
+          }
+        }
+        d.timer -= dt;
+        if (d.timer <= 0) {
+          d.paused = !d.paused;
+          d.timer = d.paused ? 2 + Math.random() * 4 : 5 + Math.random() * 10;
+          if (!d.paused) d.heading = Math.random() * Math.PI * 2;
+        }
+        if (d.state === 'swim' && !d.paused && d.fade >= 1 && !d.hunting && !d.holding && d.gulpT <= 0) {
+          d.heading += Math.sin(now / 900 + d.x * 0.01) * 0.8 * dt;
+          const nx3 = d.x + Math.cos(d.heading) * d.speed * dt;
+          const ny3 = d.y + Math.sin(d.heading) * d.speed * dt;
+          if (tileAtPx(nx3, ny3) === WATER && !iceAtPx(nx3, ny3)) { d.x = nx3; d.y = ny3; }
+          else d.heading += Math.PI / 2;
+          d.wakeT -= dt;
+          if (d.wakeT <= 0) {
+            d.wakeT = 0.45;
+            ripple(d.x, d.y + 4);
+          }
+        }
+      }
+      // shoreline sprigs grow back for future builders
+      for (const s of sprigSources) {
+        if (s.stock < s.max) {
+          s.timer -= dt;
+          if (s.timer <= 0) { s.stock++; s.timer = s.stock < s.max ? 30 : 0; }
+        }
+      }
+      // eggs warm up and hatch; empty finished nests blow away
+      for (let i = nests.length - 1; i >= 0; i--) {
+        const nst = nests[i];
+        const momAlive = nst.mom && ducks.includes(nst.mom);
+        // an unfinished nest with no hope is reclaimed; eggs always get their chance
+        if (!momAlive && nst.eggs.length === 0) { nests.splice(i, 1); continue; }
+        for (let j = nst.eggs.length - 1; j >= 0; j--) {
+          nst.eggs[j].age += dt;
+          if (nst.eggs[j].age > 60) {
+            nst.eggs.splice(j, 1);
+            if (chicks.length < 30) {
+              chicks.push({
+                x: nst.x + (Math.random() - 0.5) * 16, y: nst.y + (Math.random() - 0.5) * 16,
+                heading: Math.random() * Math.PI * 2, speed: 30, mom: nst.mom, sc: 0.45, findT: 0
+              });
+            }
+          }
+        }
+        if (nst.eggs.length === 0 && (nst.laid >= nst.clutch || !momAlive)) {
+          if (momAlive && nst.mom.state === 'brood') { nst.mom.state = 'swim'; nst.mom.nestCd = 90; nst.mom.nest = null; }
+          nests.splice(i, 1);
+        }
+      }
+      // chicks trail mom, grow up, join the flock
+      for (let i = chicks.length - 1; i >= 0; i--) {
+        const c = chicks[i];
+        c.sc = Math.min(1, c.sc + dt * 0.55 / 120);
+        c.findT -= dt;
+        if (c.findT <= 0) {
+          c.findT = 1;
+          if (!c.mom || !ducks.includes(c.mom)) {
+            let bestMom = null, bd = 1e9;
+            for (const d of ducks) {
+              const dd = Math.hypot(d.x - c.x, d.y - c.y);
+              if (dd < bd) { bd = dd; bestMom = d; }
+            }
+            c.mom = bestMom;
+          }
+        }
+        if (c.sc >= 1) {
+          ducks.push({
+            x: c.x, y: c.y, heading: c.heading, speed: 26 + Math.random() * 14,
+            timer: 5 + Math.random() * 8, paused: false, sc: 0.9 + Math.random() * 0.3,
+            body: '#8a6f4d', head: '#6e5739',
+            spots: [0, 1, 2, 3].map(() => [(Math.random() - 0.5) * 10, (Math.random() - 0.5) * 6]),
+            wakeT: 0, age: 0, fade: 1,
+            nester: Math.random() < 0.35, state: 'swim', nest: null, nestCd: 60 + Math.random() * 60,
+            carry: false, src: null, layT: 0,
+            hunting: null, holding: null, gulpT: 0, fishCd: 15 + Math.random() * 25,
+            region: regionOf[tidx(Math.floor(c.x / TILE), Math.floor(c.y / TILE))]
+          });
+          chicks.splice(i, 1);
+          continue;
+        }
+        if (c.mom) {
+          const tx = c.mom.x - Math.cos(c.mom.heading) * 22, ty = c.mom.y - Math.sin(c.mom.heading) * 22;
+          const dx = tx - c.x, dy = ty - c.y, dd = Math.hypot(dx, dy);
+          if (dd > 14) {
+            c.heading = Math.atan2(dy, dx);
+            const nx = c.x + Math.cos(c.heading) * c.speed * dt;
+            if (!solidAt(nx, c.y)) c.x = nx;
+            const ny = c.y + Math.sin(c.heading) * c.speed * dt;
+            if (!solidAt(c.x, ny)) c.y = ny;
+          }
+        }
+      }
+      duckUpT -= dt;
+      if (duckUpT <= 0) {
+        duckUpT = 2;
+        if (ducks.length < 25) spawnDuck(Math.random);
+      }
+      // no pond left behind: every pond keeps its own 2 fish + 2 ducks
+      pondUpT -= dt;
+      if (pondUpT <= 0) {
+        pondUpT = 2.5;
+        pondUpkeep();
+      }
+      // ...and the waters never run out of fish, either
+      fishUpT -= dt;
+      if (fishUpT <= 0) {
+        fishUpT = 3;
+        let pond = 0, ocean = 0;
+        for (const f of fishes) { if (f.sea) ocean++; else pond++; }
+        while (pond < 35) { spawnFish(Math.random, false); pond++; }
+        while (ocean < 67) { spawnFish(Math.random, true); ocean++; }
+      }
+      // crabs: hide, dart out to grab a shell, scuttle home to stash it in the burrow
+      shellRespT -= dt;
+      if (shellRespT <= 0) {
+        shellRespT = 8;
+        let loose = 0;
+        for (const s of shells) if (s.state === 'loose') loose++;
+        if (loose < 60 && crabHoles.length) {
+          for (let k = 0; k < 6; k++) {
+            const h0 = crabHoles[(Math.random() * crabHoles.length) | 0];
+            const a = Math.random() * Math.PI * 2, rr = 30 + Math.random() * 70;
+            const sx = h0.x + Math.cos(a) * rr, sy = h0.y + Math.sin(a) * rr;
+            const stx = Math.floor(sx / TILE), sty = Math.floor(sy / TILE);
+            if (!inTiles(stx, sty)) continue;
+            const st = tiles[tidx(stx, sty)];
+            if (st === WATER || st === OCEAN) continue;
+            if (shells.some(s => s.state === 'loose' && Math.hypot(s.x - sx, s.y - sy) < 14)) continue;
+            if (shells.length > 220) break;
+            const tints = ['#ffffff', '#f7cad9', '#ffe5b4', '#ffd6e0'];
+            shells.push({ x: sx, y: sy, state: 'loose', carrier: null, hx: 0, hy: 0, tint: tints[(Math.random() * tints.length) | 0], bob: Math.random() * 6 });
+          }
+        }
+      }
+      for (const h of crabHoles) {
+        h.timer -= dt;
+        if (h.state === 'hidden') {
+          if (h.timer <= 0) {
+            h.state = 'out';
+            h.timer = 12 + Math.random() * 8;
+            h.cx = h.x; h.cy = h.y;
+            h.heading = Math.random() * Math.PI * 2;
+            h.dartT = 0; h.pauseT = 0.5;
+            h.carrying = null;
+          }
+        } else if (h.state === 'out') {
+          if (h.timer <= 0) { h.state = 'return'; }
+          else {
+            // sniff out the nearest loose shell around the burrow
+            let best = null, bd = 190;
+            for (const s of shells) {
+              if (s.state !== 'loose') continue;
+              const dd = Math.hypot(s.x - h.cx, s.y - h.cy);
+              if (dd < bd) { bd = dd; best = s; }
+            }
+            if (best) {
+              // beeline for it, grab on touch
+              const dx = best.x - h.cx, dy = best.y - h.cy;
+              const d = Math.hypot(dx, dy) || 1;
+              if (d < 11) {
+                best.state = 'carried';
+                best.carrier = h;
+                h.carrying = best;
+                h.state = 'return';
+                puff(h.cx, h.cy - 6, '#ffffff', 5);
+              } else {
+                h.heading = Math.atan2(dy, dx);
+                const nx4 = h.cx + Math.cos(h.heading) * 150 * dt;
+                const ny4 = h.cy + Math.sin(h.heading) * 150 * dt;
+                const nd = Math.hypot(nx4 - h.x, ny4 - h.y);
+                if (tileAtPx(nx4, ny4) !== WATER && tileAtPx(nx4, ny4) !== OCEAN && nd < 140) {
+                  h.cx = nx4; h.cy = ny4;
+                } else {
+                  h.heading = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.5;
+                  h.pauseT = 0.25;
+                }
+              }
+            } else if (h.pauseT > 0) h.pauseT -= dt;
+            else {
+              h.dartT -= dt;
+              if (h.dartT <= 0) {
+                h.dartT = 0.3 + Math.random() * 0.4;
+                h.heading = Math.random() * Math.PI * 2;
+              }
+              // homesick far from the hole: drift back toward it
+              {
+                const hx = h.x - h.cx, hy = h.y - h.cy;
+                const hd = Math.hypot(hx, hy);
+                if (hd > 95) h.heading += angDiff(Math.atan2(hy, hx), h.heading) * 0.12;
+              }
+              const nx4 = h.cx + Math.cos(h.heading) * 150 * dt;
+              const ny4 = h.cy + Math.sin(h.heading) * 150 * dt;
+              if (tileAtPx(nx4, ny4) !== WATER && tileAtPx(nx4, ny4) !== OCEAN && Math.hypot(nx4 - h.x, ny4 - h.y) < 140) {
+                h.cx = nx4; h.cy = ny4;
+              } else {
+                h.heading = Math.random() * Math.PI * 2;
+                h.pauseT = 0.3 + Math.random() * 0.5;
+              }
+            }
+          }
+        } else {
+          const dx = h.x - h.cx, dy = h.y - h.cy;
+          const d = Math.hypot(dx, dy);
+          if (d < 5) {
+            if (h.carrying) {
+              // stash the shell in a ring around the burrow mouth
+              const s = h.carrying;
+              const idx = h.stash || 0;
+              const a = idx * 2.4, rr = 8 + (idx % 4) * 3;
+              s.state = 'stored';
+              s.carrier = null;
+              s.hx = h.x + Math.cos(a) * rr;
+              s.hy = h.y + Math.sin(a) * rr + 3;
+              h.stash = idx + 1;
+              h.carrying = null;
+              puff(h.x, h.y - 4, s.tint || '#ffffff', 6);
+            }
+            h.state = 'hidden'; h.timer = 10 + Math.random() * 22;
+          }
+          else {
+            h.heading = Math.atan2(dy, dx);
+            h.cx += (dx / d) * 170 * dt;
+            h.cy += (dy / d) * 170 * dt;
+          }
+        }
+      }
+      // duck business melts away after 30 seconds
+      for (let i = poos.length - 1; i >= 0; i--) {
+        poos[i].age += dt;
+        if (poos[i].age > 30) poos.splice(i, 1);
+      }
+      // bunnies: hop-hop-nibble by home, dive inside if you get close
+      for (const bn of bunnies) {
+        if (bn.state === 'caught') continue; // dangling in an owl's talons
+        bn.timer -= dt;
+        if (bn.state === 'inside') {
+          if (bn.timer <= 0) {
+            bn.state = 'out';
+            bn.x = bn.bx + (Math.random() - 0.5) * 20;
+            bn.y = bn.by + (Math.random() - 0.5) * 20;
+            bn.timer = 1 + Math.random() * 2;
+            bn.moving = false;
+          }
+          continue;
+        }
+        // fearless: bunnies hop-hop-nibble right beside you, never running off
+        // babies stay close to home and grow up
+        if (bn.baby) {
+          bn.sc = Math.min(1, bn.sc + dt * 0.45 / 75);
+          if (bn.sc >= 1) bn.baby = false;
+        }
+        const roam = bn.baby ? 80 : 220;
+        const spd = bn.baby ? 70 : 95;
+        // soft home range: free to wander out, pulled back the further they go
+        {
+          const hx = bn.bx - bn.x, hy = bn.by - bn.y;
+          const hd = Math.hypot(hx, hy);
+          if (hd > roam * 2.2) { bn.heading = Math.atan2(hy, hx); bn.advT = 0; }
+          else if (hd > roam && !(bn.advT > 0)) bn.heading += angDiff(Math.atan2(hy, hx), bn.heading) * 0.04;
+        }
+        if (bn.timer <= 0) {
+          bn.moving = !bn.moving;
+          if (bn.moving) {
+            const hd0 = Math.hypot(bn.bx - bn.x, bn.by - bn.y);
+            if (hd0 > roam) { bn.heading = Math.atan2(bn.by - bn.y, bn.bx - bn.x) + (Math.random() - 0.5) * 2.2; bn.advT = 0; }
+            else if (bn.advT > 0) { /* adventure: keep hopping this way */ }
+            else if (Math.random() < 0.16) bn.advT = 2 + Math.random() * 2;
+            else bn.heading += (Math.random() - 0.5) * 1.6;
+            bn.timer = bn.advT > 0 ? 0.4 + Math.random() * 0.3 : 0.25 + Math.random() * 0.3;
+          } else bn.timer = bn.advT > 0 ? 0.2 + Math.random() * 0.3 : 0.8 + Math.random() * 1.6;
+        }
+        if (bn.advT > 0) bn.advT -= dt;
+        if (bn.moving) {
+          bn.hop += dt * 14;
+          const nx = bn.x + Math.cos(bn.heading) * spd * dt;
+          if (!solidAt(nx, bn.y) && bunnyGround(nx, bn.y)) bn.x = nx;
+          else bn.heading += Math.PI / 2;
+          const ny = bn.y + Math.sin(bn.heading) * spd * dt;
+          if (!solidAt(bn.x, ny) && bunnyGround(bn.x, ny)) bn.y = ny;
+          else bn.heading -= Math.PI / 2;
+        }
+      }
+      // baby bunnies pop up at roomy burrows and grow up outside
+      bunnyUpT -= dt;
+      if (bunnyUpT <= 0) {
+        bunnyUpT = 22;
+        if (bunnies.length < 44) {
+          const roomy = burrows.filter(br => bunnies.filter(b => b.bx === br.x && b.by === br.y).length < 4);
+          const home = roomy[(Math.random() * roomy.length) | 0];
+          if (home) {
+            const snowyHome = home.snowy || false;
+            bunnies.push({
+              x: home.x + (Math.random() - 0.5) * 20, y: home.y + (Math.random() - 0.5) * 20,
+              bx: home.x, by: home.y, heading: Math.random() * Math.PI * 2,
+              state: 'out', timer: 1, hop: 0, moving: false, sc: 0.55, baby: true,
+              snowy: snowyHome, col: snowyHome ? '#f2f2ee' : ['#9aa0a6', '#8a6f4d', '#c9b18a'][(Math.random() * 3) | 0]
+            });
+          }
+        }
+      }
+      // hedgehogs: waddle the forest, snack mushrooms, nap on stumps
+      for (const hg of hedgehogs) {
+        hg.timer -= dt;
+        if (hg.baby) {
+          // hoglets trail their parent and grow up
+          hg.sc = Math.min(1, hg.sc + dt * 0.5 / 120);
+          if (hg.sc >= 1) {
+            hg.baby = false;
+            hg.state = 'wander';
+            hg.hx = hg.x; hg.hy = hg.y;
+            hg.timer = 2;
+            hg.moving = false;
+          } else if (hg.mom && hedgehogs.includes(hg.mom)) {
+            const tx = hg.mom.x - Math.cos(hg.mom.heading) * 20, ty = hg.mom.y - Math.sin(hg.mom.heading) * 20;
+            if (Math.hypot(tx - hg.x, ty - hg.y) > 14) walkTo(hg, tx, ty, 34, dt);
+            else hg.moving = false;
+          } else {
+            hg.mom = null;
+            hg.moving = false;
+          }
+          continue;
+        }
+        if (hg.state === 'sleep') {
+          if (hg.timer <= 0) { hg.state = 'wander'; hg.timer = 2 + Math.random() * 3; hg.moving = false; }
+          continue;
+        }
+        if (hg.state === 'togStump') {
+          const st = hg.stump;
+          if (!st || !stumps.includes(st)) { hg.state = 'wander'; hg.timer = 2; hg.moving = false; continue; }
+          if (walkTo(hg, st.x, st.y - 2, 50, dt)) {
+            hg.x = st.x; hg.y = st.y - 2;
+            hg.state = 'sleep';
+            hg.timer = 15 + Math.random() * 15;
+            hg.moving = false;
+          }
+          continue;
+        }
+        if (hg.state === 'seek') {
+          const tg = hg.target;
+          if (!tg || tg.m.empty || !stumps.includes(tg.st)) { hg.state = 'wander'; hg.timer = 1; hg.moving = false; continue; }
+          const gx = tg.st.x + tg.m.dx, gy = tg.st.y + tg.m.dy;
+          if (walkTo(hg, gx, gy, 60, dt)) {
+            if (!tg.m.empty) {
+              tg.m.empty = true;
+              tg.m.timer = 12;
+              puff(hg.x, hg.y - 6, '#8a6f4d', 6);
+              if (Math.random() < 0.45) {
+                let bs = null, bd = 700;
+                for (const st of stumps) {
+                  const dd = Math.hypot(st.x - hg.x, st.y - hg.y);
+                  if (dd < bd) { bd = dd; bs = st; }
+                }
+                if (bs) { hg.stump = bs; hg.state = 'togStump'; }
+                else { hg.state = 'wander'; hg.timer = 2 + Math.random() * 3; }
+              } else { hg.state = 'wander'; hg.timer = 2 + Math.random() * 3; }
+              hg.moving = false;
+            } else hg.target = null;
+          }
+          continue;
+        }
+        // wander: waddle near home, snack when pausing (free to roam, pulled home far out)
+        {
+          const hx = hg.hx - hg.x, hy = hg.hy - hg.y;
+          const hd = Math.hypot(hx, hy);
+          if (hd > 700) hg.heading = Math.atan2(hy, hx);
+          else if (hd > 320) hg.heading += angDiff(Math.atan2(hy, hx), hg.heading) * 0.07;
+        }
+        if (hg.timer <= 0) {
+          let bestT = null, bd = 550;
+          for (const st of stumps) {
+            for (const m of st.mush) {
+              if (m.empty) continue;
+              const dd = Math.hypot(st.x + m.dx - hg.x, st.y + m.dy - hg.y);
+              if (dd < bd) { bd = dd; bestT = { st, m }; }
+            }
+          }
+          if (bestT) { hg.state = 'seek'; hg.target = bestT; }
+          else {
+            hg.moving = !hg.moving;
+            if (hg.moving) { hg.heading += (Math.random() - 0.5) * 1.8; hg.timer = 2 + Math.random() * 2; }
+            else hg.timer = 1 + Math.random() * 3;
+          }
+        }
+        if (hg.moving) {
+          hg.hop += dt * 10;
+          const nx = hg.x + Math.cos(hg.heading) * 30 * dt;
+          if (!solidAt(nx, hg.y) && bunnyGround(nx, hg.y)) hg.x = nx;
+          else hg.heading += Math.PI / 2;
+          const ny = hg.y + Math.sin(hg.heading) * 30 * dt;
+          if (!solidAt(hg.x, ny) && bunnyGround(hg.x, ny)) hg.y = ny;
+          else hg.heading -= Math.PI / 2;
+        }
+      }
+      // hoglet arrivals: grown-ups get followed
+      hedgeUpT -= dt;
+      if (hedgeUpT <= 0) {
+        hedgeUpT = 20;
+        if (hedgehogs.length < 26) {
+          const adults = hedgehogs.filter(h => !h.baby);
+          const mom = adults[(Math.random() * adults.length) | 0];
+          if (mom) {
+            hedgehogs.push({
+              x: mom.x + (Math.random() - 0.5) * 20, y: mom.y + (Math.random() - 0.5) * 20,
+              hx: mom.hx, hy: mom.hy, heading: Math.random() * Math.PI * 2,
+              state: 'wander', timer: 2, moving: false, hop: 0, col: mom.col,
+              target: null, stump: null, babyT: 999, sc: 0.5, baby: true, mom, findT: 0, snowy: mom.snowy || false
+            });
+          }
+        }
+      }
+      // warthogs: trot the savannah, snack mushrooms, wallow in mud
+      for (const wt of warthogs) {
+        if (wt.muddyT > 0) wt.muddyT -= dt;
+        if (wt.state === 'wander') {
+          wt.timer -= dt; wt.craveT -= dt; wt.mudT -= dt;
+          if (wt.timer <= 0) {
+            if (wt.resting) {
+              wt.resting = false;
+              wt.heading = Math.random() * Math.PI * 2;
+              wt.timer = 0.5 + Math.random() * 1.1;
+              if (wt.craveT <= 0) {
+                wt.craveT = 12 + Math.random() * 18;
+                const tgt = findHogShroom(wt);
+                if (tgt) { wt.stump = tgt; wt.state = 'toFood'; wt.timer = 14; }
+              } else if (wt.mudT <= 0) {
+                wt.mudT = 18 + Math.random() * 22;
+                const mud = findHogMud(wt);
+                if (mud) { wt.mtx = mud.x; wt.mty = mud.y; wt.state = 'toMud'; wt.timer = 22; }
+              }
+            } else {
+              wt.resting = true;
+              wt.timer = 0.6 + Math.random() * 1.6;
+              wt.moving = false;
+            }
+          }
+          if (!wt.resting) {
+            wt.heading += (Math.random() - 0.5) * 0.06;
+            // homesick outside the savannah: drift back toward it
+            const wti = tidx(Math.floor(wt.x / TILE), Math.floor(wt.y / TILE));
+            if (savannah[wti] !== 1) {
+              const hx = 42 * TILE - wt.x, hy = 198 * TILE - wt.y;
+              wt.heading += angDiff(Math.atan2(hy, hx), wt.heading) * 0.08;
+            }
+            if (!hogStep(wt, 62, dt)) {
+              wt.heading = Math.random() * Math.PI * 2;
+              wt.resting = true;
+              wt.timer = 0.5;
+            }
+          }
+        } else if (wt.state === 'toFood') {
+          const st = wt.stump;
+          wt.timer -= dt;
+          if (!st || !stumps.includes(st) || !st.mush.some(m => !m.empty)) {
+            wt.state = 'wander'; wt.resting = true; wt.timer = 0.5; wt.moving = false;
+          } else {
+            wt.heading = Math.atan2(st.y - wt.y, st.x - wt.x);
+            const dx = st.x - wt.x, dy = st.y - wt.y;
+            if (dx * dx + dy * dy < 26 * 26) {
+              wt.state = 'eat'; wt.timer = 3 + Math.random() * 3; wt.nibT = 0; wt.moving = false;
+            } else {
+              hogStep(wt, 66, dt);
+              if (wt.timer <= 0) { wt.state = 'wander'; wt.resting = true; wt.timer = 0.5; }
+            }
+          }
+        } else if (wt.state === 'eat') {
+          const st = wt.stump;
+          wt.timer -= dt; wt.nibT += dt;
+          wt.moving = false;
+          if (st && stumps.includes(st)) {
+            wt.heading = Math.atan2(st.y - wt.y, st.x - wt.x);
+            const m = st.mush.find(mm => !mm.empty);
+            if (m && wt.nibT >= 1.4) {
+              wt.nibT = 0;
+              m.empty = true;
+              m.timer = 12;
+              puff(wt.x, wt.y - 8, '#8a6f4d', 6);
+            }
+            if (wt.timer <= 0 || !st.mush.some(mm => !mm.empty)) {
+              wt.state = 'wander'; wt.resting = true; wt.timer = 0.5 + Math.random();
+            }
+          } else { wt.state = 'wander'; wt.resting = true; wt.timer = 0.5; }
+        } else if (wt.state === 'toMud') {
+          wt.timer -= dt;
+          if (tiles[tidx(wt.mtx, wt.mty)] !== MUD) {
+            wt.state = 'wander'; wt.resting = true; wt.timer = 0.5; wt.moving = false;
+          } else {
+            wt.heading = Math.atan2((wt.mty + 0.5) * TILE - wt.y, (wt.mtx + 0.5) * TILE - wt.x);
+            const dx = (wt.mtx + 0.5) * TILE - wt.x, dy = (wt.mty + 0.5) * TILE - wt.y;
+            if (dx * dx + dy * dy < 14 * 14) {
+              wt.state = 'wallow'; wt.timer = 4 + Math.random() * 3; wt.splashT = 0; wt.moving = false;
+            } else {
+              hogStep(wt, 66, dt);
+              if (wt.timer <= 0) { wt.state = 'wander'; wt.resting = true; wt.timer = 0.5; }
+            }
+          }
+        } else { // wallow: splashing in the mud, caked afterwards
+          wt.timer -= dt; wt.splashT += dt;
+          wt.heading += Math.sin(wt.timer * 7) * dt * 2;
+          if (wt.splashT >= 0.3) {
+            wt.splashT = 0;
+            wt.muddyT = 40;
+            ripple(wt.x + (Math.random() - 0.5) * 14, wt.y + (Math.random() - 0.5) * 14);
+          }
+          if (wt.timer <= 0) { wt.state = 'wander'; wt.resting = true; wt.timer = 0.5 + Math.random(); }
+        }
+      }
+      // the sounder holds at 10 (safety net — hogs never die or breed)
+      hogUpT -= dt;
+      if (hogUpT <= 0) {
+        hogUpT = 5;
+        while (warthogs.length < 10 && hogSpots.length) spawnWarthog(warthogs.length);
+      }
+      // meerkats: forage and dig around home, one sentry standing tall
+      for (const mk of meerkats) {
+        mk.timer -= dt;
+        if (mk.state === 'sentry') {
+          mk.heading += Math.sin(mk.timer * 1.5) * 0.8 * dt + dt * 0.3;
+          mk.moving = false;
+          if (mk.timer <= 0) { mk.state = 'forage'; mk.timer = 1 + Math.random() * 2; mk.moving = false; }
+          continue;
+        }
+        // forage: hop-hop-pause around the burrow, dig on pauses
+        if (mk.timer <= 0) {
+          mk.moving = !mk.moving;
+          if (mk.moving) {
+            const hd0 = Math.hypot(mk.hx - mk.x, mk.hy - mk.y);
+            if (hd0 > 150) mk.heading = Math.atan2(mk.hy - mk.y, mk.hx - mk.x) + (Math.random() - 0.5) * 2.0;
+            else mk.heading += (Math.random() - 0.5) * 1.8;
+            mk.timer = 0.3 + Math.random() * 0.4;
+          } else {
+            mk.timer = 0.7 + Math.random() * 1.4;
+            if (Math.random() < 0.5) {
+              mk.digT = 0.6;
+              puff(mk.x, mk.y + 4, 'rgba(190, 160, 110, 0.8)', 4);
+            }
+            // take a sentry turn if nobody else is up
+            if (!meerkats.some(o => o !== mk && o.state === 'sentry') && Math.random() < 0.3) {
+              mk.state = 'sentry';
+              mk.timer = 5 + Math.random() * 4;
+              mk.moving = false;
+              continue;
+            }
+          }
+        }
+        if (mk.digT > 0) mk.digT -= dt;
+        // soft home range, homesick outside the savannah
+        {
+          const hx = mk.hx - mk.x, hy = mk.hy - mk.y;
+          const hd = Math.hypot(hx, hy);
+          if (hd > 330) { mk.heading = Math.atan2(hy, hx); }
+          else if (hd > 150) mk.heading += angDiff(Math.atan2(hy, hx), mk.heading) * 0.05;
+        }
+        if (mk.moving) {
+          mk.hop += dt * 12;
+          const mti = tidx(Math.floor(mk.x / TILE), Math.floor(mk.y / TILE));
+          if (savannah[mti] !== 1) {
+            const hx = 42 * TILE - mk.x, hy = 198 * TILE - mk.y;
+            mk.heading += angDiff(Math.atan2(hy, hx), mk.heading) * 0.08;
+          }
+          // stick near your buddy when you drift apart
+          if (mk.buddy && meerkats.includes(mk.buddy)) {
+            const bdx = mk.buddy.x - mk.x, bdy = mk.buddy.y - mk.y;
+            if (Math.hypot(bdx, bdy) > 45) {
+              mk.heading += angDiff(Math.atan2(bdy, bdx), mk.heading) * 0.1;
+            }
+          }
+          const nx = mk.x + Math.cos(mk.heading) * 80 * dt;
+          if (!solidAt(nx, mk.y) && bunnyGround(nx, mk.y)) mk.x = nx;
+          else mk.heading += Math.PI / 2;
+          const ny = mk.y + Math.sin(mk.heading) * 80 * dt;
+          if (!solidAt(mk.x, ny) && bunnyGround(mk.x, ny)) mk.y = ny;
+          else mk.heading -= Math.PI / 2;
+        }
+      }
+      // snowy owls: flap+glide over the snow, perch on pines, snatch bunnies
+      for (const ow of snowyOwls) {
+        if (ow.state === 'perch') {
+          ow.flap += dt * 1.5;
+          ow.timer -= dt;
+          if (ow.timer <= 0) { ow.state = 'fly'; ow.perch = null; ow.timer = 0; }
+          continue;
+        }
+        if (ow.state === 'eat') {
+          ow.flap += dt * 1.5;
+          ow.gulpT -= dt;
+          const oep = ow.prey;
+          if (oep && bunnies.includes(oep)) {
+            const oprog = Math.max(0, Math.min(1, 1 - ow.gulpT / 7));
+            const oeshak = (1 - oprog) * 3 * ow.sc;
+            oep.x = ow.x + Math.cos(ow.heading) * 13 * ow.sc + (Math.random() - 0.5) * 2 * oeshak;
+            oep.y = ow.y + Math.sin(ow.heading) * 13 * ow.sc + (Math.random() - 0.5) * 2 * oeshak;
+            oep.heading = ow.heading + Math.sin(ow.flap * 2) * 0.5 * (1 - oprog);
+            oep.sc = Math.max(0.25, ow.preySc * (1 - oprog * 0.75));
+          }
+          if (ow.gulpT <= 0) {
+            if (oep) { const oi = bunnies.indexOf(oep); if (oi !== -1) bunnies.splice(oi, 1); }
+            ow.prey = null; ow.state = 'fly'; ow.perch = null; ow.timer = 0;
+          }
+          continue;
+        }
+        if (ow.state === 'hunt') {
+          const opr = ow.prey;
+          if (!opr || !bunnies.includes(opr) || opr.state === 'inside' || opr.state === 'caught') {
+            ow.prey = null; ow.state = 'fly'; ow.timer = 1 + Math.random() * 2;
+          } else {
+            ow.timer -= dt;
+            ow.glideT = 0;
+            ow.heading = Math.atan2(opr.y - ow.y, opr.x - ow.x);
+            const ohdx = opr.x - ow.x, ohdy = opr.y - ow.y;
+            if (ohdx * ohdx + ohdy * ohdy < 14 * 14) {
+              const feast = pickFreePine(ow);
+              if (!feast) {
+                opr.state = 'out'; opr.timer = 0.5;
+                ow.prey = null; ow.state = 'fly'; ow.timer = 1 + Math.random() * 2;
+              } else {
+                opr.state = 'caught';
+                ow.preySc = opr.sc;
+                ow.perch = feast;
+                ow.state = 'carry';
+                ow.huntCd = 10 + Math.random() * 15;
+              }
+            } else {
+              const worldW = WT * TILE, worldH = HT * TILE;
+              ow.x = Math.max(8, Math.min(worldW - 8, ow.x + Math.cos(ow.heading) * 115 * dt));
+              ow.y = Math.max(8, Math.min(worldH - 8, ow.y + Math.sin(ow.heading) * 115 * dt));
+              if (ow.timer <= 0) { ow.prey = null; ow.state = 'fly'; ow.timer = 1 + Math.random() * 2; }
+            }
+          }
+          continue;
+        }
+        if (ow.state === 'carry') {
+          const opc = ow.prey;
+          if (!opc || !bunnies.includes(opc)) {
+            ow.prey = null; ow.state = 'fly'; ow.perch = null; ow.timer = 1 + Math.random() * 2;
+          } else if (!ow.perch || pineTaken(ow.perch, ow)) {
+            opc.state = 'out'; opc.timer = 0.5; opc.sc = ow.preySc;
+            ow.prey = null; ow.state = 'fly'; ow.perch = null; ow.timer = 0;
+          } else {
+            ow.heading = Math.atan2(ow.perch.y - ow.y, ow.perch.x - ow.x);
+            const ocdx = ow.perch.x - ow.x, ocdy = ow.perch.y - ow.y;
+            if (ocdx * ocdx + ocdy * ocdy < 14 * 14) {
+              ow.x = ow.perch.x; ow.y = ow.perch.y;
+              ow.gulpT = 7;
+              ow.state = 'eat';
+            } else {
+              const worldW = WT * TILE, worldH = HT * TILE;
+              ow.x = Math.max(8, Math.min(worldW - 8, ow.x + Math.cos(ow.heading) * 95 * dt));
+              ow.y = Math.max(8, Math.min(worldH - 8, ow.y + Math.sin(ow.heading) * 95 * dt));
+              const ohsw = Math.sin(ow.flap * 2.2) * 3 * ow.sc;
+              opc.x = ow.x + Math.cos(ow.heading) * 13 * ow.sc - Math.sin(ow.heading) * ohsw + (Math.random() - 0.5) * 5 * ow.sc;
+              opc.y = ow.y + Math.sin(ow.heading) * 13 * ow.sc + Math.cos(ow.heading) * ohsw + 3 * ow.sc + (Math.random() - 0.5) * 5 * ow.sc;
+              opc.heading = ow.heading + Math.sin(ow.flap * 1.7) * 0.6 + (Math.random() - 0.5) * 0.5;
+            }
+          }
+          continue;
+        }
+        ow.flap += dt * (ow.glideT > 0 ? 3 : 9);
+        if (ow.glideT > 0) ow.glideT -= dt;
+        else if (Math.random() < dt * 0.25) ow.glideT = 1.5 + Math.random() * 2.5;
+        ow.huntCd -= dt;
+        ow.timer -= dt;
+        let odx = ow.tx - ow.x, ody = ow.ty - ow.y;
+        if (ow.state === 'landing') {
+          if (!ow.perch || pineTaken(ow.perch, ow)) {
+            ow.state = 'fly'; ow.perch = null; ow.timer = 0;
+          } else {
+            const opdx = ow.perch.x - ow.x, opdy = ow.perch.y - ow.y;
+            if (opdx * opdx + opdy * opdy < 12 * 12) {
+              ow.state = 'perch';
+              ow.timer = 7 + Math.random() * 9;
+              ow.x = ow.perch.x; ow.y = ow.perch.y;
+              continue;
+            }
+            ow.tx = ow.perch.x; ow.ty = ow.perch.y;
+            odx = ow.tx - ow.x; ody = ow.ty - ow.y;
+          }
+        }
+        if (ow.state === 'fly') {
+          if (ow.timer <= 0 || odx * odx + ody * ody < 40 * 40) {
+            ow.timer = 4 + Math.random() * 5;
+            let oacted = false;
+            if (ow.huntCd <= 0) {
+              const oprey = nearestBunny(ow, 380);
+              if (oprey) {
+                ow.prey = oprey; ow.state = 'hunt'; ow.timer = 8; ow.glideT = 0;
+                oacted = true;
+              } else ow.huntCd = 5 + Math.random() * 5;
+            }
+            if (!oacted) {
+              let ofree = null;
+              if (Math.random() < 0.3) ofree = pickFreePine(ow);
+              if (ofree) {
+                ow.state = 'landing'; ow.perch = ofree;
+                ow.tx = ofree.x; ow.ty = ofree.y;
+              } else {
+                const ova = Math.random() * Math.PI * 2, ovd = 120 + Math.random() * 280;
+                const worldW = WT * TILE, worldH = HT * TILE;
+                ow.tx = Math.max(8, Math.min(worldW - 8, ow.x + Math.cos(ova) * ovd));
+                ow.ty = Math.max(8, Math.min(worldH - 8, ow.y + Math.sin(ova) * ovd));
+              }
+            }
+            ow.speed = 50 + Math.random() * 25;
+            odx = ow.tx - ow.x; ody = ow.ty - ow.y;
+          }
+        }
+        // bank toward the target, swinging home when the snow runs out ahead
+        {
+          const owant = Math.atan2(ody, odx);
+          const olahead = TILE * 2.5;
+          const oltx = Math.floor((ow.x + Math.cos(ow.heading) * olahead) / TILE);
+          const olty = Math.floor((ow.y + Math.sin(ow.heading) * olahead) / TILE);
+          const oedge = !inTiles(oltx, olty) || (snow[tidx(oltx, olty)] !== 1 && ice[tidx(oltx, olty)] !== 1);
+          if (oedge) ow.heading += 3.5 * dt;
+          else ow.heading += Math.max(-1, Math.min(1, angDiff(owant, ow.heading))) * 2.5 * dt;
+          ow.heading += Math.sin(ow.flap * 0.35 + 1.3) * 0.35 * dt;
+          let onx = ow.x + Math.cos(ow.heading) * ow.speed * dt;
+          let ony = ow.y + Math.sin(ow.heading) * ow.speed * dt;
+          const otx = Math.floor(onx / TILE), oty = Math.floor(ony / TILE);
+          const oSnow = inTiles(otx, oty) && (snow[tidx(otx, oty)] === 1 || ice[tidx(otx, oty)] === 1);
+          if (!oSnow) {
+            const ohomeA = Math.atan2((40 + 0.5) * TILE - ow.y, (40 + 0.5) * TILE - ow.x);
+            const octx0 = Math.floor(ow.x / TILE), octy0 = Math.floor(ow.y / TILE);
+            if (!inTiles(octx0, octy0) || (snow[tidx(octx0, octy0)] !== 1 && ice[tidx(octx0, octy0)] !== 1)) ow.heading = ohomeA;
+            else ow.heading += Math.max(-1, Math.min(1, angDiff(ohomeA, ow.heading))) * 3.5 * dt;
+            onx = ow.x + Math.cos(ow.heading) * ow.speed * dt;
+            ony = ow.y + Math.sin(ow.heading) * ow.speed * dt;
+          }
+          const worldW = WT * TILE, worldH = HT * TILE;
+          ow.x = Math.max(8, Math.min(worldW - 8, onx));
+          ow.y = Math.max(8, Math.min(worldH - 8, ony));
+        }
+      }
+      // the parliament holds at 8 (safety net — owls never die or breed)
+      owlUpT -= dt;
+      if (owlUpT <= 0) {
+        owlUpT = 5;
+        while (snowyOwls.length < 8 && pineSpots.length) {
+          const p = pineSpots[(Math.random() * pineSpots.length) | 0];
+          spawnSnowyOwl(p.x, p.y);
+        }
+      }
+      // particles (dots fall, rings expand)
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        if (p.ring) {
+          p.size += 13 * dt / 0.6;
+          p.life -= dt;
+        } else {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 160 * dt;
+          p.life -= dt;
+        }
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+      if (particles.length > 260) particles.splice(0, particles.length - 260);
+      updateTallies();
+    }
+
+    function buildMinimap() {
+      mmCanvas = document.createElement('canvas');
+      mmCanvas.width = WT;
+      mmCanvas.height = HT;
+      const c = mmCanvas.getContext('2d');
+      for (let y = 0; y < HT; y++) {
+        for (let x = 0; x < WT; x++) {
+          const i = tidx(x, y);
+          const t = tiles[i];
+          c.fillStyle =
+            t === OCEAN ? '#1a4f9c' :
+            t === WATER ? '#5dade2' :
+            t === MUD ? '#8a6f4d' :
+            t === SAND ? '#f4e285' :
+            savannah[i] ? '#e3d17a' :
+            snow[i] ? '#eef3f8' : (damp[i] ? '#2b9c55' : '#2c8a4a');
+          c.fillRect(x, y, 1, 1);
+        }
+      }
+      // trees read as dark forest dots, palms as lime dots, stumps as brown (mushrooms!)
+      for (const tr of trees) {
+        const mx = Math.floor(tr.x / TILE), my = Math.floor(tr.y / TILE);
+        c.fillStyle = tr.pine ? '#0e2f1c' : (tr.olive ? '#6b7a1f' : '#0a2f14');
+        c.fillRect(mx - 0.5, my - 0.5, 2, 2);
+      }
+      for (const pm of palms) {
+        const mx = Math.floor(pm.x / TILE), my = Math.floor(pm.y / TILE);
+        c.fillStyle = '#c6f24e';
+        c.fillRect(mx - 0.5, my - 0.5, 2, 2);
+      }
+      for (const st of stumps) {
+        const mx = Math.floor(st.x / TILE), my = Math.floor(st.y / TILE);
+        c.fillStyle = '#8a4b1f';
+        c.fillRect(mx, my, 1, 1);
+      }
+    }
+
+    // ============ draw (zoomed-in bird's-eye camera) ============
+    function draw(now) {
+      const t = now / 1000;
+      const worldW = WT * TILE, worldH = HT * TILE;
+      const viewW = W / ZOOM, viewH = H / ZOOM;
+      let camX = player.x - viewW / 2, camY = player.y - viewH / 2;
+      camX = worldW > viewW ? Math.max(0, Math.min(worldW - viewW, camX)) : (worldW - viewW) / 2;
+      camY = worldH > viewH ? Math.max(0, Math.min(worldH - viewH, camY)) : (worldH - viewH) / 2;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#0b1020';
+      ctx.fillRect(0, 0, W, H);
+      ctx.setTransform(ZOOM, 0, 0, ZOOM, 0, 0);
+      const tx0 = Math.max(0, Math.floor(camX / TILE)), tx1 = Math.min(WT - 1, Math.floor((camX + viewW) / TILE));
+      const ty0 = Math.max(0, Math.floor(camY / TILE)), ty1 = Math.min(HT - 1, Math.floor((camY + viewH) / TILE));
+      // tiles
+      for (let ty = ty0; ty <= ty1; ty++) {
+        for (let tx = tx0; tx <= tx1; tx++) {
+          const x = tx * TILE - camX, y = ty * TILE - camY;
+          const v = thash(tx, ty) - 0.5;
+          const i = tidx(tx, ty);
+          const tt = tiles[i];
+          if (tt === OCEAN) ctx.fillStyle = 'rgb(' + (26 + v * 8 | 0) + ',' + (79 + v * 10 | 0) + ',' + (156 + v * 12 | 0) + ')';
+          else if (tt === WATER) ctx.fillStyle = bigLake[i] ? '#3498db' : 'rgb(' + (74 + v * 10 | 0) + ',' + (163 + v * 10 | 0) + ',' + (223 + v * 10 | 0) + ')';
+          else if (tt === MUD) ctx.fillStyle = 'rgb(' + (148 + v * 10 | 0) + ',' + (110 + v * 10 | 0) + ',' + (72 + v * 8 | 0) + ')';
+          else if (tt === SAND) ctx.fillStyle = 'rgb(' + (244 + v * 8 | 0) + ',' + (226 + v * 8 | 0) + ',' + (133 + v * 8 | 0) + ')';
+          else if (savannah[i]) ctx.fillStyle = 'rgb(' + (228 + v * 8 | 0) + ',' + (206 + v * 8 | 0) + ',' + (128 + v * 8 | 0) + ')';
+          else if (snow[i]) ctx.fillStyle = 'rgb(' + (238 + v * 8 | 0) + ',' + (243 + v * 6 | 0) + ',' + (248 + v * 4 | 0) + ')';
+          else if (damp[i]) ctx.fillStyle = 'rgb(' + (72 + v * 10 | 0) + ',' + (190 + v * 12 | 0) + ',' + (112 + v * 10 | 0) + ')';
+          else ctx.fillStyle = 'rgb(' + (79 + v * 14 | 0) + ',' + (208 + v * 14 | 0) + ',' + (122 + v * 12 | 0) + ')';
+          ctx.fillRect(x, y, TILE + 1, TILE + 1);
+          if (ice[i]) {
+            ctx.fillStyle = 'rgba(220, 240, 252, 0.85)';
+            ctx.fillRect(x, y, TILE + 1, TILE + 1);
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(x + 6 + v * 8, y + 10);
+            ctx.lineTo(x + 18 + v * 8, y + 22);
+            ctx.stroke();
+          } else if ((tt === OCEAN || tt === WATER) && thash(tx * 3 + 1, ty * 5 + 2) < 0.25) {
+            ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+            ctx.lineWidth = 2;
+            const wx = x + 6 + thash(tx, ty) * 20, wy = y + 10 + thash(ty, tx) * 14 + Math.sin(t * 1.6 + tx + ty) * 2;
+            ctx.beginPath();
+            ctx.moveTo(wx - 5, wy);
+            ctx.quadraticCurveTo(wx, wy - 3, wx + 5, wy);
+            ctx.stroke();
+          }
+        }
+      }
+      const vx0 = camX - 60, vx1 = camX + viewW + 60, vy0 = camY - 60, vy1 = camY + viewH + 60;
+      const vis = (x, y) => x > vx0 && x < vx1 && y > vy0 && y < vy1;
+      // ground dressing
+      for (const d of decor) {
+        if (!vis(d.x, d.y)) continue;
+        const x = d.x - camX, y = d.y - camY;
+        const dsrt = savannah[tidx(Math.floor(d.x / TILE), Math.floor(d.y / TILE))] === 1;
+        if (d.kind === 0) {
+          // little dark V-pair sprout (tan in the savannah)
+          const a1 = ((d.x * 13 + d.y * 7) % 10 - 5) * 0.06;
+          ctx.strokeStyle = dsrt ? '#b8a05a' : '#2c7a3d';
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(x - 3, y);
+          ctx.lineTo(x - 4 + a1 * 6, y - 5 - d.s);
+          ctx.moveTo(x + 3, y);
+          ctx.lineTo(x + 4 + a1 * 6, y - 5 - d.s);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+        } else if (d.kind === 7) {
+          // fan tuft: blades fanning out from one root (tan in the savannah)
+          ctx.strokeStyle = dsrt ? '#c2a95e' : '#3d9e4f';
+          ctx.lineWidth = 2;
+          ctx.lineCap = 'round';
+          const n = 5 + (Math.abs((d.x * 3 + d.y * 5) | 0) % 2);
+          for (let i = 0; i < n; i++) {
+            const f = n === 1 ? 0 : i / (n - 1) - 0.5;
+            const hgt = 9 + d.s * 2 + (Math.abs((d.x * 7 + d.y * 11 + i * 13) | 0) % 7);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + f * 6, y - hgt * 0.6, x + f * 12, y - hgt);
+            ctx.stroke();
+          }
+          ctx.lineCap = 'butt';
+        } else if (d.kind === 1) {
+          const cols = ['#ff8ab5', '#ffd94d', '#ffffff'];
+          ctx.fillStyle = cols[(d.x | 0) % 3];
+          ctx.beginPath();
+          ctx.arc(x, y, d.s * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (d.kind === 2) {
+          ctx.fillStyle = 'rgba(0,0,0,0.12)';
+          ctx.beginPath();
+          ctx.arc(x, y, d.s, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (d.kind === 3) {
+          ctx.fillStyle = ['#e8933c', '#d4a017', '#c0392b'][(d.y | 0) % 3];
+          ctx.beginPath();
+          ctx.ellipse(x, y, d.s, d.s * 0.6, d.x, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (d.kind === 4) {
+          ctx.strokeStyle = d.s > 3.5 ? '#f7cad9' : '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, y, d.s, Math.PI * 0.9, Math.PI * 1.9);
+          ctx.stroke();
+        } else if (d.kind === 6) {
+          // frosty tuft: pale blades out of a snow mound
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.beginPath();
+          ctx.ellipse(x, y, 7 + d.s, 3.5 + d.s * 0.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#8aa898';
+          ctx.lineCap = 'round';
+          ctx.lineWidth = 2.5;
+          const n = 4 + (Math.abs((d.x * 7 + d.y * 13) | 0) % 3);
+          for (let i = 0; i < n; i++) {
+            const off = (i / (n - 1) - 0.5) * 10;
+            const hgt = 10 + (Math.abs((d.x * 3 + d.y * 5 + i * 11) | 0) % 8);
+            const lean = ((Math.abs((d.x + d.y * 2 + i * 7) | 0) % 5) - 2) * 1.2;
+            ctx.beginPath();
+            ctx.moveTo(x + off * 0.5, y - 1);
+            ctx.lineTo(x + off * 0.5 + lean, y - 1 - hgt);
+            ctx.stroke();
+          }
+          ctx.lineCap = 'butt';
+        } else {
+          // tiny wildflower: five mini petals + sunny heart
+          const cols = ['#ff8ab5', '#ffffff', '#ffd94d', '#c084fc'];
+          ctx.fillStyle = cols[((d.x + d.y) | 0) % 4];
+          const pr = d.s * 0.75;
+          for (let pi = 0; pi < 5; pi++) {
+            const a = pi / 5 * Math.PI * 2 + d.x;
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(a) * pr, y + Math.sin(a) * pr, pr * 0.75, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = '#ffdf3d';
+          ctx.beginPath();
+          ctx.arc(x, y, pr * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // shoreline sprigs ducks gather: cattails, long grass, fallen sticks
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (const s of sprigSources) {
+        if (!vis(s.x, s.y)) continue;
+        const x = s.x - camX, y = s.y - camY;
+        if (s.kind === 'cattail') {
+          // every stalk rises from one base point, sausage on top
+          const frac = v => v - Math.floor(v);
+          // a couple of blades fanning out at the base
+          ctx.strokeStyle = '#35924a';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x - 6, y - 6, x - 10, y - 10 - (s.y % 5));
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x + 6, y - 6, x + 10, y - 10 - (s.x % 5));
+          ctx.stroke();
+          // one headed stalk per blade left, leaning every which way
+          for (let i = 0; i < s.stock; i++) {
+            const lean = (frac(Math.sin(s.x * 12.9 + i * 78.2) * 4375.5) - 0.5) * 24;
+            const h = 26 + frac(Math.sin(s.y * 7.7 + i * 39.4) * 2463.4) * 16;
+            const tx = x + lean, ty = y - h;
+            ctx.strokeStyle = i % 2 ? '#2f7a3d' : '#35924a';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + lean * 0.5, y - h * 0.5, tx, ty);
+            ctx.stroke();
+            // brown sausage capping the stalk tip
+            ctx.strokeStyle = '#6b4a2b';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tx, ty + 9);
+            ctx.stroke();
+            // pale spike poking out the top
+            ctx.strokeStyle = '#d9c27a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(tx, ty - 5);
+            ctx.stroke();
+          }
+        } else if (s.kind === 'grass') {
+          ctx.strokeStyle = '#2f9e44';
+          ctx.lineWidth = 2;
+          for (let i = 0; i < 2 + s.stock; i++) {
+            const a = (i / 5 - 0.5) * 1.2 + Math.sin(s.x) * 0.2;
+            const hgt = 10 + ((i * 7 + s.y) % 8);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + a * 8, y - hgt * 0.6, x + a * 12, y - hgt);
+            ctx.stroke();
+          }
+        } else if (s.stock > 0) {
+          ctx.strokeStyle = '#7a5230';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(x - 7, y + 3);
+          ctx.lineTo(x + 7, y - 4);
+          ctx.stroke();
+          ctx.strokeStyle = '#5b3a1e';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x + 1, y);
+          ctx.lineTo(x + 4, y - 6);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+      // stumps with their stump mushrooms (big + glowy so they're easy to spot/grab)
+      for (const st of stumps) {
+        if (!vis(st.x, st.y)) continue;
+        const x = st.x - camX, y = st.y - camY;
+        const hasMush = st.mush.some(m => !m.empty);
+        const nearP = Math.hypot(player.x - st.x, player.y - st.y);
+        if (hasMush && nearP < 90) {
+          ctx.save();
+          ctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 4);
+          ctx.strokeStyle = '#ffd94d';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(x, y, st.r + 10, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + st.r * 0.7, st.r, st.r * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // sawn log: dark bark ring, tan heart, growth rings + a little notch
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#3f2412';
+        ctx.fillStyle = '#4a2c14';
+        ctx.beginPath();
+        ctx.arc(x, y, st.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#c9a06a';
+        ctx.beginPath();
+        ctx.arc(x, y, st.r * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(122, 82, 48, 0.85)';
+        ctx.lineWidth = 2;
+        for (const gr of [0.5, 0.34, 0.2]) {
+          ctx.beginPath();
+          ctx.arc(x, y, st.r * gr, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        // little stub notch on the rim
+        ctx.strokeStyle = '#3f2412';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        const na = Math.sin(st.x * 0.37) * 1.2 + Math.PI * 0.94;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(na) * st.r * 0.42, y + Math.sin(na) * st.r * 0.42);
+        ctx.lineTo(x + Math.cos(na) * st.r * 0.78, y + Math.sin(na) * st.r * 0.78);
+        ctx.stroke();
+        for (const m of st.mush) {
+          if (m.empty) continue;
+          const mx = x + m.dx, my = y + m.dy;
+          ctx.fillStyle = '#f5ecd7';
+          ctx.fillRect(mx - 2, my - 7, 4, 7);
+          ctx.fillStyle = '#d62828';
+          ctx.beginPath();
+          ctx.arc(mx, my - 5, 6, Math.PI, 0);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(mx - 2, my - 7, 1.3, 0, Math.PI * 2);
+          ctx.arc(mx + 1.8, my - 5.5, 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // berry bushes (leaves fade if you're right inside; berries stay bright)
+      // savannah stick bushes: bare twig stars, nothing to pick
+      for (const b of bushes) {
+        if (!vis(b.x, b.y)) continue;
+        const x = b.x - camX, y = b.y - camY;
+        const inside = Math.hypot(player.x - b.x, player.y - b.y) < b.r;
+        if (b.stick) {
+          ctx.save();
+          if (inside) ctx.globalAlpha = 0.6;
+          ctx.fillStyle = 'rgba(0,0,0,0.1)';
+          ctx.beginPath();
+          ctx.ellipse(x, y + 4, b.r * 0.8, b.r * 0.3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#7a5230';
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = 'round';
+          const arms = 7 + ((b.seed * 3 | 0) % 3);
+          for (let i = 0; i < arms; i++) {
+            const a = (i / arms) * Math.PI * 2 + b.seed;
+            const len = b.r * (0.7 + ((b.seed * (i + 2) | 0) % 5) * 0.1);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len * 0.8 - 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x + Math.cos(a) * len * 0.6, y + Math.sin(a) * len * 0.8 * 0.6 - 1);
+            ctx.lineTo(x + Math.cos(a + 0.5) * len * 0.85, y + Math.sin(a + 0.5) * len * 0.8 - 3);
+            ctx.stroke();
+          }
+          ctx.restore();
+          continue;
+        }
+        const snowy = snow[tidx(Math.floor(b.x / TILE), Math.floor(b.y / TILE))] === 1;
+        const wig = Math.sin(t * 1.8 + b.seed) * 1.2;
+        ctx.save();
+        if (inside) ctx.globalAlpha = 0.5;
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + b.r * 0.7, b.r, b.r * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#1e6e30';
+        ctx.fillStyle = '#46b95c';
+        ctx.beginPath();
+        ctx.arc(x - 8, y + wig * 0.4, b.r * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x + 8, y - wig * 0.4, b.r * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y - 4, b.r * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(190, 240, 200, 0.9)';
+        ctx.beginPath();
+        ctx.arc(x - 4, y - 8, b.r * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        if (snowy) {
+          // snow heaped on top: soft white blobs with berries peeking out
+          ctx.fillStyle = 'rgba(255,255,255,0.92)';
+          ctx.beginPath();
+          ctx.arc(x - 5, y - 10, b.r * 0.45, 0, Math.PI * 2);
+          ctx.arc(x + 5, y - 11, b.r * 0.38, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.65)';
+          ctx.beginPath();
+          ctx.arc(x + 1, y - 6, b.r * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        for (let i = 0; i < b.berries; i++) {
+          const a = b.seed + i * 2.1;
+          const bx2 = x + Math.cos(a) * b.r * 0.5, by2 = y - 4 + Math.sin(a) * b.r * 0.45;
+          ctx.fillStyle = i % 2 ? '#ff5d7a' : '#e63950';
+          ctx.beginPath();
+          ctx.arc(bx2, by2, 3.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.beginPath();
+          ctx.arc(bx2 - 1, by2 - 1, 1.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // fish: dark wigglers under the surface
+      for (const f of fishes) {
+        if (!vis(f.x, f.y)) continue;
+        const x = f.x - camX, y = f.y - camY;
+        const wig = Math.sin(t * 8 + f.x * 0.1) * 0.25;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(f.heading + wig * 0.3);
+        ctx.fillStyle = f.sea ? 'rgba(10, 40, 80, 0.8)' : 'rgba(30, 70, 110, 0.8)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 7, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-6, 0);
+        ctx.lineTo(-10, -3 + wig * 6);
+        ctx.lineTo(-10, 3 + wig * 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+      // lilypads floating on the lake + ocean (with the odd flower)
+      for (const pad of lilypads) {
+        if (!vis(pad.x, pad.y)) continue;
+        const bob = Math.sin(t * 1.4 + pad.phase) * 1.5;
+        const x = pad.x - camX, y = pad.y - camY + bob * 0.4;
+        ctx.fillStyle = 'rgba(10, 60, 40, 0.25)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 2, pad.r, pad.r * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = pad.sea ? '#2f9e63' : '#37b06a';
+        ctx.beginPath();
+        ctx.ellipse(x, y, pad.r, pad.r * 0.62, Math.sin(pad.phase) * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        // little notch so it reads as a lily pad
+        ctx.fillStyle = pad.sea ? 'rgb(26, 79, 156)' : 'rgb(74, 163, 223)';
+        const na = pad.phase;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(na) * pad.r, y + Math.sin(na) * pad.r * 0.62);
+        ctx.lineTo(x + Math.cos(na + 0.5) * pad.r, y + Math.sin(na + 0.5) * pad.r * 0.62);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(x - pad.r * 0.25, y - pad.r * 0.18, pad.r * 0.3, pad.r * 0.16, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        if (pad.flower) {
+          const fx = x + Math.cos(pad.phase * 2) * pad.r * 0.3, fy = y - 2;
+          ctx.fillStyle = '#ff8ab5';
+          for (let pi = 0; pi < 5; pi++) {
+            const a = pi / 5 * Math.PI * 2 + pad.phase;
+            ctx.beginPath();
+            ctx.arc(fx + Math.cos(a) * 3, fy + Math.sin(a) * 3, 2.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = '#ffdf3d';
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // duck nests: chunky brown rings with warming eggs (cracks when close!)
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (const nst of nests) {
+        if (!vis(nst.x, nst.y)) continue;
+        const x = nst.x - camX, y = nst.y - camY;
+        const full = Math.min(1, nst.sprigs / nst.need);
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 8, 14, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // ring grows from a twig arc into a full donut as sprigs arrive
+        ctx.strokeStyle = '#6e4a22';
+        ctx.lineWidth = 4 + 5 * full;
+        ctx.beginPath();
+        if (full >= 1) ctx.arc(x, y, 12, 0, Math.PI * 2);
+        else ctx.arc(x, y, 12, -0.4, -0.4 + Math.PI * 2 * (0.25 + 0.75 * full));
+        ctx.stroke();
+        ctx.strokeStyle = '#a9763f';
+        ctx.lineWidth = 2 + 3 * full;
+        ctx.beginPath();
+        if (full >= 1) ctx.arc(x, y, 12, 0, Math.PI * 2);
+        else ctx.arc(x, y, 12, -0.4, -0.4 + Math.PI * 2 * (0.25 + 0.75 * full));
+        ctx.stroke();
+        nst.eggs.forEach((e, i) => {
+          const ex = x - 5 + i * 5, ey = y - 1 + (i % 2) * 2;
+          ctx.fillStyle = '#fdf6e3';
+          ctx.beginPath();
+          ctx.ellipse(ex, ey, 3.4, 4.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(150,120,80,0.6)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          if (e.age > 45) {
+            ctx.strokeStyle = '#6b4a2b';
+            ctx.beginPath();
+            ctx.moveTo(ex - 2, ey - 2);
+            ctx.lineTo(ex, ey);
+            ctx.lineTo(ex + 2, ey - 1);
+            ctx.stroke();
+          }
+        });
+      }
+      ctx.restore();
+      // duck business (melts away after 30 seconds)
+      for (const poo of poos) {
+        if (!vis(poo.x, poo.y)) continue;
+        const x = poo.x - camX, y = poo.y - camY;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, (30 - poo.age) / 5));
+        ctx.fillStyle = '#6b4a2b';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 4.5, 3.4, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4e3319';
+        ctx.beginPath();
+        ctx.ellipse(x - 0.5, y - 0.5, 2.4, 1.8, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.beginPath();
+        ctx.arc(x - 1.5, y - 1.2, 0.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // ducks: tail, round body, drake ring, beak, eyes, feet ashore
+      for (const d of ducks) {
+        if (!vis(d.x, d.y)) continue;
+        const x = d.x - camX, y = d.y - camY;
+        const bob = d.paused ? Math.sin(t * 1.5 + d.x) * 1 : Math.sin(t * 5 + d.x) * 0.8;
+        const dtile = tileAtPx(d.x, d.y);
+        const ashore = dtile !== WATER && dtile !== OCEAN;
+        const gulp = d.gulpT > 0 ? 1 + d.gulpT * 0.5 : 1;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, d.fade);
+        ctx.translate(x, y + bob * 0.4);
+        ctx.rotate(d.heading + Math.sin(t * 2 + d.x) * 0.04);
+        ctx.scale(d.sc * gulp, d.sc * gulp);
+        // watery / dusty shadow
+        ctx.fillStyle = ashore ? 'rgba(0,0,0,0.2)' : 'rgba(10,40,80,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(-1, 1, 9, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // orange feet paddle out ashore
+        if (ashore) {
+          const pad = d.paused ? 0 : Math.sin(t * 10 + d.x) * 1.5;
+          ctx.fillStyle = '#e8912d';
+          ctx.beginPath();
+          ctx.ellipse(-1, -6 - pad * 0.3, 3, 1.8, 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(-1, 6 + pad * 0.3, 3, 1.8, -0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // tail feathers
+        ctx.fillStyle = d.body;
+        ctx.beginPath();
+        ctx.moveTo(-6, 0);
+        ctx.lineTo(-12, -3.5);
+        ctx.lineTo(-12, 3.5);
+        ctx.closePath();
+        ctx.fill();
+        // round body + shaded heart
+        ctx.fillStyle = d.body;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8, 5.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5, 3.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // drake's cream neck ring
+        if (d.drake) {
+          ctx.fillStyle = '#f2f2ee';
+          ctx.beginPath();
+          ctx.ellipse(5, 0, 1.8, 3.8, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // head + orange beak
+        ctx.fillStyle = d.head;
+        ctx.beginPath();
+        ctx.arc(8.5, 0, 3.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f0a22e';
+        ctx.beginPath();
+        ctx.moveTo(11.5, -1.8);
+        ctx.lineTo(14.5, 0);
+        ctx.lineTo(11.5, 1.8);
+        ctx.closePath();
+        ctx.fill();
+        // two sprigs riding home in the beak
+        if (d.carry) {
+          ctx.strokeStyle = '#2f9e44';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(14, 0);
+          ctx.lineTo(19, -3);
+          ctx.moveTo(14, 0);
+          ctx.lineTo(19, 3);
+          ctx.stroke();
+          ctx.fillStyle = '#40b355';
+          ctx.beginPath();
+          ctx.ellipse(19.5, -3.5, 2, 1, 0.6, 0, Math.PI * 2);
+          ctx.ellipse(19.5, 3.5, 2, 1, -0.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // a caught fish flailing above the water
+        if (d.holding) {
+          const fl = Math.sin(t * 30 + d.holding.seed) * 0.5;
+          ctx.save();
+          ctx.translate(13, -6 + fl * 2);
+          ctx.rotate(-0.7 + fl * 0.5);
+          ctx.fillStyle = 'rgba(140,190,225,0.95)';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 6, 2.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(-5, 0);
+          ctx.lineTo(-8.5, -2.5 + fl * 3);
+          ctx.lineTo(-8.5, 2.5 + fl * 3);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#0d2c5e';
+          ctx.beginPath();
+          ctx.arc(3.5, -1, 0.9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        // one dark eye each side
+        ctx.fillStyle = '#141414';
+        ctx.beginPath();
+        ctx.arc(9.5, -2, 0.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(9.5, 2, 0.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // fluffy yellow chicks, still growing
+      for (const c of chicks) {
+        if (!vis(c.x, c.y)) continue;
+        const x = c.x - camX, y = c.y - camY;
+        const bob = Math.sin(t * 6 + c.x) * 1;
+        const ctile = tileAtPx(c.x, c.y);
+        const cashore = ctile !== WATER && ctile !== OCEAN;
+        ctx.save();
+        ctx.translate(x, y + bob * 0.4);
+        ctx.rotate(c.heading);
+        ctx.scale(c.sc, c.sc);
+        ctx.fillStyle = cashore ? 'rgba(0,0,0,0.2)' : 'rgba(10,40,80,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(0, 1, 7, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (cashore) {
+          ctx.fillStyle = '#e8912d';
+          ctx.beginPath();
+          ctx.ellipse(-1, -5, 2.4, 1.5, 0.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(-1, 5, 2.4, 1.5, -0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#f2d35c';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(6, -1, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f7e08a';
+        ctx.beginPath();
+        ctx.ellipse(1, 1.5, 3.2, 2.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#f0a22e';
+        ctx.beginPath();
+        ctx.moveTo(8.5, -2);
+        ctx.lineTo(10.5, -1);
+        ctx.lineTo(8.5, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#141414';
+        ctx.beginPath();
+        ctx.arc(6.5, -2.5, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(6.5, 0.5, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // beach shells: loose ones crabs fetch, plus stashed piles at each burrow
+      for (const s of shells) {
+        if (s.state === 'carried') continue;
+        const sx = (s.state === 'stored' ? s.hx : s.x), sy = (s.state === 'stored' ? s.hy : s.y);
+        if (!vis(sx, sy)) continue;
+        const x = sx - camX, y = sy - camY + Math.sin(t * 2 + s.bob) * 0.8;
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 2, 4.5, 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = s.tint || '#ffffff';
+        ctx.fillStyle = s.tint || '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, Math.PI * 0.9, Math.PI * 1.9);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, 4, Math.PI * 0.9, Math.PI * 1.9);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(150,110,90,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x - 2, y - 1);
+        ctx.lineTo(x + 2, y - 1);
+        ctx.moveTo(x - 1, y - 3);
+        ctx.lineTo(x + 1, y - 3);
+        ctx.stroke();
+      }
+      // crabs: sideways scuttlers that haul shells home, claws + legs + eye stalks
+      for (const h of crabHoles) {
+        const hx = h.x - camX, hy = h.y - camY;
+        if (vis(h.x, h.y)) {
+          ctx.fillStyle = 'rgba(90, 60, 30, 0.8)';
+          ctx.beginPath();
+          ctx.ellipse(hx, hy, 5, 3.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // stashed shell count ring: a tiny shell pile already drawn, plus a glint if stocked
+          if (h.stash > 0) {
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.font = '9px sans-serif';
+            ctx.fillText('🐚x' + h.stash, hx + 8, hy + 4);
+          }
+        }
+        if (h.state !== 'hidden' && vis(h.cx, h.cy)) {
+          const x = h.cx - camX, y = h.cy - camY;
+          const wig = Math.sin(t * 11 + h.x * 0.1) * 1.2;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(h.heading);
+          // six striding legs with a wiggle
+          ctx.strokeStyle = '#a93226';
+          ctx.lineWidth = 1.5;
+          for (let l = -1; l <= 1; l++) {
+            ctx.beginPath();
+            ctx.moveTo(l * 3, -3);
+            ctx.lineTo(l * 4 + wig, -7);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(l * 3, 3);
+            ctx.lineTo(l * 4 - wig, 7);
+            ctx.stroke();
+          }
+          // twin claws up front (raised high when carrying a shell home!)
+          const lift = h.carrying ? 2 : 0;
+          ctx.fillStyle = '#e74c3c';
+          ctx.beginPath();
+          ctx.arc(7, -4 - lift, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(7, 4 + lift, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          // round body with a dark rim
+          ctx.fillStyle = '#c0392b';
+          ctx.strokeStyle = '#7b241c';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 6, 4.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          // googly eyes
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(4.5, -2, 1.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(4.5, 2, 1.4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#111';
+          ctx.beginPath();
+          ctx.arc(5, -2, 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(5, 2, 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          // the loot riding overhead on the way home
+          if (h.carrying) {
+            const shx = x, shy = y - 10 + Math.sin(t * 10) * 1;
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.beginPath();
+            ctx.ellipse(shx, shy + 3, 5, 2.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = h.carrying.tint || '#ffffff';
+            ctx.strokeStyle = '#a08060';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(shx, shy, 5, Math.PI * 0.9, Math.PI * 1.9);
+            ctx.fill();
+            ctx.stroke();
+          }
+        }
+      }
+      // burrows + bunnies
+      for (const br of burrows) {
+        if (!vis(br.x, br.y)) continue;
+        const x = br.x - camX, y = br.y - camY;
+        ctx.fillStyle = '#c9a86a';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 13, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (br.snowy) {
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.beginPath();
+          ctx.ellipse(x, y - 3, 13, 7, 0, Math.PI, 0);
+          ctx.fill();
+        }
+        ctx.fillStyle = 'rgba(60,40,20,0.9)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 8, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.arc(x + 10, y + 6, 2, 0, Math.PI * 2);
+        ctx.arc(x - 9, y - 5, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (const bn of bunnies) {
+        if (bn.state === 'inside' || !vis(bn.x, bn.y)) continue;
+        const x = bn.x - camX, y = bn.y - camY;
+        const hoppy = bn.moving ? Math.abs(Math.sin(bn.hop)) * 3 : Math.sin(t * 2 + bn.x) * 0.6;
+        ctx.save();
+        ctx.translate(x, y - hoppy * 0.4);
+        ctx.rotate(bn.heading);
+        ctx.scale(bn.sc || 1, bn.sc || 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 9, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // white cottontail puff at the rear
+        ctx.fillStyle = '#f7f4ec';
+        ctx.beginPath();
+        ctx.arc(-9.5, 0, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+        // one round loaf body, head merged in
+        ctx.fillStyle = bn.col;
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(-2, 0, 8, 6.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // round head up front
+        ctx.beginPath();
+        ctx.arc(6, 0, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // long ears slanting up-back off the head, twitching
+        const tw = Math.sin(t * 3 + bn.x * 0.5) * 0.06;
+        ctx.fillStyle = bn.col;
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1.5;
+        for (const s of [-1, 1]) {
+          ctx.save();
+          ctx.translate(2, s * 3.5);
+          ctx.rotate(s * (0.55 + tw));
+          ctx.beginPath();
+          ctx.ellipse(-4, 0, 6.5, 2.6, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#f2b8c6';
+          ctx.beginPath();
+          ctx.ellipse(-4, 0, 4.2, 1.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = bn.col;
+          ctx.restore();
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(-2, -2.5, 4, 2.5, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        // two dot eyes + tiny pink nose up front
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(6.5, -2.6, 1.3, 0, Math.PI * 2);
+        ctx.arc(6.5, 2.6, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e8939c';
+        ctx.beginPath();
+        ctx.arc(9.6, 0, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // hedgehogs: spiky forest friends napping on stumps
+      for (const hg of hedgehogs) {
+        if (!vis(hg.x, hg.y)) continue;
+        const x = hg.x - camX, y = hg.y - camY;
+        // frosted white in the snow, brown everywhere else
+        const onSnow = snow[tidx(Math.floor(hg.x / TILE), Math.floor(hg.y / TILE))] === 1;
+        const frosty = hg.snowy || onSnow;
+        const bodyC = frosty ? '#eceee9' : (hg.col || '#8a6f4d');
+        const rimC = frosty ? '#c2c7c2' : '#6e5739';
+        const dashC = frosty ? '#9aa0a6' : '#5b3a1e';
+        const faceC = frosty ? '#f6f6f3' : '#c9a86a';
+        if (hg.state === 'sleep') {
+          // curled ball with sleepy zeees
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.beginPath();
+          ctx.ellipse(x, y + 6, 8 * hg.sc, 3.5 * hg.sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.scale(hg.sc, hg.sc);
+          ctx.fillStyle = bodyC;
+          ctx.strokeStyle = rimC;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.strokeStyle = dashC;
+          ctx.lineWidth = 2;
+          ctx.lineCap = 'round';
+          for (let i = 0; i < 8; i++) {
+            const a = i / 8 * Math.PI * 2 + hg.x * 0.01;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * 3, Math.sin(a) * 3);
+            ctx.lineTo(Math.cos(a) * 5.5, Math.sin(a) * 5.5);
+            ctx.stroke();
+          }
+          ctx.restore();
+          ctx.fillStyle = 'rgba(255,255,255,' + (0.5 + 0.3 * Math.sin(t * 2)).toFixed(3) + ')';
+          ctx.font = '900 10px Segoe UI, Arial, sans-serif';
+          ctx.fillText('z', x + 8, y - 8 - Math.sin(t * 2) * 2);
+          ctx.fillText('Z', x + 13, y - 14 - Math.sin(t * 2 + 1) * 2);
+          continue;
+        }
+        const wob = hg.moving ? Math.abs(Math.sin(hg.hop)) * 1.5 : Math.sin(t * 2 + hg.x) * 0.5;
+        ctx.save();
+        ctx.translate(x, y - wob * 0.3);
+        ctx.rotate(hg.heading);
+        ctx.scale(hg.sc, hg.sc);
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 9, 4.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // pink feet peeking out both sides
+        const wadd = hg.moving ? Math.sin(hg.hop) * 1 : 0;
+        ctx.fillStyle = '#f2b8c6';
+        ctx.beginPath();
+        ctx.arc(-3 + wadd * 0.4, -6, 2, 0, Math.PI * 2);
+        ctx.arc(2 - wadd * 0.4, -6, 2, 0, Math.PI * 2);
+        ctx.arc(-3 - wadd * 0.4, 6, 2, 0, Math.PI * 2);
+        ctx.arc(2 + wadd * 0.4, 6, 2, 0, Math.PI * 2);
+        ctx.fill();
+        // round brown body with a darker rim
+        ctx.fillStyle = bodyC;
+        ctx.strokeStyle = rimC;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(-1, 0, 8.5, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // dotted spine rows
+        ctx.strokeStyle = dashC;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        for (const ry of [-3.4, -1.1, 1.1, 3.4]) {
+          for (let rx = -7; rx <= 1; rx += 2.6) {
+            ctx.beginPath();
+            ctx.moveTo(rx, ry);
+            ctx.lineTo(rx + 1.3, ry);
+            ctx.stroke();
+          }
+        }
+        // pink round ears by the head
+        ctx.fillStyle = '#f2b8c6';
+        ctx.beginPath();
+        ctx.arc(5, -5.5, 1.8, 0, Math.PI * 2);
+        ctx.arc(5, 5.5, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+        // tan face with big sparkly eyes + tiny nose
+        ctx.fillStyle = faceC;
+        ctx.beginPath();
+        ctx.arc(7.5, 0, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(8, -2.2, 1.6, 0, Math.PI * 2);
+        ctx.arc(8, 2.2, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(8.5, -2.7, 0.55, 0, Math.PI * 2);
+        ctx.arc(8.5, 1.7, 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#5b3a1e';
+        ctx.beginPath();
+        ctx.arc(10.8, 0, 1, 0, Math.PI * 2);
+        ctx.fill();
+        // berry riding home on its back after a snack
+        if (hg.state === 'togStump') {
+          ctx.fillStyle = '#e63950';
+          ctx.beginPath();
+          ctx.arc(-3, -5.5, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.beginPath();
+          ctx.arc(-4, -6.5, 1, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#2f9e44';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(-3, -8.5);
+          ctx.lineTo(-3, -10.5);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // warthogs: big grey-brown bodies, mane ridge, snout, tusks, curly tail
+      for (const wt of warthogs) {
+        if (!vis(wt.x, wt.y)) continue;
+        const x = wt.x - camX, y = wt.y - camY;
+        const sc = wt.sc || 1;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(wt.heading);
+        const trotting = wt.moving && (wt.state === 'wander' || wt.state === 'toFood' || wt.state === 'toMud');
+        const trot = trotting ? Math.sin(t * 11) * 2 * sc : 0;
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        ctx.beginPath();
+        ctx.ellipse(0, 1.5 * sc, 12 * sc, 7.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // curly tail with a tuft
+        const wag = Math.sin(t * 5 + wt.x * 0.05) * 2 * sc;
+        ctx.strokeStyle = '#6b5a48';
+        ctx.lineWidth = 1.8 * sc;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-11 * sc, 0);
+        ctx.quadraticCurveTo(-14 * sc, wag * 0.5, -13 * sc, 3 * sc + wag);
+        ctx.stroke();
+        ctx.fillStyle = '#4a3d30';
+        ctx.beginPath();
+        ctx.arc(-13 * sc, 3.5 * sc + wag, 1.6 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        // trotting legs peeking out at the sides
+        ctx.fillStyle = '#5d4c3c';
+        ctx.beginPath();
+        ctx.ellipse(5 * sc + trot * 0.3, -7 * sc, 2.6 * sc, 1.6 * sc, 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(5 * sc - trot * 0.3, 7 * sc, 2.6 * sc, 1.6 * sc, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-5 * sc - trot * 0.3, -7 * sc, 2.6 * sc, 1.6 * sc, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-5 * sc + trot * 0.3, 7 * sc, 2.6 * sc, 1.6 * sc, 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        // big body
+        ctx.fillStyle = '#8a7660';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 11 * sc, 7 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#9c8871';
+        ctx.beginPath();
+        ctx.ellipse(1 * sc, 0, 8.5 * sc, 5.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // dark mane ridge along the back
+        ctx.fillStyle = '#4f4237';
+        ctx.beginPath();
+        ctx.ellipse(-2 * sc, 0, 7 * sc, 2.2 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#3a3129';
+        ctx.lineWidth = 1.2 * sc;
+        for (let m = 0; m < 5; m++) {
+          const mx = (-7 + m * 3) * sc;
+          ctx.beginPath();
+          ctx.moveTo(mx, -1.5 * sc);
+          ctx.lineTo(mx + 1 * sc, -3.5 * sc);
+          ctx.stroke();
+        }
+        // caked mud splotches after wallowing
+        if (wt.muddyT > 0) {
+          ctx.fillStyle = 'rgba(110,85,60,0.75)';
+          ctx.beginPath();
+          ctx.ellipse(-3 * sc, -2 * sc, 4 * sc, 2.6 * sc, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(4 * sc, 3 * sc, 3 * sc, 2 * sc, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(-6 * sc, 3.5 * sc, 2.2 * sc, 1.6 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // ears
+        ctx.fillStyle = '#77644f';
+        ctx.beginPath();
+        ctx.ellipse(6 * sc, -5 * sc, 2 * sc, 1.4 * sc, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(6 * sc, 5 * sc, 2 * sc, 1.4 * sc, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        // head + broad snout with nostrils
+        ctx.fillStyle = '#8a7660';
+        ctx.beginPath();
+        ctx.ellipse(9 * sc, 0, 4.5 * sc, 4 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#a08a70';
+        ctx.beginPath();
+        ctx.ellipse(11 * sc, 0, 2.8 * sc, 2.8 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#4a3d30';
+        ctx.beginPath();
+        ctx.arc(12 * sc, -1.2 * sc, 0.8 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(12 * sc, 1.2 * sc, 0.8 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        // curved white tusks
+        ctx.strokeStyle = '#f2ede0';
+        ctx.lineWidth = 1.8 * sc;
+        ctx.beginPath();
+        ctx.arc(10.5 * sc, -3 * sc, 2.4 * sc, -0.4, 1.5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(10.5 * sc, 3 * sc, 2.4 * sc, -1.5, 0.4);
+        ctx.stroke();
+        // eyes
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(8 * sc, -2.6 * sc, 1.1 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(8 * sc, 2.6 * sc, 1.1 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // meerkats: tan foragers, standing tall on sentry duty
+      for (const mk of meerkats) {
+        if (!vis(mk.x, mk.y)) continue;
+        const x = mk.x - camX, y = mk.y - camY;
+        const sc = mk.sc || 0.9;
+        if (mk.state === 'sentry') {
+          const scan = Math.sin(t * 1.5 + mk.x * 0.1) * 0.15;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(mk.heading * 0.15 + scan * 0.2);
+          ctx.fillStyle = 'rgba(0,0,0,0.2)';
+          ctx.beginPath();
+          ctx.ellipse(0, 3 * sc, 6 * sc, 2.5 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // long tail curling on the ground
+          ctx.strokeStyle = '#a08050';
+          ctx.lineWidth = 2 * sc;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-2 * sc, 2 * sc);
+          ctx.quadraticCurveTo(-9 * sc, 4 * sc, -11 * sc, 0);
+          ctx.stroke();
+          ctx.fillStyle = '#5b3a1e';
+          ctx.beginPath();
+          ctx.arc(-11 * sc, 0, 1.2 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          // upright body
+          ctx.fillStyle = '#c9a86a';
+          ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.ellipse(0, -4 * sc, 4.5 * sc, 8 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#e0c090';
+          ctx.beginPath();
+          ctx.ellipse(0, -3 * sc, 2.5 * sc, 6 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // head with dark eye patches
+          ctx.fillStyle = '#c9a86a';
+          ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+          ctx.beginPath();
+          ctx.arc(0, -13 * sc, 4.2 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#5b3a1e';
+          ctx.beginPath();
+          ctx.ellipse(-1.8 * sc, -13.5 * sc, 1.6 * sc, 2 * sc, 0.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(1.8 * sc, -13.5 * sc, 1.6 * sc, 2 * sc, -0.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#1a1a1a';
+          ctx.beginPath();
+          ctx.arc(-1.8 * sc, -13.5 * sc, 0.9 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(1.8 * sc, -13.5 * sc, 0.9 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#3a2a18';
+          ctx.beginPath();
+          ctx.arc(0, -10.5 * sc, 1 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#8a6f4d';
+          ctx.beginPath();
+          ctx.arc(-3.4 * sc, -16 * sc, 1.3 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(3.4 * sc, -16 * sc, 1.3 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          continue;
+        }
+        const wob = mk.moving ? Math.abs(Math.sin(mk.hop)) * 1.5 : Math.sin(t * 2 + mk.x) * 0.5;
+        ctx.save();
+        ctx.translate(x, y - wob * 0.3);
+        ctx.rotate(mk.heading);
+        ctx.scale(sc, sc);
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(0, 2, 8, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // tail trailing behind
+        ctx.strokeStyle = '#a08050';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-7, 0);
+        ctx.quadraticCurveTo(-12, 1 + wob * 0.5, -14, -2);
+        ctx.stroke();
+        // low-slung tan body
+        ctx.fillStyle = '#c9a86a';
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // back stripes
+        ctx.strokeStyle = 'rgba(91, 58, 30, 0.55)';
+        ctx.lineWidth = 1.5;
+        for (const sx of [-4, -1, 2]) {
+          ctx.beginPath();
+          ctx.moveTo(sx, -4);
+          ctx.lineTo(sx, 4);
+          ctx.stroke();
+        }
+        // head with dark eye patches, digging or sniffing
+        const dig = mk.digT > 0 ? 2 : 0;
+        ctx.fillStyle = '#c9a86a';
+        ctx.beginPath();
+        ctx.arc(7.5, dig * 0.5, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#5b3a1e';
+        ctx.beginPath();
+        ctx.ellipse(8, -1.8, 1.4, 1.8, 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(8, 1.8, 1.4, 1.8, -0.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(8.2, -1.8, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(8.2, 1.8, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#3a2a18';
+        ctx.beginPath();
+        ctx.arc(10.6, 0, 1, 0, Math.PI * 2);
+        ctx.fill();
+        // busy little paws
+        if (mk.moving || mk.digT > 0) {
+          const f = Math.sin(mk.hop * 1.5) * 1.5;
+          ctx.fillStyle = '#8a6f4d';
+          ctx.beginPath();
+          ctx.arc(3 + f * 0.4, -5, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(3 - f * 0.4, 5, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      // player: round blue explorer with eyes on the prize
+      {
+        const x = player.x - camX, y = player.y - camY;
+        const bob = Math.sin(player.step * 2) * 1.2;
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(x, y + 9, 9, 3.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        if (hidden) ctx.globalAlpha = 0.15;
+        const bg = ctx.createLinearGradient(x - 9, y - 9, x + 9, y + 9);
+        bg.addColorStop(0, '#54b9f5');
+        bg.addColorStop(1, '#0d47a1');
+        ctx.fillStyle = bg;
+        ctx.beginPath();
+        ctx.arc(x, y + bob * 0.3, player.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#0d47a1';
+        ctx.stroke();
+        // two eyes looking where you walk
+        const ex = player.fx * 3.5, ey = player.fy * 3.5 + bob * 0.3;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(x - 3 + ex, y - 1 + ey, 3, 0, Math.PI * 2);
+        ctx.arc(x + 3 + ex, y - 1 + ey, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a2e';
+        ctx.beginPath();
+        ctx.arc(x - 3 + ex * 1.6, y - 1 + ey * 1.6, 1.5, 0, Math.PI * 2);
+        ctx.arc(x + 3 + ex * 1.6, y - 1 + ey * 1.6, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // palms: star fronds from above, trunk dot at the center (solid)
+      for (const pm of palms) {
+        if (!vis(pm.x, pm.y)) continue;
+        const x = pm.x - camX, y = pm.y - camY;
+        const under = Math.hypot(player.x - pm.x, player.y - pm.y) < 22;
+        ctx.save();
+        if (under) ctx.globalAlpha = 0.45;
+        const sway = Math.sin(t * 1.2 + pm.sway) * 0.06;
+        ctx.fillStyle = '#2f9e44';
+        for (let i = 0; i < 6; i++) {
+          const a = sway + i * Math.PI / 3;
+          ctx.beginPath();
+          ctx.ellipse(x + Math.cos(a) * 11, y + Math.sin(a) * 11, 11, 4.5, a, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#40b355';
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        if (under) {
+          ctx.fillStyle = '#7a5230';
+          ctx.beginPath();
+          ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#6b4a1e';
+          ctx.beginPath();
+          ctx.arc(x - 4, y + 5, 2.4, 0, Math.PI * 2);
+          ctx.arc(x + 4, y + 5, 2.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // pines + round trees: canopy from above, trunk dot at the center (solid)
+      for (const tr of trees) {
+        if (!vis(tr.x, tr.y)) continue;
+        const x = tr.x - camX, y = tr.y - camY;
+        const under = Math.hypot(player.x - tr.x, player.y - tr.y) < tr.r;
+        ctx.save();
+        if (under) ctx.globalAlpha = 0.45;
+        const sway = Math.sin(t * 1.2 + tr.sway) * 2;
+        if (tr.pine) {
+          // snowy pine from above: big slanted nest of triangles sharing one center
+          const R = tr.r * 1.8;
+          const rot = Math.sin(tr.sway * 1.7) * 0.28 + 0.12;
+          ctx.fillStyle = 'rgba(120, 140, 160, 0.35)';
+          ctx.beginPath();
+          ctx.ellipse(x + R * 0.15, y + R * 0.4, R * 0.6, R * 0.22, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rot);
+          const tri = (half, hgt, fill, stroke) => {
+            ctx.fillStyle = fill;
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(0, -hgt);
+            ctx.lineTo(-half, hgt * 0.55);
+            ctx.lineTo(half, hgt * 0.55);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          };
+          tri(R * 0.72, R * 0.8, '#f2f6f2', '#ffffff');
+          tri(R * 0.55, R * 0.62, '#14521f', '#0d3a16');
+          tri(R * 0.38, R * 0.44, '#2e7d3f', '#1d5c28');
+          tri(R * 0.18, R * 0.22, '#f2f6f2', '#ffffff');
+          ctx.restore();
+          // snow blobs resting at the base
+          ctx.fillStyle = 'rgba(255,255,255,0.95)';
+          ctx.beginPath();
+          ctx.arc(x + R * 0.3, y + R * 0.35, R * 0.12, 0, Math.PI * 2);
+          ctx.arc(x - R * 0.35, y + R * 0.42, R * 0.09, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // big puffy canopy: dark back blobs, mid-green front, soft highlights
+          // savannah olives wear dusty yellow-greens instead
+          const R = tr.r * 1.25;
+          const jx = Math.sin(tr.sway * 3.1) * 4, jy = Math.cos(tr.sway * 2.3) * 4;
+          const backC = tr.olive ? '#5c6b1f' : '#123f22';
+          const midC = tr.olive ? '#7f9230' : '#2f8a44';
+          const hiC = tr.olive ? 'rgba(220, 228, 155, 0.95)' : 'rgba(140, 210, 150, 0.95)';
+          ctx.fillStyle = 'rgba(0,0,0,0.15)';
+          ctx.beginPath();
+          ctx.ellipse(x, y + R * 0.4, R * 0.75, R * 0.3, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = backC;
+          for (const bb of [[-0.5, -0.25, 0.62], [0.5, -0.3, 0.66], [0, 0.3, 0.6]]) {
+            ctx.beginPath();
+            ctx.arc(x + bb[0] * R + jx * bb[2] + sway, y + bb[1] * R + jy * bb[2], bb[2] * R, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = midC;
+          for (const bb of [[-0.3, -0.05, 0.5], [0.35, -0.05, 0.52], [0, -0.42, 0.48]]) {
+            ctx.beginPath();
+            ctx.arc(x + bb[0] * R + jx * bb[2] + sway, y + bb[1] * R + jy * bb[2], bb[2] * R, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = hiC;
+          ctx.beginPath();
+          ctx.arc(x - R * 0.18 + sway, y - R * 0.42, R * 0.16, 0, Math.PI * 2);
+          ctx.arc(x + R * 0.3 + sway, y - R * 0.05, R * 0.12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        if (under) {
+          ctx.fillStyle = '#7a4a21';
+          ctx.beginPath();
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#a9763f';
+          ctx.beginPath();
+          ctx.arc(x - 1.5, y - 1.5, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      // snowy owls flying above it all: white barred wings, yellow eyes
+      for (const ow of snowyOwls) {
+        if (!vis(ow.x, ow.y)) continue;
+        const x = ow.x - camX, y = ow.y - camY;
+        const sc = ow.sc || 1.8;
+        const wing = Math.sin(ow.flap || 0);
+        const roosting = ow.state === 'perch' || ow.state === 'eat';
+        ctx.save();
+        ctx.translate(x, y);
+        if (roosting) {
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          ctx.beginPath();
+          ctx.ellipse(0, 1 * sc, 8 * sc, 4 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          ctx.beginPath();
+          ctx.ellipse(-6 * sc, 4 * sc, 14 * sc, 6 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.rotate(ow.heading);
+        const lift = wing * 3.5 * sc;
+        if (roosting) {
+          for (const side2 of [-1, 1]) {
+            ctx.fillStyle = '#dfe3da';
+            ctx.beginPath();
+            ctx.ellipse(-1 * sc, side2 * 3.4 * sc, 6.5 * sc, 1.8 * sc, side2 * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#eef0ea';
+            ctx.beginPath();
+            ctx.ellipse(-1 * sc, side2 * 3 * sc, 5.5 * sc, 1.1 * sc, side2 * 0.08, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(70,62,52,0.7)';
+            ctx.lineWidth = 0.9 * sc;
+            for (let fb = 0; fb < 3; fb++) {
+              const fbx = (-4 + fb * 3) * sc;
+              ctx.beginPath();
+              ctx.moveTo(fbx, side2 * 2.2 * sc);
+              ctx.lineTo(fbx, side2 * 4.4 * sc);
+              ctx.stroke();
+            }
+          }
+        } else {
+          for (const side of [-1, 1]) {
+            const sweep = side * 0.24 + wing * side * 0.06;
+            const cx = -1.5 * sc, cy = side * (8 * sc + lift * 0.3);
+            ctx.fillStyle = '#e9ece3';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, 3.6 * sc, 9.5 * sc, sweep, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#c9cdc0';
+            ctx.beginPath();
+            ctx.ellipse(cx - 1.7 * sc, cy + side * 1 * sc, 2.2 * sc, 8.4 * sc, sweep, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(70,62,52,0.7)';
+            ctx.lineWidth = 1 * sc;
+            for (let wb = 0; wb < 4; wb++) {
+              const wby = cy + side * (2.5 + wb * 2.2) * sc;
+              ctx.beginPath();
+              ctx.moveTo(cx - 2.6 * sc, wby);
+              ctx.lineTo(cx + 2.2 * sc, wby + side * 0.5 * sc);
+              ctx.stroke();
+            }
+            ctx.fillStyle = 'rgba(70,62,52,0.55)';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy + side * 7.5 * sc, 1 * sc, 1.4 * sc, sweep, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        // short barred tail
+        ctx.fillStyle = '#e9ece3';
+        ctx.beginPath();
+        ctx.moveTo(-7 * sc, 0);
+        ctx.lineTo(-13 * sc, -3.5 * sc);
+        ctx.lineTo(-14.5 * sc, 0);
+        ctx.lineTo(-13 * sc, 3.5 * sc);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(70,62,52,0.7)';
+        ctx.lineWidth = 0.8 * sc;
+        ctx.beginPath();
+        ctx.moveTo(-10 * sc, -2.4 * sc);
+        ctx.lineTo(-10 * sc, 2.4 * sc);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-12 * sc, -2.8 * sc);
+        ctx.lineTo(-12 * sc, 2.8 * sc);
+        ctx.stroke();
+        // white body with dark flecks
+        ctx.fillStyle = '#f0f2ec';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8 * sc, 3.8 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(70,62,52,0.55)';
+        ctx.beginPath();
+        ctx.ellipse(-4 * sc, -1.5 * sc, 0.9 * sc, 0.5 * sc, 0.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-1 * sc, 1.8 * sc, 0.9 * sc, 0.5 * sc, -0.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-5 * sc, 1.2 * sc, 0.8 * sc, 0.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(2 * sc, -2 * sc, 0.8 * sc, 0.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(3 * sc, 1.5 * sc, 0.8 * sc, 0.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // big round head, yellow eyes, hooked beak
+        ctx.fillStyle = '#f4f6f1';
+        ctx.beginPath();
+        ctx.arc(9.5 * sc, 0, 3.6 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#e2e6db';
+        ctx.beginPath();
+        ctx.arc(10 * sc, -1.7 * sc, 1.9 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(10 * sc, 1.7 * sc, 1.9 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        for (const e2 of [-1, 1]) {
+          ctx.fillStyle = '#e8b820';
+          ctx.beginPath();
+          ctx.arc(10.2 * sc, e2 * 1.7 * sc, 1.1 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#141210';
+          ctx.beginPath();
+          ctx.arc(10.2 * sc, e2 * 1.7 * sc, 0.6 * sc, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(10.4 * sc, e2 * 1.7 * sc - 0.3 * sc, 0.28 * sc, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#3a3630';
+        ctx.beginPath();
+        ctx.moveTo(12.6 * sc, -0.9 * sc);
+        ctx.lineTo(14.2 * sc, 0);
+        ctx.lineTo(12.6 * sc, 0.9 * sc);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+      // pick-up sparkles + wading rings
+      for (const p of particles) {
+        const a = Math.max(0, Math.min(1, p.life / p.maxLife));
+        if (p.ring) {
+          ctx.save();
+          ctx.globalAlpha = a;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(p.x - camX, p.y - camY, p.size, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        } else {
+          ctx.save();
+          ctx.globalAlpha = a;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x - camX, p.y - camY, p.size, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      // joystick overlay in screen space
+      if (touch.active) {
+        const rect = canvas.getBoundingClientRect();
+        const bx = touch.sx - rect.left, by = touch.sy - rect.top;
+        const d = Math.hypot(touch.dx, touch.dy);
+        const cl = Math.min(1, d / 55);
+        const kx = bx + (d ? touch.dx / d : 0) * 55 * cl;
+        const ky = by + (d ? touch.dy / d : 0) * 55 * cl;
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bx, by, 55, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.beginPath();
+        ctx.arc(kx, ky, 22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // minimap top-right: terrain + you
+      if (mmCanvas) {
+        const mw = 150, mx = Math.max(8, W - mw - 14), my = 74;
+        ctx.fillStyle = 'rgba(13, 19, 27, 0.93)';
+        ctx.fillRect(mx - 3, my - 3, mw + 6, mw + 6);
+        ctx.drawImage(mmCanvas, mx, my, mw, mw);
+        const px = mx + (player.x / (WT * TILE)) * mw;
+        const py = my + (player.y / (HT * TILE)) * mw;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    // ============ main loop (runs right away — no start screen) ============
+    function loop(now) {
+      if (!running) return;
+      let dt = (now - lastT) / 1000;
+      lastT = now;
+      if (dt > 0.05) dt = 0.05;
+      update(dt, now);
+      draw(now);
+      rafId = requestAnimationFrame(loop);
+    }
+
+    // ============ boot: fixed world, straight into the game ============
+    genWorld(FIXED_SEED);
+    updateTallies();
+    lastT = performance.now();
+    rafId = requestAnimationFrame(loop);
+    window.addEventListener('pagehide', () => cancelAnimationFrame(rafId));
+  </script>
+</body>
+</html>
