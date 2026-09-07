@@ -195,8 +195,9 @@
     let snowyOwls = [];    // snowy owls roaming the snowfields: {x, y, heading, state, perch, ...}
     let pineSpots = [];    // pine trees owls can perch on
     let meerkats = [];     // savannah meerkat mob: {x, y, hx, hy, heading, state, timer, ...}
-    let snakes = [];       // savannah rattlesnakes hunting meerkats (never die)
-    let snakeHoles = [];   // snake burrows to sleep in {x, y}
+    let snakes = [];       // (removed — kept so old saves/refs never crash)
+    let snakeHoles = [];   // (removed — kept so old saves/refs never crash)
+    let bees = [];         // bees visiting flowers: {x, y, heading, state, timer, flower, ...}
     let meerkatHoles = []; // meerkat bolt-holes to dive into {x, y}
     let meerkatHome = null;
     let hogSpots = [];     // savannah grass tiles warthogs can spawn on
@@ -208,7 +209,7 @@
     let mmCanvas = null; // pre-rendered minimap terrain
     const player = { x: 0, y: 0, r: 9, fx: 0, fy: 1, moving: false, running: false, step: 0, vx: 0, vy: 0 };
     let berries = 0, shroomCount = 0, hidden = false, rippleT = 0, eatCd = 0, shroomCd = 0, duckUpT = 0, fishUpT = 0, stuckT = 0;
-    let pondUpT = 0, bunnyUpT = 0, hedgeUpT = 0, hogUpT = 0, owlUpT = 0, meerkatUpT = 0;
+    let pondUpT = 0, bunnyUpT = 0, hedgeUpT = 0, hogUpT = 0, owlUpT = 0, meerkatUpT = 0, snakeUpT = 0, crabUpT = 0, beeUpT = 0;
     const keys = {};
     const touch = { active: false, id: null, sx: 0, sy: 0, dx: 0, dy: 0 };
     const WALK = 220, RUN = 340;
@@ -561,6 +562,7 @@
       warthogs = []; hogSpots = [];
       snowyOwls = []; pineSpots = [];
       meerkats = []; snakes = []; snakeHoles = []; meerkatHoles = []; meerkatHome = null;
+      bees = [];
       regionOf = new Int32Array(WT * HT).fill(-1);
       // small oval groves: a few trees clustered together, mostly open meadow
       const forestBlobs = [];
@@ -911,7 +913,7 @@
             bx, by, heading: rand() * Math.PI * 2,
             state: Math.random() < 0.5 ? 'out' : 'inside',
             timer: 2 + rand() * 10, hop: rand() * 6, moving: false,
-            col: bunCols[(rand() * bunCols.length) | 0], sc: 1, baby: false, snowy: false
+            col: bunCols[(rand() * bunCols.length) | 0], sc: 1, baby: false, snowy: false, age: rand() * 60, fade: 1
           });
         }
       }
@@ -936,7 +938,7 @@
             bx, by, heading: rand() * Math.PI * 2,
             state: Math.random() < 0.5 ? 'out' : 'inside',
             timer: 2 + rand() * 10, hop: rand() * 6, moving: false,
-            col: '#f2f2ee', sc: 1, baby: false, snowy: true
+            col: '#f2f2ee', sc: 1, baby: false, snowy: true, age: rand() * 60, fade: 1
           });
         }
       }
@@ -958,7 +960,7 @@
           state: 'wander', timer: 2 + rand() * 3, moving: false, hop: rand() * 6,
           col: hedgeCols[(rand() * hedgeCols.length) | 0],
           target: null, stump: null, babyT: 20 + rand() * 40,
-          sc: 1, baby: false, mom: null, snowy: false
+          sc: 1, baby: false, mom: null, snowy: false, age: rand() * 60, fade: 1
         });
       }
       // snowy hedgehogs: white frosted friends for the snowy corner
@@ -977,7 +979,7 @@
           state: 'wander', timer: 2 + rand() * 3, moving: false, hop: rand() * 6,
           col: '#eceee9',
           target: null, stump: null, babyT: 20 + rand() * 40,
-          sc: 1, baby: false, mom: null, snowy: true
+          sc: 1, baby: false, mom: null, snowy: true, age: rand() * 60, fade: 1
         });
       }
       // starter babies so you meet families right away: bunnies + hoglets
@@ -989,7 +991,7 @@
             x: momB.x + (rand() - 0.5) * 20, y: momB.y + (rand() - 0.5) * 20,
             bx: momB.bx, by: momB.by, heading: rand() * Math.PI * 2,
             state: 'out', timer: 1, hop: 0, moving: false, sc: 0.55, baby: true,
-            snowy: momB.snowy, col: momB.snowy ? '#f2f2ee' : momB.col
+            snowy: momB.snowy, col: momB.snowy ? '#f2f2ee' : momB.col, age: 0, fade: 1
           });
         }
         const grownHogs = hedgehogs.filter(h => !h.baby);
@@ -999,7 +1001,7 @@
             x: momH.x + (rand() - 0.5) * 20, y: momH.y + (rand() - 0.5) * 20,
             hx: momH.hx, hy: momH.hy, heading: rand() * Math.PI * 2,
             state: 'wander', timer: 2, moving: false, hop: 0, col: momH.col,
-            target: null, stump: null, babyT: 999, sc: 0.5, baby: true, mom: momH, snowy: momH.snowy || false
+            target: null, stump: null, babyT: 999, sc: 0.5, baby: true, mom: momH, snowy: momH.snowy || false, age: 0, fade: 1
           });
         }
       }
@@ -1149,6 +1151,18 @@
         const p = pineSpots[(Math.random() * pineSpots.length) | 0];
         spawnSnowyOwl(p.x, p.y);
       }
+      // bees bobbing between the blooms
+      {
+        let beeTries = 0, beeMade = 0;
+        while (beeMade < 8 && beeTries < 300) {
+          beeTries++;
+          const tx = 3 + ((rand() * (WT - 6)) | 0), ty = 3 + ((rand() * (HT - 6)) | 0);
+          const bi = tidx(tx, ty);
+          if (tiles[bi] !== GRASS || snow[bi] || !clearOfSpawn(tx, ty, 4)) continue;
+          spawnBee((tx + 0.5) * TILE, (ty + 0.5) * TILE);
+          beeMade++;
+        }
+      }
       // meerkat mob: one family of six rooted in the savannah
       if (hogSpots.length) {
         const home = hogSpots[(Math.random() * hogSpots.length) | 0];
@@ -1168,26 +1182,12 @@
           meerkatHoles.push({ x: bx, y: by });
         }
       }
-      // rattlesnake holes spread wide, then 3 snakes that never die
-      {
-        let holeTries = 0;
-        while (snakeHoles.length < 3 && holeTries < 600) {
-          holeTries++;
-          const tx = 3 + ((rand() * (WT - 6)) | 0), ty = 3 + ((rand() * (HT - 6)) | 0);
-          if (tiles[tidx(tx, ty)] !== GRASS || savannah[tidx(tx, ty)] !== 1) continue;
-          if (solidAt((tx + 0.5) * TILE, (ty + 0.5) * TILE)) continue;
-          if (snakeHoles.some(o => Math.hypot(o.x - (tx + 0.5) * TILE, o.y - (ty + 0.5) * TILE) < 150)) continue;
-          if (meerkatHoles.some(o => Math.hypot(o.x - (tx + 0.5) * TILE, o.y - (ty + 0.5) * TILE) < 100)) continue;
-          snakeHoles.push({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE });
-        }
-        for (const sh of snakeHoles) spawnSnake(sh.x, sh.y);
-      }
       player.x = (spawn.x + 0.5) * TILE;
       player.y = (spawn.y + 0.5) * TILE;
       player.vx = 0; player.vy = 0;
       berries = 0; shroomCount = 0; hidden = false;
       eatCd = 0; shroomCd = 0; rippleT = 0; duckUpT = 0; fishUpT = 0; stuckT = 0;
-      pondUpT = 0; bunnyUpT = 12; hedgeUpT = 0; hogUpT = 5; owlUpT = 2; meerkatUpT = 20;
+      pondUpT = 0; bunnyUpT = 12; hedgeUpT = 0; hogUpT = 5; owlUpT = 2; meerkatUpT = 20; snakeUpT = 10; crabUpT = 8; beeUpT = 5;
       shellRespT = 8;
       particles = [];
       buildMinimap();
@@ -1231,7 +1231,7 @@
         state: 'wander', timer: 0.5 + Math.random() * 1.5, resting: true, moving: false, hop: 0,
         stx: -1, sty: -1, mtx: -1, mty: -1, stump: null,
         sc: 1.4 + Math.random() * 0.25, nibT: 0, splashT: 0, muddyT: 0,
-        craveT: 10 + Math.random() * 15, mudT: 8 + Math.random() * 14
+        craveT: 10 + Math.random() * 15, mudT: 8 + Math.random() * 14, age: Math.random() * 60, fade: 1
       });
     }
     // nearest stump with mushrooms for a hog to snack
@@ -1269,7 +1269,8 @@
         timer: 1 + Math.random() * 2, sc: 1.7 + Math.random() * 0.4,
         flap: Math.random() * 10, glideT: Math.random() * 3,
         speed: 50 + Math.random() * 25,
-        prey: null, preySc: 1, gulpT: 0, huntCd: 6 + Math.random() * 10
+        prey: null, preySc: 1, gulpT: 0, huntCd: 6 + Math.random() * 10,
+        age: Math.random() * 60, fade: 1
       });
     }
     // true if another owl is already using this pine (one owl per pine)
@@ -1312,7 +1313,7 @@
         x: x + (Math.random() - 0.5) * 50, y: y + (Math.random() - 0.5) * 50,
         hx: x, hy: y, heading: Math.random() * Math.PI * 2,
         state: 'forage', timer: 1 + Math.random() * 2, moving: false, hop: 0,
-        sc: 0.8 + Math.random() * 0.2, digT: 0
+        sc: 0.8 + Math.random() * 0.2, digT: 0, age: Math.random() * 60, fade: 1
       });
     }
     // a rattlesnake slithering out of its hole: hunts meerkats, never dies
@@ -1323,7 +1324,8 @@
         state: 'slither', timer: 1 + Math.random() * 2,
         sc: 1.2 + Math.random() * 0.3, wig: Math.random() * 10,
         prey: null, biteT: 0, gulpT: 0,
-        huntCd: 6 + Math.random() * 10, homeT: 30 + Math.random() * 30
+        huntCd: 6 + Math.random() * 10, homeT: 30 + Math.random() * 30,
+        age: Math.random() * 60, fade: 1
       });
     }
     // snakes stay on the savannah (grass or mud there)
@@ -1366,6 +1368,53 @@
       return best;
     }
 
+    // a new crab hole on a non-snowy ocean beach (false if beaches are full)
+    function spawnCrabHole(rng) {
+      for (let a = 0; a < 40; a++) {
+        const tx = 2 + ((rng() * (WT - 4)) | 0), ty = 2 + ((rng() * (HT - 4)) | 0);
+        if (tiles[tidx(tx, ty)] !== SAND) continue;
+        if (snow[tidx(tx, ty)]) continue;
+        let shore = false;
+        for (let oy = -1; oy <= 1 && !shore; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            if (!ox && !oy) continue;
+            if (!inTiles(tx + ox, ty + oy)) continue;
+            if (tiles[tidx(tx + ox, ty + oy)] === OCEAN) { shore = true; break; }
+          }
+        }
+        if (!shore) continue;
+        if (crabHoles.some(h => Math.hypot(h.x - (tx + 0.5) * TILE, h.y - (ty + 0.5) * TILE) < 120)) continue;
+        crabHoles.push({
+          x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE,
+          state: 'hidden', timer: 5 + rng() * 20, cx: 0, cy: 0, heading: 0, dartT: 0, pauseT: 0,
+          carrying: null, stash: 0, age: 0, fade: 1
+        });
+        return true;
+      }
+      return false;
+    }
+
+    // a bee out visiting the flowers
+    function spawnBee(x, y) {
+      bees.push({
+        x, y, heading: Math.random() * Math.PI * 2,
+        state: 'fly', timer: 2 + Math.random() * 4, flower: null,
+        speed: 85 + Math.random() * 25, sc: 0.9 + Math.random() * 0.3,
+        wob: Math.random() * 10, age: Math.random() * 60, fade: 1
+      });
+    }
+    // nearest bloom for a bee to visit (or null)
+    function nearestBloom(b) {
+      let best = null, bd = 320 * 320;
+      for (const d of decor) {
+        if (d.kind !== 1 && d.kind !== 5) continue;
+        const dx = d.x - b.x, dy = d.y - b.y;
+        const dd = dx * dx + dy * dy;
+        if (dd < bd) { bd = dd; best = d; }
+      }
+      return best;
+    }
+
     function spawnFish(rng, sea) {
       const spots = sea ? oceanSpots : pondSpots;
       if (!spots.length) return;
@@ -1374,7 +1423,8 @@
         x: (spot[0] + 0.5) * TILE, y: (spot[1] + 0.5) * TILE,
         heading: rng() * Math.PI * 2,
         speed: sea ? 26 + rng() * 22 : 22 + rng() * 18,
-        turn: 0, sea: sea ? 1 : 0, region: sea ? -1 : regionOf[tidx(spot[0], spot[1])]
+        turn: 0, sea: sea ? 1 : 0, region: sea ? -1 : regionOf[tidx(spot[0], spot[1])],
+        age: Math.random() * 60, fade: 1
       });
     }
 
@@ -1394,14 +1444,14 @@
         const tiles2 = pondRegions[r];
         if (!tiles2.length) continue;
         let fish = 0, dk = 0;
-        for (const f of fishes) if (!f.sea && f.region === r) fish++;
+        for (const f of fishes) if (!f.sea && f.region === r && (f.fade === undefined || f.fade >= 1)) fish++;
         for (const d of ducks) if (d.region === r && d.fade >= 1) dk++;
         for (let k = fish; k < 3; k++) {
           const t = tiles2[(Math.random() * tiles2.length) | 0];
           fishes.push({
             x: (t % WT + 0.5) * TILE, y: (((t / WT) | 0) + 0.5) * TILE,
             heading: Math.random() * Math.PI * 2, speed: 22 + Math.random() * 18,
-            turn: 0, sea: 0, region: r
+            turn: 0, sea: 0, region: r, age: 0, fade: 1
           });
         }
         for (let k = dk; k < 2 && ducks.length < 50; k++) {
@@ -1687,8 +1737,20 @@
           if (Math.hypot(player.x - b.x, player.y - b.y) < 12) { hidden = true; break; }
         }
       }
-      // fish wander their waters
-      for (const f of fishes) {
+      // fish wander their waters, living 3 minutes before fading out
+      for (let i = fishes.length - 1; i >= 0; i--) {
+        const f = fishes[i];
+        f.age = (f.age || 0) + dt;
+        if (f.fade === undefined) f.fade = 1;
+        if (f.age > 180) {
+          f.fade -= dt / 4;
+          if (f.fade <= 0) {
+            // a hunted fish stays for the catch
+            if (ducks.some(d => d.hunting === f)) { f.fade = 0.05; continue; }
+            fishes.splice(i, 1);
+            continue;
+          }
+        }
         f.turn += (Math.random() - 0.5) * 3 * dt;
         f.heading += f.turn * dt;
         f.turn *= (1 - dt);
@@ -2051,7 +2113,7 @@
         while (pond < 35) { spawnFish(Math.random, false); pond++; }
         while (ocean < 67) { spawnFish(Math.random, true); ocean++; }
       }
-      // crabs: hide, dart out to grab a shell, scuttle home to stash it in the burrow
+      // shells wash up on the beaches for crabs to haul home
       shellRespT -= dt;
       if (shellRespT <= 0) {
         shellRespT = 8;
@@ -2073,7 +2135,25 @@
           }
         }
       }
-      for (const h of crabHoles) {
+      // crabs live 3 minutes, then fade; new holes keep the beaches at 18
+      for (let hi = crabHoles.length - 1; hi >= 0; hi--) {
+        const h = crabHoles[hi];
+        h.age = (h.age || 0) + dt;
+        if (h.fade === undefined) h.fade = 1;
+        if (h.age > 180) {
+          h.fade -= dt / 4;
+          if (h.fade <= 0) {
+            // free its shells back to the beach
+            for (const s of shells) {
+              if (s.carrier === h) { s.state = 'loose'; s.carrier = null; s.x = h.cx; s.y = h.cy; }
+              else if (s.state === 'stored' && Math.hypot(s.hx - h.x, s.hy - h.y) < 40) {
+                s.state = 'loose'; s.x = s.hx; s.y = s.hy;
+              }
+            }
+            crabHoles.splice(hi, 1);
+            continue;
+          }
+        }
         h.timer -= dt;
         if (h.state === 'hidden') {
           if (h.timer <= 0) {
@@ -2140,9 +2220,25 @@
             }
           }
         } else {
+          // scuttle home along the sand — never through water
           const dx = h.x - h.cx, dy = h.y - h.cy;
-          const d = Math.hypot(dx, dy);
-          if (d < 5) {
+          const d = Math.hypot(dx, dy) || 1;
+          h.heading = Math.atan2(dy, dx);
+          const step = Math.min(d, 170 * dt);
+          const dry = (x, y) => { const tt = tileAtPx(x, y); return tt !== WATER && tt !== OCEAN; };
+          const nx = h.cx + Math.cos(h.heading) * step;
+          const ny = h.cy + Math.sin(h.heading) * step;
+          let moved = false;
+          if (dry(nx, h.cy)) { h.cx = nx; moved = true; }
+          if (dry(h.cx, ny)) { h.cy = ny; moved = true; }
+          if (!moved) {
+            // sidestep along the shore instead of swimming
+            const sa = h.heading + Math.PI / 2;
+            const sx = h.cx + Math.cos(sa) * step, sy = h.cy + Math.sin(sa) * step;
+            if (dry(sx, h.cy)) h.cx = sx;
+            if (dry(h.cx, sy)) h.cy = sy;
+          }
+          if (Math.hypot(h.x - h.cx, h.y - h.cy) < 5) {
             if (h.carrying) {
               // stash the shell in a ring around the burrow mouth
               const s = h.carrying;
@@ -2158,21 +2254,29 @@
             }
             h.state = 'hidden'; h.timer = 10 + Math.random() * 22;
           }
-          else {
-            h.heading = Math.atan2(dy, dx);
-            h.cx += (dx / d) * 170 * dt;
-            h.cy += (dy / d) * 170 * dt;
-          }
         }
+      }
+      // new crab holes keep the beaches at 18
+      crabUpT -= dt;
+      if (crabUpT <= 0) {
+        crabUpT = 8;
+        for (let k = 0; k < 3 && crabHoles.length < 18; k++) spawnCrabHole(Math.random);
       }
       // duck business melts away after 30 seconds
       for (let i = poos.length - 1; i >= 0; i--) {
         poos[i].age += dt;
         if (poos[i].age > 30) poos.splice(i, 1);
       }
-      // bunnies: hop-hop-nibble by home, dive inside if you get close
-      for (const bn of bunnies) {
+      // bunnies live 3 minutes, then fade and are replaced by babies
+      for (let bi = bunnies.length - 1; bi >= 0; bi--) {
+        const bn = bunnies[bi];
         if (bn.state === 'caught') continue; // dangling in an owl's talons
+        bn.age = (bn.age || 0) + dt;
+        if (bn.fade === undefined) bn.fade = 1;
+        if (bn.age > 180 && !bn.baby) {
+          bn.fade -= dt / 4;
+          if (bn.fade <= 0) { bunnies.splice(bi, 1); continue; }
+        }
         bn.timer -= dt;
         if (bn.state === 'inside') {
           if (bn.timer <= 0) {
@@ -2188,7 +2292,7 @@
         // babies stay close to home and grow up
         if (bn.baby) {
           bn.sc = Math.min(1, bn.sc + dt * 0.45 / 75);
-          if (bn.sc >= 1) bn.baby = false;
+          if (bn.sc >= 1) { bn.baby = false; bn.age = 0; }
         }
         const roam = bn.baby ? 80 : 220;
         const spd = bn.baby ? 70 : 95;
@@ -2224,23 +2328,33 @@
       // baby bunnies pop up at roomy burrows and grow up outside
       bunnyUpT -= dt;
       if (bunnyUpT <= 0) {
-        bunnyUpT = 22;
+        bunnyUpT = 12;
         if (bunnies.length < 44) {
           const roomy = burrows.filter(br => bunnies.filter(b => b.bx === br.x && b.by === br.y).length < 4);
           const home = roomy[(Math.random() * roomy.length) | 0];
           if (home) {
             const snowyHome = home.snowy || false;
+            // few grown-ups left: hop in two adults, not just babies
+            const grown = bunnies.filter(b => !b.baby).length;
+            const baby = grown < 10 && Math.random() < 0.6 ? false : true;
             bunnies.push({
               x: home.x + (Math.random() - 0.5) * 20, y: home.y + (Math.random() - 0.5) * 20,
               bx: home.x, by: home.y, heading: Math.random() * Math.PI * 2,
-              state: 'out', timer: 1, hop: 0, moving: false, sc: 0.55, baby: true,
-              snowy: snowyHome, col: snowyHome ? '#f2f2ee' : ['#9aa0a6', '#8a6f4d', '#c9b18a'][(Math.random() * 3) | 0]
+              state: 'out', timer: 1, hop: 0, moving: false, sc: baby ? 0.55 : 1, baby,
+              snowy: snowyHome, col: snowyHome ? '#f2f2ee' : ['#9aa0a6', '#8a6f4d', '#c9b18a'][(Math.random() * 3) | 0], age: 0, fade: 1
             });
           }
         }
       }
-      // hedgehogs: waddle the forest, snack mushrooms, nap on stumps
-      for (const hg of hedgehogs) {
+      // hedgehogs live 3 minutes, then fade and are replaced
+      for (let hi = hedgehogs.length - 1; hi >= 0; hi--) {
+        const hg = hedgehogs[hi];
+        hg.age = (hg.age || 0) + dt;
+        if (hg.fade === undefined) hg.fade = 1;
+        if (hg.age > 180 && !hg.baby) {
+          hg.fade -= dt / 4;
+          if (hg.fade <= 0) { hedgehogs.splice(hi, 1); continue; }
+        }
         hg.timer -= dt;
         if (hg.baby) {
           // hoglets trail their parent and grow up
@@ -2251,6 +2365,7 @@
             hg.hx = hg.x; hg.hy = hg.y;
             hg.timer = 2;
             hg.moving = false;
+            hg.age = 0;
           } else if (hg.mom && hedgehogs.includes(hg.mom)) {
             const tx = hg.mom.x - Math.cos(hg.mom.heading) * 20, ty = hg.mom.y - Math.sin(hg.mom.heading) * 20;
             if (Math.hypot(tx - hg.x, ty - hg.y) > 14) walkTo(hg, tx, ty, 34, dt);
@@ -2332,25 +2447,46 @@
           else hg.heading -= Math.PI / 2;
         }
       }
-      // hoglet arrivals: grown-ups get followed
+      // hoglet arrivals: grown-ups get followed; fresh adults move in when few remain
       hedgeUpT -= dt;
       if (hedgeUpT <= 0) {
         hedgeUpT = 20;
         if (hedgehogs.length < 26) {
           const adults = hedgehogs.filter(h => !h.baby);
+          if (adults.length < 4 && hedgehogs.length) {
+            // a newcomer settles near an existing home
+            const f = hedgehogs[(Math.random() * hedgehogs.length) | 0];
+            const snowyHome = f.snowy || snow[tidx(Math.floor(f.hx / TILE), Math.floor(f.hy / TILE))] === 1;
+            hedgehogs.push({
+              x: f.hx + (Math.random() - 0.5) * 40, y: f.hy + (Math.random() - 0.5) * 40,
+              hx: f.hx, hy: f.hy, heading: Math.random() * Math.PI * 2,
+              state: 'wander', timer: 2, moving: false, hop: 0,
+              col: snowyHome ? '#eceee9' : ['#8a6f4d', '#6e5739', '#a08458'][(Math.random() * 3) | 0],
+              target: null, stump: null, babyT: 20 + Math.random() * 40,
+              sc: 1, baby: false, mom: null, snowy: snowyHome, age: 0, fade: 1
+            });
+          } else {
           const mom = adults[(Math.random() * adults.length) | 0];
           if (mom) {
             hedgehogs.push({
               x: mom.x + (Math.random() - 0.5) * 20, y: mom.y + (Math.random() - 0.5) * 20,
               hx: mom.hx, hy: mom.hy, heading: Math.random() * Math.PI * 2,
               state: 'wander', timer: 2, moving: false, hop: 0, col: mom.col,
-              target: null, stump: null, babyT: 999, sc: 0.5, baby: true, mom, findT: 0, snowy: mom.snowy || false
+              target: null, stump: null, babyT: 999, sc: 0.5, baby: true, mom, findT: 0, snowy: mom.snowy || false, age: 0, fade: 1
             });
+          }
           }
         }
       }
-      // warthogs: trot the savannah, snack mushrooms, wallow in mud
-      for (const wt of warthogs) {
+      // warthogs live 3 minutes, then fade and are replaced
+      for (let wi = warthogs.length - 1; wi >= 0; wi--) {
+        const wt = warthogs[wi];
+        wt.age = (wt.age || 0) + dt;
+        if (wt.fade === undefined) wt.fade = 1;
+        if (wt.age > 180) {
+          wt.fade -= dt / 4;
+          if (wt.fade <= 0) { warthogs.splice(wi, 1); continue; }
+        }
         if (wt.muddyT > 0) wt.muddyT -= dt;
         if (wt.state === 'wander') {
           wt.timer -= dt; wt.craveT -= dt; wt.mudT -= dt;
@@ -2451,9 +2587,16 @@
         hogUpT = 5;
         while (warthogs.length < 10 && hogSpots.length) spawnWarthog(warthogs.length);
       }
-      // meerkats: forage and dig around home, one sentry standing tall
-      for (const mk of meerkats) {
+      // meerkats live 3 minutes, then fade and are replaced
+      for (let mi = meerkats.length - 1; mi >= 0; mi--) {
+        const mk = meerkats[mi];
         if (mk.state === 'caught') continue; // jaws of a snake — the snake steers
+        mk.age = (mk.age || 0) + dt;
+        if (mk.fade === undefined) mk.fade = 1;
+        if (mk.age > 180) {
+          mk.fade -= dt / 4;
+          if (mk.fade <= 0) { meerkats.splice(mi, 1); continue; }
+        }
         // snake about? dive for the nearest bolt-hole!
         if ((mk.state === 'forage' || mk.state === 'sentry') && meerkatHoles.length) {
           let scary = null, sd = 120 * 120;
@@ -2559,8 +2702,64 @@
         meerkatUpT = 30;
         if (meerkats.length < 6 && meerkatHome) spawnMeerkat(meerkatHome.x, meerkatHome.y);
       }
-      // rattlesnakes: slither the savannah, nap at home, hunt meerkats
-      for (const sn of snakes) {
+      // bees live 3 minutes, then fade and are replaced; they bob between blooms
+      for (let ei = bees.length - 1; ei >= 0; ei--) {
+        const b = bees[ei];
+        b.age = (b.age || 0) + dt;
+        if (b.fade === undefined) b.fade = 1;
+        if (b.age > 180) {
+          b.fade -= dt / 4;
+          if (b.fade <= 0) { bees.splice(ei, 1); continue; }
+        }
+        b.wob += dt * 7;
+        b.timer -= dt;
+        if (b.state === 'sit') {
+          if (b.timer <= 0) { b.state = 'fly'; b.timer = 3 + Math.random() * 4; b.flower = null; }
+        } else if (b.state === 'toFlower') {
+          const fl = b.flower;
+          if (!fl || !decor.includes(fl)) { b.state = 'fly'; b.timer = 2 + Math.random() * 3; }
+          else {
+            b.heading = Math.atan2(fl.y - b.y, fl.x - b.x);
+            const dx = fl.x - b.x, dy = fl.y - b.y;
+            if (dx * dx + dy * dy < 8 * 8) {
+              b.state = 'sit'; b.timer = 2 + Math.random() * 2.5;
+            } else {
+              b.x += Math.cos(b.heading) * b.speed * dt;
+              b.y += Math.sin(b.heading) * b.speed * dt;
+            }
+          }
+        } else {
+          if (b.timer <= 0) {
+            b.timer = 4 + Math.random() * 5;
+            const fl = nearestBloom(b);
+            if (fl) { b.flower = fl; b.state = 'toFlower'; }
+            else b.heading = Math.random() * Math.PI * 2;
+          }
+          b.heading += Math.sin(b.wob) * 1.8 * dt;
+          const worldW = WT * TILE, worldH = HT * TILE;
+          b.x = Math.max(10, Math.min(worldW - 10, b.x + Math.cos(b.heading) * b.speed * dt));
+          b.y = Math.max(10, Math.min(worldH - 10, b.y + Math.sin(b.heading) * b.speed * dt));
+        }
+      }
+      beeUpT -= dt;
+      if (beeUpT <= 0) {
+        beeUpT = 8;
+        if (bees.length < 8) {
+          const tx = 3 + ((Math.random() * (WT - 6)) | 0), ty = 3 + ((Math.random() * (HT - 6)) | 0);
+          if (tiles[tidx(tx, ty)] === GRASS) spawnBee((tx + 0.5) * TILE, (ty + 0.5) * TILE);
+        }
+      }
+      // rattlesnakes live 3 minutes, then fade and are replaced (never mid-meal)
+      for (let si = snakes.length - 1; si >= 0; si--) {
+        const sn = snakes[si];
+        if (sn.state !== 'hunt' && sn.state !== 'bite' && sn.state !== 'gulp') {
+          sn.age = (sn.age || 0) + dt;
+          if (sn.fade === undefined) sn.fade = 1;
+          if (sn.age > 180) {
+            sn.fade -= dt / 4;
+            if (sn.fade <= 0) { snakes.splice(si, 1); continue; }
+          }
+        }
         sn.wig += dt * 9;
         if (sn.state === 'slither') {
           sn.timer -= dt; sn.huntCd -= dt; sn.homeT -= dt;
@@ -2652,8 +2851,31 @@
           if (sn.timer <= 0) { sn.state = 'slither'; sn.timer = 1 + Math.random() * 2; }
         }
       }
-      // snowy owls: flap+glide over the snow, perch on pines, snatch bunnies
-      for (const ow of snowyOwls) {
+      // the den holds 3 snakes (replacements slide out of a burrow)
+      snakeUpT -= dt;
+      if (snakeUpT <= 0) {
+        snakeUpT = 10;
+        if (snakes.length < 3 && snakeHoles.length) {
+          const sh = snakeHoles[(Math.random() * snakeHoles.length) | 0];
+          spawnSnake(sh.x, sh.y);
+        }
+      }
+      // snowy owls live 3 minutes, then fade and are replaced
+      for (let oi = snowyOwls.length - 1; oi >= 0; oi--) {
+        const ow = snowyOwls[oi];
+        ow.age = (ow.age || 0) + dt;
+        if (ow.fade === undefined) ow.fade = 1;
+        if (ow.age > 180) {
+          ow.fade -= dt / 4;
+          if (ow.fade <= 0) {
+            // let go of any bunny on the way out
+            if (ow.prey && bunnies.includes(ow.prey)) {
+              ow.prey.state = 'out'; ow.prey.sc = ow.preySc || ow.prey.sc; ow.prey.timer = 1;
+            }
+            snowyOwls.splice(oi, 1);
+            continue;
+          }
+        }
         if (ow.state === 'perch') {
           ow.flap += dt * 1.5;
           ow.timer -= dt;
@@ -3244,6 +3466,7 @@
         const x = f.x - camX, y = f.y - camY;
         const wig = Math.sin(t * 8 + f.x * 0.1) * 0.25;
         ctx.save();
+        ctx.globalAlpha = Math.max(0, f.fade === undefined ? 1 : f.fade);
         ctx.translate(x, y);
         ctx.rotate(f.heading + wig * 0.3);
         ctx.fillStyle = f.sea ? 'rgba(10, 40, 80, 0.8)' : 'rgba(30, 70, 110, 0.8)';
@@ -3558,6 +3781,8 @@
       // crabs: sideways scuttlers that haul shells home, claws + legs + eye stalks
       for (const h of crabHoles) {
         const hx = h.x - camX, hy = h.y - camY;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, h.fade === undefined ? 1 : h.fade);
         if (vis(h.x, h.y)) {
           ctx.fillStyle = 'rgba(90, 60, 30, 0.8)';
           ctx.beginPath();
@@ -3638,6 +3863,7 @@
             ctx.stroke();
           }
         }
+        ctx.restore();
       }
       // burrows + bunnies
       for (const br of burrows) {
@@ -3693,6 +3919,7 @@
         const x = bn.x - camX, y = bn.y - camY;
         const hoppy = bn.moving ? Math.abs(Math.sin(bn.hop)) * 3 : Math.sin(t * 2 + bn.x) * 0.6;
         ctx.save();
+        ctx.globalAlpha = Math.max(0, bn.fade === undefined ? 1 : bn.fade);
         ctx.translate(x, y - hoppy * 0.4);
         ctx.rotate(bn.heading);
         ctx.scale(bn.sc || 1, bn.sc || 1);
@@ -3765,6 +3992,8 @@
         const rimC = frosty ? '#c2c7c2' : '#6e5739';
         const dashC = frosty ? '#9aa0a6' : '#5b3a1e';
         const faceC = frosty ? '#f6f6f3' : '#c9a86a';
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, hg.fade === undefined ? 1 : hg.fade);
         if (hg.state === 'sleep') {
           // curled ball with sleepy zeees
           ctx.fillStyle = 'rgba(0,0,0,0.18)';
@@ -3796,6 +4025,7 @@
           ctx.font = '900 10px Segoe UI, Arial, sans-serif';
           ctx.fillText('z', x + 8, y - 8 - Math.sin(t * 2) * 2);
           ctx.fillText('Z', x + 13, y - 14 - Math.sin(t * 2 + 1) * 2);
+          ctx.restore();
           continue;
         }
         const wob = hg.moving ? Math.abs(Math.sin(hg.hop)) * 1.5 : Math.sin(t * 2 + hg.x) * 0.5;
@@ -3879,6 +4109,7 @@
           ctx.stroke();
         }
         ctx.restore();
+        ctx.restore();
       }
       // warthogs: big grey-brown bodies, mane ridge, snout, tusks, curly tail
       for (const wt of warthogs) {
@@ -3886,6 +4117,7 @@
         const x = wt.x - camX, y = wt.y - camY;
         const sc = wt.sc || 1;
         ctx.save();
+        ctx.globalAlpha = Math.max(0, wt.fade === undefined ? 1 : wt.fade);
         ctx.translate(x, y);
         ctx.rotate(wt.heading);
         const trotting = wt.moving && (wt.state === 'wander' || wt.state === 'toFood' || wt.state === 'toMud');
@@ -4009,6 +4241,7 @@
         if (mk.state === 'sentry') {
           const scan = Math.sin(t * 1.5 + mk.x * 0.1) * 0.15;
           ctx.save();
+          ctx.globalAlpha = Math.max(0, mk.fade === undefined ? 1 : mk.fade);
           ctx.translate(x, y);
           ctx.rotate(mk.heading * 0.15 + scan * 0.2);
           ctx.fillStyle = 'rgba(0,0,0,0.2)';
@@ -4076,6 +4309,7 @@
         }
         const wob = mk.moving ? Math.abs(Math.sin(mk.hop)) * 1.5 : Math.sin(t * 2 + mk.x) * 0.5;
         ctx.save();
+        ctx.globalAlpha = Math.max(0, mk.fade === undefined ? 1 : mk.fade);
         ctx.translate(x, y - wob * 0.3);
         ctx.rotate(mk.heading);
         ctx.scale(sc, sc);
@@ -4152,6 +4386,8 @@
         const sc = sn.sc || 1.2;
         const moving = sn.state === 'slither' || sn.state === 'hunt';
         const gulping = sn.state === 'gulp' ? Math.max(0, sn.gulpT / 2.5) : 0;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, sn.fade === undefined ? 1 : sn.fade);
         if (sn.state === 'sleep') {
           const br = 1 + Math.sin(t * 2) * 0.03;
           ctx.save();
@@ -4180,6 +4416,7 @@
           ctx.beginPath();
           ctx.ellipse(-5 * sc, 4 * sc, 1.8 * sc, 1.2 * sc, 0.7, 0, Math.PI * 2);
           ctx.fill();
+          ctx.restore();
           ctx.restore();
           continue;
         }
@@ -4253,6 +4490,47 @@
           ctx.lineTo(8 * sc + tl, 0);
           ctx.stroke();
         }
+        ctx.restore();
+        ctx.restore();
+      }
+      // bees: stripey bobs with blurry wings, sipping at blooms
+      for (const b of bees) {
+        if (!vis(b.x, b.y)) continue;
+        const x = b.x - camX, y = b.y - camY + Math.sin(t * 9 + b.wob) * 1.5;
+        const sc = b.sc || 1;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, b.fade === undefined ? 1 : b.fade);
+        ctx.translate(x, y);
+        ctx.rotate(b.heading);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(-1 * sc, 2 * sc, 3.5 * sc, 1.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // wings a-blur
+        const flap = 0.6 + 0.4 * Math.sin(t * 40 + b.wob);
+        ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        ctx.beginPath();
+        ctx.ellipse(0, -2.5 * sc, 2.6 * sc, (0.8 + flap) * sc, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, 2.5 * sc, 2.6 * sc, (0.8 + flap) * sc, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        // stripey gold body
+        ctx.fillStyle = '#f2c531';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 3.6 * sc, 2.4 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#3a2a18';
+        ctx.beginPath();
+        ctx.ellipse(-0.5 * sc, 0, 1 * sc, 2.4 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-2.5 * sc, 0, 0.9 * sc, 2.1 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(3.4 * sc, 0, 1.1 * sc, 0, Math.PI * 2);
+        ctx.fill();
         ctx.restore();
       }
       // player: round blue explorer with eyes on the prize
@@ -4413,6 +4691,7 @@
         const wing = Math.sin(ow.flap || 0);
         const roosting = ow.state === 'perch' || ow.state === 'eat';
         ctx.save();
+        ctx.globalAlpha = Math.max(0, ow.fade === undefined ? 1 : ow.fade);
         ctx.translate(x, y);
         if (roosting) {
           ctx.fillStyle = 'rgba(0,0,0,0.25)';
