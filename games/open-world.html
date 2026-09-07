@@ -781,8 +781,6 @@
           const sx = h.x + Math.cos(a) * rr, sy = h.y + Math.sin(a) * rr;
           const stx = Math.floor(sx / TILE), sty = Math.floor(sy / TILE);
           if (!inTiles(stx, sty)) continue;
-          const st = tiles[tidx(stx, sty)];
-          if (st === WATER || st === OCEAN) continue;
           dropShell(sx, sy);
         }
       }
@@ -1413,6 +1411,12 @@
         if (dd < bd) { bd = dd; best = d; }
       }
       return best;
+    }
+
+    // true if a crab is on dryish ground (they paddle slower through water)
+    function crabDry(x, y) {
+      const tt = tileAtPx(x, y);
+      return tt !== WATER && tt !== OCEAN;
     }
 
     function spawnFish(rng, sea) {
@@ -2126,8 +2130,6 @@
             const sx = h0.x + Math.cos(a) * rr, sy = h0.y + Math.sin(a) * rr;
             const stx = Math.floor(sx / TILE), sty = Math.floor(sy / TILE);
             if (!inTiles(stx, sty)) continue;
-            const st = tiles[tidx(stx, sty)];
-            if (st === WATER || st === OCEAN) continue;
             if (shells.some(s => s.state === 'loose' && Math.hypot(s.x - sx, s.y - sy) < 14)) continue;
             if (shells.length > 220) break;
             const tints = ['#ffffff', '#f7cad9', '#ffe5b4', '#ffd6e0'];
@@ -2185,11 +2187,15 @@
                 h.state = 'return';
                 puff(h.cx, h.cy - 6, '#ffffff', 5);
               } else {
+                // paddle or waddle to it — slow in water, never off-map
                 h.heading = Math.atan2(dy, dx);
-                const nx4 = h.cx + Math.cos(h.heading) * 150 * dt;
-                const ny4 = h.cy + Math.sin(h.heading) * 150 * dt;
+                const wading = !crabDry(h.cx, h.cy);
+                const spd = wading ? 75 : 150;
+                const nx4 = h.cx + Math.cos(h.heading) * spd * dt;
+                const ny4 = h.cy + Math.sin(h.heading) * spd * dt;
                 const nd = Math.hypot(nx4 - h.x, ny4 - h.y);
-                if (tileAtPx(nx4, ny4) !== WATER && tileAtPx(nx4, ny4) !== OCEAN && nd < 140) {
+                const ntx = Math.floor(nx4 / TILE), nty = Math.floor(ny4 / TILE);
+                if (inTiles(ntx, nty) && nd < 140) {
                   h.cx = nx4; h.cy = ny4;
                 } else {
                   h.heading = Math.atan2(dy, dx) + (Math.random() - 0.5) * 1.5;
@@ -2209,9 +2215,10 @@
                 const hd = Math.hypot(hx, hy);
                 if (hd > 95) h.heading += angDiff(Math.atan2(hy, hx), h.heading) * 0.12;
               }
-              const nx4 = h.cx + Math.cos(h.heading) * 150 * dt;
-              const ny4 = h.cy + Math.sin(h.heading) * 150 * dt;
-              if (tileAtPx(nx4, ny4) !== WATER && tileAtPx(nx4, ny4) !== OCEAN && Math.hypot(nx4 - h.x, ny4 - h.y) < 140) {
+              const nx4 = h.cx + Math.cos(h.heading) * (crabDry(h.cx, h.cy) ? 150 : 75) * dt;
+              const ny4 = h.cy + Math.sin(h.heading) * (crabDry(h.cx, h.cy) ? 150 : 75) * dt;
+              const ntx = Math.floor(nx4 / TILE), nty = Math.floor(ny4 / TILE);
+              if (inTiles(ntx, nty) && Math.hypot(nx4 - h.x, ny4 - h.y) < 140) {
                 h.cx = nx4; h.cy = ny4;
               } else {
                 h.heading = Math.random() * Math.PI * 2;
@@ -2220,12 +2227,12 @@
             }
           }
         } else {
-          // scuttle home along the sand — never through water
+          // scuttle home over sand and surf — slow paddle through water
           const dx = h.x - h.cx, dy = h.y - h.cy;
           const d = Math.hypot(dx, dy) || 1;
           h.heading = Math.atan2(dy, dx);
-          const step = Math.min(d, 170 * dt);
-          const dry = (x, y) => { const tt = tileAtPx(x, y); return tt !== WATER && tt !== OCEAN; };
+          const step = Math.min(d, (crabDry(h.cx, h.cy) ? 170 : 85) * dt);
+          const dry = (x, y) => inTiles(Math.floor(x / TILE), Math.floor(y / TILE));
           const nx = h.cx + Math.cos(h.heading) * step;
           const ny = h.cy + Math.sin(h.heading) * step;
           let moved = false;
