@@ -195,6 +195,10 @@
     let snowyOwls = [];    // snowy owls roaming the snowfields: {x, y, heading, state, perch, ...}
     let pineSpots = [];    // pine trees owls can perch on
     let meerkats = [];     // savannah meerkat mob: {x, y, hx, hy, heading, state, timer, ...}
+    let snakes = [];       // savannah rattlesnakes hunting meerkats (never die)
+    let snakeHoles = [];   // snake burrows to sleep in {x, y}
+    let meerkatHoles = []; // meerkat bolt-holes to dive into {x, y}
+    let meerkatHome = null;
     let hogSpots = [];     // savannah grass tiles warthogs can spawn on
     let lilypads = [];     // floating pads on lake + ocean: {x, y, r, flower, phase}
     let pondRegions = [];  // connected open-water areas (fish + ducks each)
@@ -204,7 +208,7 @@
     let mmCanvas = null; // pre-rendered minimap terrain
     const player = { x: 0, y: 0, r: 9, fx: 0, fy: 1, moving: false, running: false, step: 0, vx: 0, vy: 0 };
     let berries = 0, shroomCount = 0, hidden = false, rippleT = 0, eatCd = 0, shroomCd = 0, duckUpT = 0, fishUpT = 0;
-    let pondUpT = 0, bunnyUpT = 0, hedgeUpT = 0, hogUpT = 0, owlUpT = 0;
+    let pondUpT = 0, bunnyUpT = 0, hedgeUpT = 0, hogUpT = 0, owlUpT = 0, meerkatUpT = 0;
     const keys = {};
     const touch = { active: false, id: null, sx: 0, sy: 0, dx: 0, dy: 0 };
     const WALK = 220, RUN = 340;
@@ -466,7 +470,7 @@
       }
       // savannah bottom-left: yellow ground, pond water turns to mud; animals may wander in
       {
-        const dx0 = 42, dy0 = 198, drx = 48, dry = 42;
+        const dx0 = 45, dy0 = 200, drx = 62, dry = 54;
         for (let yy = 0; yy < HT; yy++) {
           for (let xx = 0; xx < WT; xx++) {
             const ex = (xx - dx0) / drx, ey = (yy - dy0) / dry;
@@ -556,7 +560,7 @@
       hedgehogs = []; lilypads = []; pondRegions = [];
       warthogs = []; hogSpots = [];
       snowyOwls = []; pineSpots = [];
-      meerkats = [];
+      meerkats = []; snakes = []; snakeHoles = []; meerkatHoles = []; meerkatHome = null;
       regionOf = new Int32Array(WT * HT).fill(-1);
       // small oval groves: a few trees clustered together, mostly open meadow
       const forestBlobs = [];
@@ -1145,22 +1149,45 @@
         const p = pineSpots[(Math.random() * pineSpots.length) | 0];
         spawnSnowyOwl(p.x, p.y);
       }
-      // meerkat mob: one family rooted in the savannah, paired up as buddies
+      // meerkat mob: one family of six rooted in the savannah
       if (hogSpots.length) {
         const home = hogSpots[(Math.random() * hogSpots.length) | 0];
         const hx = (home % WT + 0.5) * TILE, hy = (((home / WT) | 0) + 0.5) * TILE;
+        meerkatHome = { x: hx, y: hy };
         for (let k = 0; k < 6; k++) spawnMeerkat(hx, hy);
-        for (let k = 0; k + 1 < meerkats.length; k += 2) {
-          meerkats[k].buddy = meerkats[k + 1];
-          meerkats[k + 1].buddy = meerkats[k];
+        // bolt-holes near home to dive into when snakes come
+        let boltTries = 0;
+        while (meerkatHoles.length < 2 && boltTries < 200) {
+          boltTries++;
+          const a = Math.random() * Math.PI * 2, rr = 90 + Math.random() * 60;
+          const bx = hx + Math.cos(a) * rr, by = hy + Math.sin(a) * rr;
+          const btx = Math.floor(bx / TILE), bty = Math.floor(by / TILE);
+          if (!inTiles(btx, bty) || tiles[tidx(btx, bty)] !== GRASS || savannah[tidx(btx, bty)] !== 1) continue;
+          if (solidAt(bx, by)) continue;
+          if (meerkatHoles.some(o => Math.hypot(o.x - bx, o.y - by) < 120)) continue;
+          meerkatHoles.push({ x: bx, y: by });
         }
+      }
+      // rattlesnake holes spread wide, then 3 snakes that never die
+      {
+        let holeTries = 0;
+        while (snakeHoles.length < 3 && holeTries < 600) {
+          holeTries++;
+          const tx = 3 + ((rand() * (WT - 6)) | 0), ty = 3 + ((rand() * (HT - 6)) | 0);
+          if (tiles[tidx(tx, ty)] !== GRASS || savannah[tidx(tx, ty)] !== 1) continue;
+          if (solidAt((tx + 0.5) * TILE, (ty + 0.5) * TILE)) continue;
+          if (snakeHoles.some(o => Math.hypot(o.x - (tx + 0.5) * TILE, o.y - (ty + 0.5) * TILE) < 150)) continue;
+          if (meerkatHoles.some(o => Math.hypot(o.x - (tx + 0.5) * TILE, o.y - (ty + 0.5) * TILE) < 100)) continue;
+          snakeHoles.push({ x: (tx + 0.5) * TILE, y: (ty + 0.5) * TILE });
+        }
+        for (const sh of snakeHoles) spawnSnake(sh.x, sh.y);
       }
       player.x = (spawn.x + 0.5) * TILE;
       player.y = (spawn.y + 0.5) * TILE;
       player.vx = 0; player.vy = 0;
       berries = 0; shroomCount = 0; hidden = false;
       eatCd = 0; shroomCd = 0; rippleT = 0; duckUpT = 0; fishUpT = 0;
-      pondUpT = 0; bunnyUpT = 12; hedgeUpT = 0; hogUpT = 5; owlUpT = 2;
+      pondUpT = 0; bunnyUpT = 12; hedgeUpT = 0; hogUpT = 5; owlUpT = 2; meerkatUpT = 20;
       shellRespT = 8;
       particles = [];
       buildMinimap();
@@ -1285,8 +1312,58 @@
         x: x + (Math.random() - 0.5) * 50, y: y + (Math.random() - 0.5) * 50,
         hx: x, hy: y, heading: Math.random() * Math.PI * 2,
         state: 'forage', timer: 1 + Math.random() * 2, moving: false, hop: 0,
-        sc: 0.8 + Math.random() * 0.2, digT: 0, buddy: null
+        sc: 0.8 + Math.random() * 0.2, digT: 0
       });
+    }
+    // a rattlesnake slithering out of its hole: hunts meerkats, never dies
+    function spawnSnake(x, y) {
+      snakes.push({
+        x: x + (Math.random() - 0.5) * 16, y: y + (Math.random() - 0.5) * 16,
+        heading: Math.random() * Math.PI * 2,
+        state: 'slither', timer: 1 + Math.random() * 2,
+        sc: 1.2 + Math.random() * 0.3, wig: Math.random() * 10,
+        prey: null, biteT: 0, gulpT: 0,
+        huntCd: 6 + Math.random() * 10, homeT: 30 + Math.random() * 30
+      });
+    }
+    // snakes stay on the savannah (grass or mud there)
+    function snakeBlocked(x, y) {
+      const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
+      if (!inTiles(tx, ty)) return true;
+      const ti = tidx(tx, ty);
+      const tt = tiles[ti];
+      if (tt !== GRASS && tt !== MUD) return true;
+      if (savannah[ti] !== 1) return true;
+      return solidAt(x, y);
+    }
+    // nearest catchable meerkat (foraging, sentry or fleeing — not hidden or held)
+    function nearestMeerkat(sn, maxDist) {
+      let best = null, bd = maxDist * maxDist;
+      for (const mk of meerkats) {
+        if (mk.state === 'hide' || mk.state === 'caught') continue;
+        const dx = mk.x - sn.x, dy = mk.y - sn.y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = mk; }
+      }
+      return best;
+    }
+    function nearestSnakeHole(sn) {
+      let best = null, bd = 1e12;
+      for (const sh of snakeHoles) {
+        const dx = sh.x - sn.x, dy = sh.y - sn.y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = sh; }
+      }
+      return best;
+    }
+    function nearestMeerkatHole(mk) {
+      let best = null, bd = 1e12;
+      for (const mh of meerkatHoles) {
+        const dx = mh.x - mk.x, dy = mh.y - mk.y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = mh; }
+      }
+      return best;
     }
 
     function spawnFish(rng, sea) {
@@ -2275,7 +2352,7 @@
             // homesick outside the savannah: drift back toward it
             const wti = tidx(Math.floor(wt.x / TILE), Math.floor(wt.y / TILE));
             if (savannah[wti] !== 1) {
-              const hx = 42 * TILE - wt.x, hy = 198 * TILE - wt.y;
+              const hx = 45 * TILE - wt.x, hy = 200 * TILE - wt.y;
               wt.heading += angDiff(Math.atan2(hy, hx), wt.heading) * 0.08;
             }
             if (!hogStep(wt, 62, dt)) {
@@ -2349,6 +2426,53 @@
       }
       // meerkats: forage and dig around home, one sentry standing tall
       for (const mk of meerkats) {
+        if (mk.state === 'caught') continue; // jaws of a snake — the snake steers
+        // snake about? dive for the nearest bolt-hole!
+        if ((mk.state === 'forage' || mk.state === 'sentry') && meerkatHoles.length) {
+          let scary = null, sd = 120 * 120;
+          for (const sn of snakes) {
+            if (sn.state !== 'hunt' && sn.state !== 'slither') continue;
+            const dx = sn.x - mk.x, dy = sn.y - mk.y;
+            const d = dx * dx + dy * dy;
+            if (d < sd) { sd = d; scary = sn; }
+          }
+          if (scary) {
+            const hole = nearestMeerkatHole(mk);
+            if (hole) { mk.state = 'flee'; mk.hole = hole; mk.moving = true; }
+          }
+        }
+        if (mk.state === 'flee') {
+          const hole = mk.hole;
+          if (!hole || !meerkatHoles.includes(hole)) { mk.state = 'forage'; mk.timer = 1; mk.moving = false; }
+          else {
+            mk.heading = Math.atan2(hole.y - mk.y, hole.x - mk.x);
+            const dx = hole.x - mk.x, dy = hole.y - mk.y;
+            if (dx * dx + dy * dy < 10 * 10) {
+              mk.state = 'hide'; mk.timer = 8 + Math.random() * 6; mk.moving = false;
+              mk.x = hole.x; mk.y = hole.y;
+            } else {
+              mk.hop += dt * 14;
+              mk.moving = true;
+              const nx = mk.x + Math.cos(mk.heading) * 110 * dt;
+              if (!solidAt(nx, mk.y) && bunnyGround(nx, mk.y)) mk.x = nx;
+              const ny = mk.y + Math.sin(mk.heading) * 110 * dt;
+              if (!solidAt(mk.x, ny) && bunnyGround(mk.x, ny)) mk.y = ny;
+            }
+          }
+          continue;
+        }
+        if (mk.state === 'hide') {
+          mk.timer -= dt;
+          mk.moving = false;
+          let clear = mk.timer <= 0;
+          if (clear) {
+            for (const sn of snakes) {
+              if (Math.hypot(sn.x - mk.x, sn.y - mk.y) < 140) { clear = false; mk.timer = 3; break; }
+            }
+          }
+          if (clear) { mk.state = 'forage'; mk.timer = 1; }
+          continue;
+        }
         mk.timer -= dt;
         if (mk.state === 'sentry') {
           mk.heading += Math.sin(mk.timer * 1.5) * 0.8 * dt + dt * 0.3;
@@ -2391,15 +2515,8 @@
           mk.hop += dt * 12;
           const mti = tidx(Math.floor(mk.x / TILE), Math.floor(mk.y / TILE));
           if (savannah[mti] !== 1) {
-            const hx = 42 * TILE - mk.x, hy = 198 * TILE - mk.y;
+            const hx = 45 * TILE - mk.x, hy = 200 * TILE - mk.y;
             mk.heading += angDiff(Math.atan2(hy, hx), mk.heading) * 0.08;
-          }
-          // stick near your buddy when you drift apart
-          if (mk.buddy && meerkats.includes(mk.buddy)) {
-            const bdx = mk.buddy.x - mk.x, bdy = mk.buddy.y - mk.y;
-            if (Math.hypot(bdx, bdy) > 45) {
-              mk.heading += angDiff(Math.atan2(bdy, bdx), mk.heading) * 0.1;
-            }
           }
           const nx = mk.x + Math.cos(mk.heading) * 80 * dt;
           if (!solidAt(nx, mk.y) && bunnyGround(nx, mk.y)) mk.x = nx;
@@ -2407,6 +2524,105 @@
           const ny = mk.y + Math.sin(mk.heading) * 80 * dt;
           if (!solidAt(mk.x, ny) && bunnyGround(mk.x, ny)) mk.y = ny;
           else mk.heading -= Math.PI / 2;
+        }
+      }
+      // new meerkats wander in if the snake gets one (the mob holds at 6)
+      meerkatUpT -= dt;
+      if (meerkatUpT <= 0) {
+        meerkatUpT = 30;
+        if (meerkats.length < 6 && meerkatHome) spawnMeerkat(meerkatHome.x, meerkatHome.y);
+      }
+      // rattlesnakes: slither the savannah, nap at home, hunt meerkats
+      for (const sn of snakes) {
+        sn.wig += dt * 9;
+        if (sn.state === 'slither') {
+          sn.timer -= dt; sn.huntCd -= dt; sn.homeT -= dt;
+          if (sn.timer <= 0) {
+            sn.heading += (Math.random() - 0.5) * 2.2;
+            // drift toward the mob's scent so hunts actually happen
+            if (meerkats.length && Math.random() < 0.5) {
+              let nm = null, nd = 1e12;
+              for (const mk of meerkats) {
+                const dx = mk.x - sn.x, dy = mk.y - sn.y;
+                const d = dx * dx + dy * dy;
+                if (d < nd) { nd = d; nm = mk; }
+              }
+              if (nm) sn.heading = Math.atan2(nm.y - sn.y, nm.x - sn.x) + (Math.random() - 0.5) * 0.6;
+            }
+            sn.timer = 0.8 + Math.random() * 1.6;
+            if (sn.huntCd <= 0) {
+              sn.huntCd = 8 + Math.random() * 12;
+              const tgt = nearestMeerkat(sn, 420);
+              if (tgt) { sn.prey = tgt; sn.state = 'hunt'; sn.timer = 10; }
+            } else if (sn.homeT <= 0 && snakeHoles.length) {
+              sn.homeT = 35 + Math.random() * 35;
+              const hole = nearestSnakeHole(sn);
+              if (hole) { sn.tx = hole.x; sn.ty = hole.y; sn.state = 'toHome'; sn.timer = 16; }
+            }
+          }
+          sn.heading += Math.sin(sn.wig * 0.7) * dt * 1.6;
+          const sstep = 55 * dt;
+          const snx = sn.x + Math.cos(sn.heading) * sstep;
+          if (!snakeBlocked(snx, sn.y)) sn.x = snx; else sn.heading += (Math.random() < 0.5 ? 1 : -1) * 1.2;
+          const sny = sn.y + Math.sin(sn.heading) * sstep;
+          if (!snakeBlocked(sn.x, sny)) sn.y = sny; else sn.heading += (Math.random() < 0.5 ? 1 : -1) * 1.2;
+        } else if (sn.state === 'hunt') {
+          const pr = sn.prey;
+          if (!pr || !meerkats.includes(pr) || pr.state === 'hide' || pr.state === 'caught') {
+            sn.prey = null; sn.state = 'slither'; sn.timer = 1 + Math.random() * 2;
+          } else {
+            sn.timer -= dt;
+            sn.heading = Math.atan2(pr.y - sn.y, pr.x - sn.x) + Math.sin(sn.wig) * 0.15;
+            const hdx = pr.x - sn.x, hdy = pr.y - sn.y;
+            if (hdx * hdx + hdy * hdy < 13 * 13) {
+              pr.state = 'caught';
+              sn.biteT = 1.2;
+              sn.state = 'bite';
+            } else {
+              const gstep = 90 * dt;
+              const ggx = sn.x + Math.cos(sn.heading) * gstep;
+              if (!snakeBlocked(ggx, sn.y)) sn.x = ggx;
+              const ggy = sn.y + Math.sin(sn.heading) * gstep;
+              if (!snakeBlocked(sn.x, ggy)) sn.y = ggy;
+              if (sn.timer <= 0) { sn.prey = null; sn.state = 'slither'; sn.timer = 1 + Math.random() * 2; }
+            }
+          }
+        } else if (sn.state === 'bite') {
+          const pb = sn.prey;
+          if (!pb || !meerkats.includes(pb)) { sn.prey = null; sn.state = 'slither'; sn.timer = 1 + Math.random() * 2; }
+          else {
+            sn.biteT -= dt;
+            const hold = Math.max(0, sn.biteT / 1.2);
+            pb.x = sn.x + Math.cos(sn.heading) * 10 * sn.sc + (Math.random() - 0.5) * 6 * hold;
+            pb.y = sn.y + Math.sin(sn.heading) * 10 * sn.sc + (Math.random() - 0.5) * 6 * hold;
+            pb.heading = sn.heading;
+            if (sn.biteT <= 0) {
+              const pi = meerkats.indexOf(pb);
+              if (pi !== -1) meerkats.splice(pi, 1);
+              sn.prey = null;
+              sn.gulpT = 2.5;
+              sn.state = 'gulp';
+            }
+          }
+        } else if (sn.state === 'gulp') {
+          sn.gulpT -= dt;
+          if (sn.gulpT <= 0) { sn.state = 'slither'; sn.timer = 1 + Math.random() * 2; }
+        } else if (sn.state === 'toHome') {
+          sn.timer -= dt;
+          sn.heading = Math.atan2(sn.ty - sn.y, sn.tx - sn.x);
+          const shdx = sn.tx - sn.x, shdy = sn.ty - sn.y;
+          if (shdx * shdx + shdy * shdy < 10 * 10) { sn.state = 'sleep'; sn.timer = 6 + Math.random() * 6; }
+          else {
+            const hstep = 60 * dt;
+            const hhx = sn.x + Math.cos(sn.heading) * hstep;
+            if (!snakeBlocked(hhx, sn.y)) sn.x = hhx;
+            const hhy = sn.y + Math.sin(sn.heading) * hstep;
+            if (!snakeBlocked(sn.x, hhy)) sn.y = hhy;
+            if (sn.timer <= 0) { sn.state = 'slither'; sn.timer = 1 + Math.random() * 2; }
+          }
+        } else { // sleep: curled up in a coil
+          sn.timer -= dt;
+          if (sn.timer <= 0) { sn.state = 'slither'; sn.timer = 1 + Math.random() * 2; }
         }
       }
       // snowy owls: flap+glide over the snow, perch on pines, snatch bunnies
@@ -3420,6 +3636,31 @@
         ctx.arc(x - 9, y - 5, 1.6, 0, Math.PI * 2);
         ctx.fill();
       }
+      // savannah holes: meerkat bolt-holes + snake burrows
+      for (const mh of meerkatHoles) {
+        if (!vis(mh.x, mh.y)) continue;
+        const x = mh.x - camX, y = mh.y - camY;
+        ctx.fillStyle = '#b89a5e';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 11, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(60,40,20,0.9)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 6.5, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (const sh of snakeHoles) {
+        if (!vis(sh.x, sh.y)) continue;
+        const x = sh.x - camX, y = sh.y - camY;
+        ctx.fillStyle = '#a08050';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 12, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(30,20,12,0.92)';
+        ctx.beginPath();
+        ctx.ellipse(x, y, 7, 5.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
       for (const bn of bunnies) {
         if (bn.state === 'inside' || !vis(bn.x, bn.y)) continue;
         const x = bn.x - camX, y = bn.y - camY;
@@ -3734,6 +3975,7 @@
       }
       // meerkats: tan foragers, standing tall on sentry duty
       for (const mk of meerkats) {
+        if (mk.state === 'hide') continue; // tucked away down the bolt-hole
         if (!vis(mk.x, mk.y)) continue;
         const x = mk.x - camX, y = mk.y - camY;
         const sc = mk.sc || 0.9;
@@ -3873,6 +4115,116 @@
           ctx.beginPath();
           ctx.arc(3 - f * 0.4, 5, 1.5, 0, Math.PI * 2);
           ctx.fill();
+        }
+        ctx.restore();
+      }
+      // rattlesnakes: sandy coils with dark diamonds, rattle buzzing on hunts
+      for (const sn of snakes) {
+        if (!vis(sn.x, sn.y)) continue;
+        const x = sn.x - camX, y = sn.y - camY;
+        const sc = sn.sc || 1.2;
+        const moving = sn.state === 'slither' || sn.state === 'hunt';
+        const gulping = sn.state === 'gulp' ? Math.max(0, sn.gulpT / 2.5) : 0;
+        if (sn.state === 'sleep') {
+          const br = 1 + Math.sin(t * 2) * 0.03;
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.scale(br, br);
+          ctx.fillStyle = 'rgba(0,0,0,0.2)';
+          ctx.beginPath();
+          ctx.ellipse(0, 2 * sc, 10 * sc, 6 * sc, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#a8895a';
+          ctx.lineCap = 'round';
+          ctx.lineWidth = 5.5 * sc;
+          ctx.beginPath();
+          ctx.arc(0, 0, 7 * sc, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.lineWidth = 4.5 * sc;
+          ctx.beginPath();
+          ctx.arc(0, 0, 3.5 * sc, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+          ctx.fillStyle = '#97805c';
+          ctx.beginPath();
+          ctx.ellipse(4 * sc, -3 * sc, 4 * sc, 2.8 * sc, 0.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#d9cba8';
+          ctx.beginPath();
+          ctx.ellipse(-5 * sc, 4 * sc, 1.8 * sc, 1.2 * sc, 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          continue;
+        }
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(sn.heading);
+        const NSEG = 8, pts = [];
+        for (let i = 0; i < NSEG; i++) {
+          const back = i * 4.2 * sc;
+          const sway = moving ? Math.sin(sn.wig - i * 0.9) * 2.4 * sc * Math.sin((i / NSEG) * Math.PI) : Math.sin(sn.wig * 0.3 - i) * 0.6 * sc;
+          pts.push([-back, sway]);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(-8 * sc, 2 * sc, 12 * sc, 4 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let s = NSEG - 1; s >= 0; s--) {
+          let wdt = (3.4 - s * 0.28) * sc;
+          if (gulping > 0 && (s === 3 || s === 4)) wdt *= 1 + gulping * 0.7;
+          ctx.fillStyle = '#a8895a';
+          ctx.beginPath();
+          ctx.arc(pts[s][0], pts[s][1], wdt, 0, Math.PI * 2);
+          ctx.fill();
+          if (s % 2 === 0) {
+            ctx.fillStyle = '#6b4f30';
+            ctx.beginPath();
+            ctx.ellipse(pts[s][0], pts[s][1], wdt * 0.55, wdt * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        // rattle buzzing on hunts
+        const tp = pts[NSEG - 1];
+        ctx.fillStyle = '#d9cba8';
+        ctx.beginPath();
+        ctx.ellipse(tp[0] - 2 * sc, tp[1], 1.8 * sc, 1.2 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(tp[0] - 4 * sc, tp[1], 1.4 * sc, 1 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        if (sn.state === 'hunt' || sn.state === 'bite') {
+          ctx.strokeStyle = 'rgba(217,203,168,0.7)';
+          ctx.lineWidth = 1 * sc;
+          ctx.beginPath();
+          ctx.moveTo(tp[0] - 5 * sc, tp[1] - 2 * sc);
+          ctx.lineTo(tp[0] - 8 * sc, tp[1] - 4 * sc);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(tp[0] - 5 * sc, tp[1] + 2 * sc);
+          ctx.lineTo(tp[0] - 8 * sc, tp[1] + 4 * sc);
+          ctx.stroke();
+        }
+        // head with eyes and flicking tongue
+        ctx.fillStyle = '#97805c';
+        ctx.beginPath();
+        ctx.ellipse(4 * sc, 0, 4.5 * sc, 3 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#1a1a1a';
+        ctx.beginPath();
+        ctx.arc(5 * sc, -1.8 * sc, 0.9 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(5 * sc, 1.8 * sc, 0.9 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        const flick = (Math.sin(t * 6.7 + sn.wig) + 1) / 2;
+        if (flick > 0.35) {
+          ctx.strokeStyle = '#c0392b';
+          ctx.lineWidth = 1 * sc;
+          const tl = 2 + flick * 3 * sc;
+          ctx.beginPath();
+          ctx.moveTo(8 * sc, 0);
+          ctx.lineTo(8 * sc + tl, 0);
+          ctx.stroke();
         }
         ctx.restore();
       }
