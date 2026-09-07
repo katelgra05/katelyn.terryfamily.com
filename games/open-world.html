@@ -207,7 +207,7 @@
     let particles = [];
     let mmCanvas = null; // pre-rendered minimap terrain
     const player = { x: 0, y: 0, r: 9, fx: 0, fy: 1, moving: false, running: false, step: 0, vx: 0, vy: 0 };
-    let berries = 0, shroomCount = 0, hidden = false, rippleT = 0, eatCd = 0, shroomCd = 0, duckUpT = 0, fishUpT = 0;
+    let berries = 0, shroomCount = 0, hidden = false, rippleT = 0, eatCd = 0, shroomCd = 0, duckUpT = 0, fishUpT = 0, stuckT = 0;
     let pondUpT = 0, bunnyUpT = 0, hedgeUpT = 0, hogUpT = 0, owlUpT = 0, meerkatUpT = 0;
     const keys = {};
     const touch = { active: false, id: null, sx: 0, sy: 0, dx: 0, dy: 0 };
@@ -1186,7 +1186,7 @@
       player.y = (spawn.y + 0.5) * TILE;
       player.vx = 0; player.vy = 0;
       berries = 0; shroomCount = 0; hidden = false;
-      eatCd = 0; shroomCd = 0; rippleT = 0; duckUpT = 0; fishUpT = 0;
+      eatCd = 0; shroomCd = 0; rippleT = 0; duckUpT = 0; fishUpT = 0; stuckT = 0;
       pondUpT = 0; bunnyUpT = 12; hedgeUpT = 0; hogUpT = 5; owlUpT = 2; meerkatUpT = 20;
       shellRespT = 8;
       particles = [];
@@ -1404,7 +1404,7 @@
             turn: 0, sea: 0, region: r
           });
         }
-        for (let k = dk; k < 2; k++) {
+        for (let k = dk; k < 2 && ducks.length < 50; k++) {
           let placed = false;
           for (let a = 0; a < 10 && !placed; a++) {
             const t = tiles2[(Math.random() * tiles2.length) | 0];
@@ -1592,6 +1592,30 @@
       const ny = player.y + player.vy * dt;
       if (!solidAt(player.x, ny)) player.y = ny;
       else player.vy = 0;
+      // anti-wedge: pushing keys with no motion slides you off the trunk pocket
+      if (player.moving && Math.hypot(player.x - px0, player.y - py0) < 0.5) {
+        stuckT += dt;
+        if (stuckT > 0.4) {
+          const ptx = Math.floor(player.x / TILE), pty = Math.floor(player.y / TILE);
+          let bx = 0, by = 0, bd = 1e12;
+          for (let oy = -1; oy <= 1; oy++) {
+            for (let ox = -1; ox <= 1; ox++) {
+              const key = (ptx + ox) + ',' + (pty + oy);
+              if (!trunkSet.has(key) && !palmSet.has(key) && !stumpSet.has(key)) continue;
+              const cx = (ptx + ox + 0.5) * TILE, cy = (pty + oy + 0.5) * TILE;
+              const dd = Math.hypot(player.x - cx, player.y - cy);
+              if (dd < bd) { bd = dd; bx = player.x - cx; by = player.y - cy; }
+            }
+          }
+          if (bd < 1e12) {
+            const bl = Math.hypot(bx, by) || 1;
+            const qx = player.x + (bx / bl) * 70 * dt;
+            if (!solidAt(qx, player.y)) player.x = qx;
+            const qy = player.y + (by / bl) * 70 * dt;
+            if (!solidAt(player.x, qy)) player.y = qy;
+          }
+        }
+      } else stuckT = 0;
       // wading ripples while actually displacing through open water
       if (wet && Math.hypot(player.x - px0, player.y - py0) > 1) {
         rippleT -= dt;
@@ -1978,6 +2002,8 @@
           }
         }
         if (c.sc >= 1) {
+          if (ducks.length >= 48) { c.sc = 1; }
+          else {
           ducks.push({
             x: c.x, y: c.y, heading: c.heading, speed: 26 + Math.random() * 14,
             timer: 5 + Math.random() * 8, paused: false, sc: 0.9 + Math.random() * 0.3,
@@ -1991,6 +2017,7 @@
           });
           chicks.splice(i, 1);
           continue;
+          }
         }
         if (c.mom) {
           const tx = c.mom.x - Math.cos(c.mom.heading) * 22, ty = c.mom.y - Math.sin(c.mom.heading) * 22;
