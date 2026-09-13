@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160">
+  <defs>
+    <linearGradient id="osea" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a4f9c"/>
+      <stop offset="1" stop-color="#0d2c5e"/>
+    </linearGradient>
+    <radialGradient id="oisle" cx="0.5" cy="0.45" r="0.65">
+      <stop offset="0" stop-color="#4fd07a"/>
+      <stop offset="1" stop-color="#2c8a4a"/>
+    </radialGradient>
+  </defs>
+  <rect width="240" height="160" rx="16" fill="url(#osea)"/>
+  <g stroke="#ffffff" stroke-width="2" opacity="0.4" fill="none">
+    <path d="M28 30 q6 -4 12 0"/>
+    <path d="M200 118 q6 -4 12 0"/>
+    <path d="M40 128 q6 -4 12 0"/>
+  </g>
+  <ellipse cx="120" cy="82" rx="92" ry="60" fill="#f4e285"/>
+  <ellipse cx="120" cy="80" rx="80" ry="50" fill="url(#oisle)"/>
+  <path d="M96 34 C100 52 92 66 98 84 C102 98 96 112 100 128" stroke="#3498db" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <ellipse cx="152" cy="102" rx="17" ry="11" fill="#3498db"/>
+  <g>
+    <circle cx="74" cy="66" r="17" fill="#2f9e63"/>
+    <circle cx="88" cy="60" r="13" fill="#40916c"/>
+    <circle cx="80" cy="63" r="4" fill="#7a4a21"/>
+    <circle cx="158" cy="98" r="19" fill="#2f9e63"/>
+    <circle cx="173" cy="90" r="14" fill="#40916c"/>
+    <circle cx="164" cy="95" r="4.5" fill="#7a4a21"/>
+    <circle cx="150" cy="52" r="14" fill="#2f9e63"/>
+    <circle cx="150" cy="52" r="3.5" fill="#7a4a21"/>
+  </g>
+  <g>
+    <circle cx="105" cy="105" r="11" fill="#35945f"/>
+    <circle cx="101" cy="103" r="2.6" fill="#ff4d6d"/>
+    <circle cx="109" cy="106" r="2.6" fill="#4a90d9"/>
+    <circle cx="105" cy="110" r="2.6" fill="#ff4d6d"/>
+    <circle cx="62" cy="100" r="9" fill="#35945f"/>
+    <circle cx="59" cy="99" r="2.4" fill="#4a90d9"/>
+    <circle cx="65" cy="102" r="2.4" fill="#ff4d6d"/>
+  </g>
+  <g>
+    <circle cx="120" cy="78" r="8" fill="#2196f3" stroke="#0d47a1" stroke-width="2.5"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="900" text-anchor="middle">
+    <text x="208" y="132">🫐</text>
+  </g>
+</svg>
